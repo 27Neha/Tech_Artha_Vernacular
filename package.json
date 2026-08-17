@@ -1,0 +1,19 @@
+{
+  "name": "techartha",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces",
+    "mobile": "npm run start --workspace=mobile",
+    "api": "npm run start:dev --workspace=api",
+    "db:migrate": "npm run db:migrate --workspace=api",
+    "db:seed": "npm run db:seed --workspace=api",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces"
+  }
+}
