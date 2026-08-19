@@ -88,7 +88,8 @@ export default function LoginPage() {
       if (!res.ok) throw new Error(data.message || 'Invalid OTP');
       localStorage.setItem('access_token', data.access_token);
       localStorage.setItem('user_id', data.user?.id ?? '');
-      router.push('/dashboard');
+      // Redirect to profile setup so user can experience the new age and risk flow
+      router.push('/profile-setup');
     } catch (e: any) {
       setError(e.message || 'Invalid OTP. Please try again.');
     } finally {
