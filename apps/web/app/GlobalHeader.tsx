@@ -10,7 +10,7 @@ export default function GlobalHeader() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const showBack = ['/login', '/signup', '/risk', '/goals', '/buckets'].some(p => pathname.startsWith(p));
+  const showBack = pathname !== '/';
   const showProfile = pathname.startsWith('/dashboard');
 
   useEffect(() => {
