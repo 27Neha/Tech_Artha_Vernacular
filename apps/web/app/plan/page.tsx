@@ -23,6 +23,7 @@ function PlanContent() {
   const goal = searchParams.get('goal') ?? 'wealth';
   const bucket = searchParams.get('bucket') ?? 'balanced';
   const [sipDate, setSipDate] = useState(10);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -89,19 +90,58 @@ function PlanContent() {
         </div>
 
         {/* SIP Date */}
-        <h3 className="font-bold text-[var(--dark)] mb-3">Choose SIP Date</h3>
-        <div className="flex gap-3 mb-6 flex-wrap">
-          {SIP_DATES.map((d) => (
-            <button
-              key={d}
-              onClick={() => setSipDate(d)}
-              className={`w-12 h-12 rounded-full font-bold text-base transition-all ${
-                sipDate === d ? 'bg-[var(--primary)] text-white' : 'bg-white border border-gray-200 text-[var(--dark)]'
-              }`}
+        <div className="flex items-center justify-between mb-3 relative">
+          <div className="flex items-center gap-3">
+            <h3 className="font-bold text-[var(--dark)]">Choose SIP Date</h3>
+            <div 
+              onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+              className="rounded-full hover:bg-gray-100 p-1 transition-all cursor-pointer relative"
             >
-              {d}
-            </button>
-          ))}
+              <span className="text-2xl text-[var(--primary)] select-none">📅</span>
+            </div>
+          </div>
+          <span className="bg-indigo-50 text-[var(--primary)] text-xs font-bold px-2 py-1 rounded-md">Every Month</span>
+
+          {/* Custom Calendar Popup */}
+          {isCalendarOpen && (
+            <div className="absolute top-12 left-0 z-50 bg-white shadow-2xl border border-gray-200 rounded-xl p-4 w-72">
+              <div className="grid grid-cols-7 gap-2">
+                {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => {
+                      setSipDate(d);
+                      setIsCalendarOpen(false);
+                    }}
+                    className={`w-8 h-8 flex items-center justify-center text-sm transition-all rounded ${
+                      sipDate === d 
+                        ? 'bg-[var(--dark)] text-white font-bold' 
+                        : 'text-[var(--dark)] hover:bg-gray-100'
+                    }`}
+                  >
+                    {d}
+                  </button>
+                ))}
+                {/* 29, 30, 31 disabled */}
+                {[29, 30, 31].map(d => (
+                  <div key={d} className="w-8 h-8 flex items-center justify-center text-sm text-gray-300 cursor-not-allowed">
+                    {d}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <p className="text-xs text-gray-400 mb-6 leading-relaxed">
+          Tap the calendar icon to pick a date. <strong>Note:</strong> Dates 29, 30, and 31 are disabled to ensure consistency across shorter months like February.
+        </p>
+
+        <div className="bg-[var(--primary-light)] border border-[var(--primary)]/20 rounded-2xl p-5 mb-8 text-center shadow-sm">
+          <p className="text-gray-600 text-sm mb-1">Monthly deduction date selected:</p>
+          <p className="text-[var(--primary)] font-extrabold text-2xl">
+            {sipDate}{[1, 21, 31].includes(sipDate) ? 'st' : [2, 22].includes(sipDate) ? 'nd' : [3, 23].includes(sipDate) ? 'rd' : 'th'} of every month
+          </p>
         </div>
 
         {/* Warning */}

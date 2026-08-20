@@ -144,8 +144,9 @@ export default function RiskPage() {
   const [loading, setLoading] = useState(false);
 
   const q = QUESTIONS[current];
+  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
-  const handleSelect = (score: number) => {
+  const handleSelect = async (score: number) => {
     const newAnswers = [...answers.slice(0, current), score];
     setAnswers(newAnswers);
 
@@ -156,6 +157,21 @@ export default function RiskPage() {
       
       // Calculate total score from the 12 questions
       const totalScore = newAnswers.reduce((a, b) => a + b, 0);
+
+      // Call the backend to actually save the profile so we can use it in buckets!
+      try {
+        const token = localStorage.getItem('access_token');
+        await fetch(`${API_URL}/risk/calculate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({ answers: newAnswers, consent: true })
+        });
+      } catch (err) {
+        console.error('Failed to save risk profile to backend', err);
+      }
       
       router.push(`/risk/result?score=${totalScore}`);
     }

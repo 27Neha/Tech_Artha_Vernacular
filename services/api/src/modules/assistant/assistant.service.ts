@@ -1,16 +1,41 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConsentService } from '../consent/consent.service';
+import { AIProvider } from './ai.provider';
 
 type AssistantReply = { text: string; intent: string; data?: unknown; requiresConfirmation?: boolean; dataStatus?: string };
 
 @Injectable()
 export class AssistantService {
-  constructor(private readonly prisma: PrismaService, private readonly consents: ConsentService) {}
+  constructor(
+    private readonly prisma: PrismaService, 
+    private readonly consents: ConsentService,
+    private readonly ai: AIProvider
+  ) {}
 
   async respond(userId: string, message: string, locale = 'en'): Promise<AssistantReply> {
     const text = message.trim();
     if (!text) return { text: this.copy(locale, 'Ask me about SIPs, goals, expenses, or a financial term.'), intent: 'EMPTY' };
+    
+    // Attempt to gather context for the AI
+    let contextData: any = {};
+    if (await this.consents.hasActiveConsent(userId, 'AI_DATA')) {
+      const portfolio = await this.prisma.portfolio.findUnique({ where: { userId }, include: { holdings: true } });
+      const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+      const expenses = await this.prisma.expense.findMany({ where: { userId, occurredAt: { gte: monthStart } } });
+      contextData = { portfolio, expenses };
+    }
+
+    try {
+      const aiResponseText = await this.ai.chat(text, contextData, locale);
+      return { text: aiResponseText, intent: 'AI_GENERATED', data: contextData };
+    } catch (e) {
+      // Fallback to rule-based logic if Ollama is unavailable
+      return this.ruleBasedFallback(userId, text, locale);
+    }
+  }
+
+  private async ruleBasedFallback(userId: string, text: string, locale: string): Promise<AssistantReply> {
     const lower = text.toLowerCase();
     if (/(invest|redeem|withdraw|buy|sell|change bank|nominee)/.test(lower)) {
       return { text: this.copy(locale, 'I can explain or help you review this action. I cannot execute or approve investments, redemptions, bank changes, KYC changes, nominees, or risk-profile changes. Please review the action in the app and confirm with the required authentication and consent.'), intent: 'SENSITIVE_ACTION', requiresConfirmation: true };

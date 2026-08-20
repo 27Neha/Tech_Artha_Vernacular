@@ -35,6 +35,11 @@ function ResultContent() {
     rotation = 72; // Right side
   }
 
+  // Save the profile to localStorage so the dashboard can access it
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('user_risk_profile', label);
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-white">
       <div className="bg-[var(--primary)] text-white px-6 pt-12 pb-24">

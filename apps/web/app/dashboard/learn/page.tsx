@@ -1,12 +1,13 @@
 'use client';
+import { useRouter } from 'next/navigation';
 
-const ARTICLES = [
-  { icon: '📈', title: 'What is a Mutual Fund?', desc: 'Learn how pooled investments work.', time: '5 min', tag: 'Beginner' },
-  { icon: '💡', title: 'SIP vs Lump Sum', desc: 'Which approach suits you better?', time: '4 min', tag: 'Beginner' },
-  { icon: '🛡️', title: 'Understanding Risk', desc: 'Assess and manage investment risk.', time: '6 min', tag: 'Intermediate' },
-  { icon: '📊', title: 'Reading Fund Performance', desc: 'Understand NAV, returns and more.', time: '7 min', tag: 'Intermediate' },
-  { icon: '🏦', title: 'ELSS Tax Saving Funds', desc: 'Save tax while growing wealth with 80C.', time: '5 min', tag: 'Tax' },
-  { icon: '🌐', title: 'International Funds', desc: 'Invest in global markets from India.', time: '6 min', tag: 'Advanced' },
+export const ARTICLES = [
+  { slug: 'what-is-mutual-fund', icon: '📈', title: 'What is a Mutual Fund?', desc: 'Learn how pooled investments work.', time: '5 min', tag: 'Beginner' },
+  { slug: 'sip-vs-lump-sum', icon: '💡', title: 'SIP vs Lump Sum', desc: 'Which approach suits you better?', time: '4 min', tag: 'Beginner' },
+  { slug: 'understanding-risk', icon: '🛡️', title: 'Understanding Risk', desc: 'Assess and manage investment risk.', time: '6 min', tag: 'Intermediate' },
+  { slug: 'fund-performance', icon: '📊', title: 'Reading Fund Performance', desc: 'Understand NAV, returns and more.', time: '7 min', tag: 'Intermediate' },
+  { slug: 'elss-tax-saving', icon: '💰', title: 'ELSS Tax Saving Funds', desc: 'Save tax while growing wealth with 80C.', time: '5 min', tag: 'Tax' },
+  { slug: 'international-funds', icon: '🌍', title: 'International Funds', desc: 'Invest in global markets from India.', time: '6 min', tag: 'Advanced' },
 ];
 
 const TAG_COLORS: Record<string, string> = {
@@ -17,6 +18,8 @@ const TAG_COLORS: Record<string, string> = {
 };
 
 export default function LearnPage() {
+  const router = useRouter();
+
   return (
     <div className="p-5">
       <h1 className="text-2xl font-extrabold text-[var(--dark)] mt-2">Learn</h1>
@@ -31,7 +34,11 @@ export default function LearnPage() {
       <h2 className="text-lg font-extrabold text-[var(--dark)] mt-6 mb-4">All Articles</h2>
       <div className="flex flex-col gap-3">
         {ARTICLES.map((a) => (
-          <div key={a.title} className="card flex items-center gap-4 cursor-pointer hover:border-[var(--primary)] transition-all">
+          <div 
+            key={a.slug} 
+            onClick={() => router.push(`/dashboard/learn/${a.slug}`)}
+            className="card flex items-center gap-4 cursor-pointer hover:border-[var(--primary)] transition-all"
+          >
             <span className="text-3xl">{a.icon}</span>
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
