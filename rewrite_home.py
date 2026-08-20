@@ -1,4 +1,7 @@
-'use client';
+import re
+
+filepath = 'apps/web/app/dashboard/page.tsx'
+new_code = """'use client';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 
@@ -43,27 +46,40 @@ export default function DashboardPage() {
           <p className="text-gray-500 text-sm font-bold uppercase tracking-wider">Welcome Back</p>
           <h1 className="text-2xl font-extrabold text-[var(--dark)] mt-1">Start Wealth Creation</h1>
         </div>
-        
+        <div className="w-12 h-12 bg-[var(--primary-light)] rounded-full flex items-center justify-center text-[var(--primary)] font-black text-xl">
+          TA
+        </div>
       </div>
 
-      {/* Balance Card */}
-      <div className="bg-[var(--primary)] rounded-3xl p-6 mb-6 text-white shadow-xl shadow-indigo-900/10">
-        <p className="text-[#EBEAF8] text-xs font-bold tracking-widest uppercase">TOTAL INVESTED</p>
-        <p className="text-5xl font-extrabold mt-2">₹9,286</p>
-        <p className="text-[#EBEAF8] text-sm mt-1">This month's SIP · Next: 10th Sep</p>
-        <div className="flex gap-3 mt-4">
+      {/* Hero Banner */}
+      <div className="bg-[var(--primary)] rounded-3xl p-6 mb-6 text-white shadow-xl shadow-indigo-900/10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] relative overflow-hidden">
+        <div className="relative z-10">
+          <h2 className="text-xl font-extrabold mb-2">Build Your Financial Future</h2>
+          <p className="text-[#EBEAF8] text-xs leading-relaxed mb-5 max-w-[250px]">Start a Systematic Investment Plan (SIP) today and let compounding do the heavy lifting for you.</p>
           <button
-            onClick={() => router.push('/funds')}
-            className="bg-white text-[var(--primary)] font-bold text-sm px-5 py-2.5 rounded-xl"
+            onClick={() => router.push('/goals')}
+            className="bg-[var(--orange)] text-white font-bold text-sm px-6 py-3 rounded-xl shadow-md hover:opacity-90"
           >
-            Browse Funds
+            Set a Goal Now
           </button>
-          <button 
-            onClick={() => router.push('/dashboard/analytics')}
-            className="bg-white/20 text-white font-bold text-sm px-5 py-2.5 rounded-xl"
-          >
-            View Details
-          </button>
+        </div>
+        {/* Decorative Circle */}
+        <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-white opacity-10 rounded-full blur-xl"></div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-3 gap-3 mb-8">
+        <div onClick={() => router.push('/risk')} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center cursor-pointer hover:border-[var(--primary)]">
+          <span className="text-2xl mb-2">🎯</span>
+          <span className="text-[10px] font-bold text-center text-[var(--dark)]">Risk Check</span>
+        </div>
+        <div onClick={() => router.push('/buckets')} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center cursor-pointer hover:border-[var(--primary)]">
+          <span className="text-2xl mb-2">🧺</span>
+          <span className="text-[10px] font-bold text-center text-[var(--dark)]">Buckets</span>
+        </div>
+        <div onClick={() => router.push('/funds')} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center cursor-pointer hover:border-[var(--primary)]">
+          <span className="text-2xl mb-2">🔍</span>
+          <span className="text-[10px] font-bold text-center text-[var(--dark)]">Search</span>
         </div>
       </div>
 
@@ -128,3 +144,9 @@ export default function DashboardPage() {
     </div>
   );
 }
+"""
+
+with open(filepath, 'w', encoding='utf-8') as f:
+    f.write(new_code)
+
+print("Rewrote home page!")

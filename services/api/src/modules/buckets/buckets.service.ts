@@ -23,7 +23,7 @@ export class BucketsService {
     // For each bucket, we can fetch recommendations and fund details
     const result = await Promise.all(filteredBuckets.map(async (bucket) => {
       const schemeCodes = await this.recommendationEngine.getRecommendations({
-        riskProfile: category,
+        riskProfile: bucket.eligibleFor[0],
         horizon: bucket.horizon,
       });
 
@@ -43,8 +43,13 @@ export class BucketsService {
         }
       }));
 
+            let bucketRiskLevel = 'Moderate';
+      if (bucket.id === 'stable') bucketRiskLevel = 'Conservative';
+      if (bucket.id === 'growth') bucketRiskLevel = 'Aggressive';
+
       return {
         ...bucket,
+        bucketRiskLevel,
         recommendedFunds: funds,
       };
     }));

@@ -65,7 +65,14 @@ function BucketsContent() {
                   Recommended
                 </span>
               )}
-              <h3 className="font-bold text-lg text-[var(--dark)] mb-1">{b.name}</h3>
+                            <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-bold text-lg text-[var(--dark)]">{b.name}</h3>
+                {b.bucketRiskLevel && (
+                  <span className="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                    {b.bucketRiskLevel}
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-gray-500 mb-3">{b.explanation}</p>
               
               <div className="bg-gray-50 rounded-lg p-3 mb-4">

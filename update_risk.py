@@ -1,143 +1,11 @@
-'use client';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import re
 
-const QUESTIONS = [
-  {
-    id: 1,
-    question: "Current market value of net worth (Assets - Liabilities)",
-    options: [
-      { label: "Negative/0", score: 1 },
-      { label: "< 10L", score: 2 },
-      { label: "10L-50L", score: 3 },
-      { label: "> 50L", score: 4 },
-      { label: "> 1Cr", score: 5 },
-    ],
-  },
-  {
-    id: 2,
-    question: "How familiar are you with financial markets?",
-    options: [
-      { label: "Not at all", score: 1 },
-      { label: "Somewhat", score: 2 },
-      { label: "Good", score: 3 },
-      { label: "Very familiar", score: 4 },
-      { label: "Expert", score: 5 },
-    ],
-  },
-  {
-    id: 3,
-    question: "Describe your risk range (losses vs profits)",
-    options: [
-      { label: "Hate losses", score: 1 },
-      { label: "Accept small losses for small gains", score: 2 },
-      { label: "Accept moderate", score: 3 },
-      { label: "Accept high for high gains", score: 4 },
-      { label: "Maximum risk", score: 5 },
-    ],
-  },
-  {
-    id: 4,
-    question: "Reaction if portfolio drops 20%",
-    options: [
-      { label: "Sell all", score: 1 },
-      { label: "Sell some", score: 2 },
-      { label: "Do nothing", score: 3 },
-      { label: "Buy more", score: 4 },
-      { label: "Buy aggressively", score: 5 },
-    ],
-  },
-  {
-    id: 5,
-    question: "Desired balance (Volatility vs Returns)",
-    options: [
-      { label: "100% stable", score: 1 },
-      { label: "Mostly stable", score: 2 },
-      { label: "Balanced", score: 3 },
-      { label: "Mostly volatile", score: 4 },
-      { label: "100% volatile", score: 5 },
-    ],
-  },
-  {
-    id: 6,
-    question: "Current and future income stability",
-    options: [
-      { label: "Very unstable", score: 1 },
-      { label: "Unstable", score: 2 },
-      { label: "Stable", score: 3 },
-      { label: "Very stable", score: 4 },
-      { label: "Guaranteed", score: 5 },
-    ],
-  },
-  {
-    id: 7,
-    question: "Preferred investment objective",
-    options: [
-      { label: "Preserve capital", score: 1 },
-      { label: "Regular income", score: 2 },
-      { label: "Balanced growth", score: 3 },
-      { label: "High growth", score: 4 },
-      { label: "Maximum speculation", score: 5 },
-    ],
-  },
-  {
-    id: 8,
-    question: "Years away is your nearest goal?",
-    options: [
-      { label: "< 1 yr", score: 1 },
-      { label: "1-3 yrs", score: 2 },
-      { label: "3-5 yrs", score: 3 },
-      { label: "5-10 yrs", score: 4 },
-      { label: "> 10 yrs", score: 5 },
-    ],
-  },
-  {
-    id: 9,
-    question: "How long will you hold a poorly performing portfolio?",
-    options: [
-      { label: "< 3 months", score: 1 },
-      { label: "3-6 months", score: 2 },
-      { label: "6-12 months", score: 3 },
-      { label: "1-3 years", score: 4 },
-      { label: "> 3 years", score: 5 },
-    ],
-  },
-  {
-    id: 10,
-    question: "Percentage of net worth you plan to invest",
-    options: [
-      { label: "< 10%", score: 1 },
-      { label: "10-25%", score: 2 },
-      { label: "25-50%", score: 3 },
-      { label: "50-75%", score: 4 },
-      { label: "> 75%", score: 5 },
-    ],
-  },
-  {
-    id: 11,
-    question: "Ability to save money consistently",
-    options: [
-      { label: "Very poor", score: 1 },
-      { label: "Poor", score: 2 },
-      { label: "Average", score: 3 },
-      { label: "Good", score: 4 },
-      { label: "Excellent", score: 5 },
-    ],
-  },
-  {
-    id: 12,
-    question: "What is your overall attitude towards the stock market?",
-    options: [
-      { label: "It is a casino, highly dangerous", score: 1 },
-      { label: "A place for experts only", score: 2 },
-      { label: "A good place to invest, with some caution", score: 3 },
-      { label: "An excellent wealth-building opportunity", score: 4 },
-      { label: "The only place to beat inflation and maximize returns", score: 5 },
-    ],
-  }
-];
+filepath = 'apps/web/app/risk/page.tsx'
+with open(filepath, 'r', encoding='utf-8') as f:
+    code = f.read()
 
-export default function RiskPage() {
+# We will completely replace the RiskPage component
+new_component = """export default function RiskPage() {
   const router = useRouter();
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<number[]>([]);
@@ -208,9 +76,9 @@ export default function RiskPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
+    <div className="flex flex-col min-h-screen bg-white pb-24">
       {/* Header - Removed custom back button to fix double arrow issue */}
-      <div className="bg-[var(--primary)] text-white px-6 pt-12 pb-8">
+      <div className="bg-[var(--primary)] text-white px-6 pt-6 pb-8">
         <div className="flex items-center gap-4 mb-4">
           <div className="flex-1 flex justify-between items-center">
             <h1 className="text-lg font-bold">Risk Assessment</h1>
@@ -263,15 +131,15 @@ export default function RiskPage() {
         </div>
       </div>
 
-      {/* Bottom Actions - Normal Flow */}
-      <div className="p-6 pt-2 flex flex-col gap-3 mt-auto">
+      {/* Sticky Bottom Actions */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex flex-col gap-3">
         <div className="flex gap-3">
           {current > 0 && (
             <button 
               onClick={handlePrevious}
               className="px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl"
             >
-              Back
+              Previous
             </button>
           )}
           <button 
@@ -283,10 +151,23 @@ export default function RiskPage() {
                 : 'bg-gray-200 text-gray-400 cursor-not-allowed'
             }`}
           >
-            {current === QUESTIONS.length - 1 ? 'Finish & Save' : 'Next'}
+            {current === QUESTIONS.length - 1 ? 'Finish' : 'Save & Next'}
           </button>
         </div>
+        <button 
+          onClick={handleSaveAndExit}
+          className="w-full py-2 text-[var(--primary)] font-bold text-sm bg-transparent"
+        >
+          Save & Exit
+        </button>
       </div>
     </div>
   );
-}
+}"""
+
+code = re.sub(r'export default function RiskPage\(\) \{.*', new_component, code, flags=re.DOTALL)
+
+with open(filepath, 'w', encoding='utf-8') as f:
+    f.write(code)
+
+print("Updated Risk Page with Save & Next / Exit buttons and fixed double arrows!")

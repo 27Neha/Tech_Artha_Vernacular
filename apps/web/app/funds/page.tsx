@@ -11,6 +11,7 @@ export default function FundsPage() {
   const [funds, setFunds] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [recommended, setRecommended] = useState<any[]>([]);
+  const [allBuckets, setAllBuckets] = useState<any[]>([]);
 
   useEffect(() => {
     // Fetch user's recommended funds from the buckets API to replace hardcoded chips
@@ -24,12 +25,40 @@ export default function FundsPage() {
         if (recBucket?.recommendedFunds) {
           setRecommended(recBucket.recommendedFunds);
         }
+        setAllBuckets(data.buckets || []);
       } catch (e) {
         console.error(e);
       }
     };
     fetchRecs();
   }, []);
+
+  const [filteredFunds, setFilteredFunds] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchFiltered = async (cat: string) => {
+      setLoading(true);
+      try {
+        const res = await fetch(`${API_URL}/funds/search?q=${cat}`);
+        const data = await res.json();
+        setFilteredFunds(data?.items?.slice(0, 10) || []);
+      } catch (e) {
+        setFilteredFunds([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (!riskFilter) {
+      setFilteredFunds([]);
+    } else if (riskFilter === 'Conservative') {
+      fetchFiltered('Debt');
+    } else if (riskFilter === 'Moderate') {
+      fetchFiltered('Hybrid');
+    } else if (riskFilter === 'Aggressive') {
+      fetchFiltered('Equity');
+    }
+  }, [riskFilter]);
 
   const search = async (q: string) => {
     if (!q.trim()) { setFunds([]); return; }
@@ -90,10 +119,48 @@ export default function FundsPage() {
       <div className="flex-1 p-5">
         {!query && (
           <div className="mt-4">
-            <h3 className="font-extrabold text-[var(--dark)] mb-4 text-lg">Recommended For You</h3>
-            {recommended.length > 0 ? (
+            <h3 className="font-extrabold text-[var(--dark)] mb-4 text-lg">
+              {riskFilter ? `${riskFilter} Funds` : 'Recommended For You'}
+            </h3>
+            
+            {riskFilter && !loading && filteredFunds.length > 0 && (
+              <div className="flex flex-col gap-3 mt-2">
+                <p className="text-xs text-gray-500 mb-2">Showing top {riskFilter.toLowerCase()} funds from MFAPI:</p>
+                {filteredFunds.map((f: any, i: number) => (
+                  <div key={i} className="card bg-white hover:border-[var(--primary)] cursor-pointer transition-all shadow-sm border border-gray-100 p-4 rounded-xl" onClick={() => router.push(`/funds/${f.schemeCode}`)}>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 pr-4 min-w-0">
+                        <p className="font-bold text-[var(--dark)] text-sm leading-tight truncate">{f.schemeName}</p>
+                        <p className="text-gray-400 text-xs mt-1">Scheme Code: {f.schemeCode}</p>
+                      </div>
+                      <div className="text-right flex items-center h-full">
+                        <span className="text-[var(--primary)] text-xl font-bold">→</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!riskFilter && recommended.length > 0 ? (
               <div className="flex flex-col gap-3">
-                <p className="text-xs text-gray-500 mb-2">Based on your risk profile and horizon:</p>
+                                <div className="flex flex-col gap-2 mb-4">
+                  <p className="text-xs text-gray-500">Based on your current profile and goals:</p>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => router.push('/risk')} 
+                      className="text-xs bg-gray-100 text-gray-600 font-bold px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors"
+                    >
+                      Re - Risk profiling
+                    </button>
+                    <button 
+                      onClick={() => router.push('/goals')} 
+                      className="text-xs bg-gray-100 text-gray-600 font-bold px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors"
+                    >
+                      Set New Goal
+                    </button>
+                  </div>
+                </div>
                 {recommended.map((f: any, i: number) => (
                   <div key={i} className="card bg-white hover:border-[var(--primary)] cursor-pointer transition-all shadow-sm border border-gray-100 p-4 rounded-xl" onClick={() => router.push(`/funds/${f.schemeCode}`)}>
                     <div className="flex items-start justify-between">
