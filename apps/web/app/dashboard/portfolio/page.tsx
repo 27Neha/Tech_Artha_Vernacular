@@ -5,15 +5,18 @@ import { useRouter } from 'next/navigation';
 const HOLDINGS = [
   {
     name: 'Stable Income Fund',
-    type: 'SIP ₹1,000/MO',
+    category: 'Debt - Liquid',
+    folio: '1092837410',
+    type: 'SIP ₹11,000/MO',
     typeColor: 'text-blue-600 bg-blue-50',
-    current: '₹4,320',
+    current: '₹14,320',
     returns: '+8.0%',
-    invested: '₹4,000',
+    xirr: '8.4%',
+    invested: '₹14,000',
     units: '25.5',
-    nav: '₹169.41',
+    nav: '₹1169.41',
     navDate: '12 Aug 2026',
-    sipAmount: '₹1,000',
+    sipAmount: '₹11,000',
     nextSip: '10 Sep 2026',
     risk: 'Low to Moderate',
     plan: 'Direct • Growth',
@@ -21,15 +24,18 @@ const HOLDINGS = [
   },
   {
     name: 'Multi-Cap Growth Fund',
-    type: 'SIP ₹1,000/MO',
+    category: 'Equity - Flexi Cap',
+    folio: '9283749281',
+    type: 'SIP ₹11,000/MO',
     typeColor: 'text-teal-600 bg-teal-50',
-    current: '₹3,940',
+    current: '₹13,940',
     returns: '+19.9%',
-    invested: '₹3,286',
+    xirr: '24.2%',
+    invested: '₹13,286',
     units: '15.3',
-    nav: '₹257.51',
+    nav: '₹1257.51',
     navDate: '12 Aug 2026',
-    sipAmount: '₹1,000',
+    sipAmount: '₹11,000',
     nextSip: '10 Sep 2026',
     risk: 'Very High',
     plan: 'Direct • Growth',
@@ -37,13 +43,16 @@ const HOLDINGS = [
   },
   {
     name: 'Liquid Safety Fund',
+    category: 'Debt - Overnight',
+    folio: '1129384756',
     type: 'LUMP SUM',
     typeColor: 'text-purple-600 bg-purple-50',
-    current: '₹2,177',
+    current: '₹12,177',
     returns: '+8.8%',
-    invested: '₹2,000',
+    xirr: '7.1%',
+    invested: '₹12,000',
     units: '66.2',
-    nav: '₹32.88',
+    nav: '₹132.88',
     navDate: '12 Aug 2026',
     sipAmount: '-',
     nextSip: '-',
@@ -62,8 +71,8 @@ const TRANSACTIONS = [
 ];
 
 const SIPS = [
-  { fund: 'Multi-Cap Growth Fund', amount: '₹1,000', freq: 'Monthly', nextDate: '10 Sep 2026', startDate: '10 May 2026', completed: 4, status: 'Active', goal: 'Wealth Creation' },
-  { fund: 'Stable Income Fund', amount: '₹1,000', freq: 'Monthly', nextDate: '10 Sep 2026', startDate: '10 May 2026', completed: 4, status: 'Active', goal: 'Wealth Creation' }
+  { fund: 'Multi-Cap Growth Fund', folio: '9283749281', bank: 'HDFC Bank ending in 1234', amount: '₹11,000', freq: 'Monthly', nextDate: '10 Sep 2026', startDate: '10 May 2026', completed: 4, status: 'Active', goal: 'Wealth Creation' },
+  { fund: 'Stable Income Fund', folio: '1092837410', bank: 'HDFC Bank ending in 1234', amount: '₹11,000', freq: 'Monthly', nextDate: '10 Sep 2026', startDate: '10 May 2026', completed: 4, status: 'Active', goal: 'Wealth Creation' }
 ];
 
 const downloadRealPDF = async (title: string) => {
@@ -309,6 +318,9 @@ export default function FullPortfolioPage() {
                 <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs mb-4">
                   <div><span className="text-gray-400 block text-[10px]">Invested Amount</span><span className="font-bold text-[var(--dark)]">{h.invested}</span></div>
                   <div><span className="text-gray-400 block text-[10px]">Gain/Loss</span><span className="font-bold text-green-500">+₹{parseInt(h.current.replace(/\D/g, '')) - parseInt(h.invested.replace(/\D/g, ''))}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">XIRR</span><span className="font-bold text-green-600">{h.xirr}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">Category</span><span className="font-bold text-[var(--dark)]">{h.category}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">Folio Number</span><span className="font-bold text-[var(--dark)]">{h.folio}</span></div>
                   <div><span className="text-gray-400 block text-[10px]">Units</span><span className="font-bold text-[var(--dark)]">{h.units}</span></div>
                   <div><span className="text-gray-400 block text-[10px]">NAV <span className="font-normal">({h.navDate})</span></span><span className="font-bold text-[var(--dark)]">{h.nav}</span></div>
                   <div><span className="text-gray-400 block text-[10px]">Next SIP Date</span><span className="font-bold text-[var(--dark)]">{h.nextSip}</span></div>
@@ -361,6 +373,8 @@ export default function FullPortfolioPage() {
                 </div>
                 
                 <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs mb-5">
+                  <div><span className="text-gray-400 block text-[10px]">Folio Number</span><span className="font-bold text-[var(--dark)]">{sip.folio}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">AutoPay Bank</span><span className="font-bold text-[var(--dark)]">{sip.bank}</span></div>
                   <div><span className="text-gray-400 block text-[10px]">SIP Amount</span><span className="font-bold text-[var(--dark)]">{sip.amount}</span></div>
                   <div><span className="text-gray-400 block text-[10px]">Frequency</span><span className="font-bold text-[var(--dark)]">{sip.freq}</span></div>
                   <div><span className="text-gray-400 block text-[10px]">Next Date</span><span className="font-bold text-[var(--dark)]">{sip.nextDate}</span></div>
