@@ -1,7 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 
-export const ARTICLES = [
+const ARTICLES = [
   { slug: 'what-is-mutual-fund', icon: '📈', title: 'What is a Mutual Fund?', desc: 'Learn how pooled investments work.', time: '5 min', tag: 'Beginner' },
   { slug: 'sip-vs-lump-sum', icon: '💡', title: 'SIP vs Lump Sum', desc: 'Which approach suits you better?', time: '4 min', tag: 'Beginner' },
   { slug: 'understanding-risk', icon: '🛡️', title: 'Understanding Risk', desc: 'Assess and manage investment risk.', time: '6 min', tag: 'Intermediate' },

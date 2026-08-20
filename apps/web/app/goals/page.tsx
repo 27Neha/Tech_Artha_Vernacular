@@ -8,7 +8,7 @@ const GOALS = [
   { id: 'home', icon: '🏠', name: 'Home' },
   { id: 'retirement', icon: '🌴', name: 'Retirement' },
   { id: 'vehicle', icon: '🚗', name: 'Vehicle' },
-  { id: 'emergency', icon: '🛡️', name: 'Emergency Fund' },
+  { id: 'emergency', icon: '🏥', name: 'Emergency Fund' },
   { id: 'wealth', icon: '📈', name: 'Wealth Creation' },
   { id: 'custom', icon: '🎯', name: 'Custom Goal' },
 ];
@@ -21,7 +21,7 @@ export default function GoalsPage() {
     <div className="flex flex-col min-h-screen">
       {/* Header */}
       <div className="bg-[var(--primary)] text-white px-6 pt-12 pb-10">
-        <button onClick={() => router.back()} className="text-3xl mb-4 opacity-80">‹</button>
+        
         <h1 className="text-2xl font-extrabold">What's your financial goal?</h1>
         <p className="text-white/80 text-sm mt-2">We'll recommend the best funds tailored to your goal.</p>
       </div>

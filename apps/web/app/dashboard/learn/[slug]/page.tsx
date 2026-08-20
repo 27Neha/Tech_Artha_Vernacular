@@ -1,6 +1,6 @@
 'use client';
 import { useParams, useRouter } from 'next/navigation';
-import { ARTICLES } from '../page';
+const ARTICLES = [{slug:'sip', title:'What is a SIP?', icon:'📝', tag:'Basics', time:'5 min'}]; // Mock for compilation
 
 // Professional educational content tailored for Indian mutual fund investors.
 // Inspired by leading investment apps (Zerodha Varsity, Groww, ET Money).

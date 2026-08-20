@@ -2,78 +2,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const HOLDINGS = [
-  {
-    name: 'Stable Income Fund',
-    category: 'Debt - Liquid',
-    folio: '1092837410',
-    type: 'SIP ₹11,000/MO',
-    typeColor: 'text-blue-600 bg-blue-50',
-    current: '₹14,320',
-    returns: '+8.0%',
-    xirr: '8.4%',
-    invested: '₹14,000',
-    units: '25.5',
-    nav: '₹1169.41',
-    navDate: '12 Aug 2026',
-    sipAmount: '₹11,000',
-    nextSip: '10 Sep 2026',
-    risk: 'Low to Moderate',
-    plan: 'Direct • Growth',
-    goal: 'Wealth Creation'
-  },
-  {
-    name: 'Multi-Cap Growth Fund',
-    category: 'Equity - Flexi Cap',
-    folio: '9283749281',
-    type: 'SIP ₹11,000/MO',
-    typeColor: 'text-teal-600 bg-teal-50',
-    current: '₹13,940',
-    returns: '+19.9%',
-    xirr: '24.2%',
-    invested: '₹13,286',
-    units: '15.3',
-    nav: '₹1257.51',
-    navDate: '12 Aug 2026',
-    sipAmount: '₹11,000',
-    nextSip: '10 Sep 2026',
-    risk: 'Very High',
-    plan: 'Direct • Growth',
-    goal: 'Wealth Creation'
-  },
-  {
-    name: 'Liquid Safety Fund',
-    category: 'Debt - Overnight',
-    folio: '1129384756',
-    type: 'LUMP SUM',
-    typeColor: 'text-purple-600 bg-purple-50',
-    current: '₹12,177',
-    returns: '+8.8%',
-    xirr: '7.1%',
-    invested: '₹12,000',
-    units: '66.2',
-    nav: '₹132.88',
-    navDate: '12 Aug 2026',
-    sipAmount: '-',
-    nextSip: '-',
-    risk: 'Low',
-    plan: 'Direct • Growth',
-    goal: 'Emergency Fund'
-  }
-];
+const HOLDINGS: any[] = []; // REAL DATA REQUIREMENT: Fetch from backend
 
-const TRANSACTIONS = [
-  { name: 'Multi-Cap Growth Fund', date: '10 Aug 2026', type: 'SIP', amount: '₹1,000', units: '+3.88', nav: '₹257.51', status: 'Successful', ref: 'BSE1294821' },
-  { name: 'Stable Income Fund', date: '10 Aug 2026', type: 'SIP', amount: '₹1,000', units: '+5.90', nav: '₹169.41', status: 'Successful', ref: 'BSE1294822' },
-  { name: 'Multi-Cap Growth Fund', date: '10 Jul 2026', type: 'SIP', amount: '₹1,000', units: '+3.95', nav: '₹253.11', status: 'Successful', ref: 'BSE1194821' },
-  { name: 'Stable Income Fund', date: '10 Jul 2026', type: 'SIP', amount: '₹1,000', units: '+5.95', nav: '₹168.01', status: 'Successful', ref: 'BSE1194822' },
-  { name: 'Liquid Safety Fund', date: '15 Jun 2026', type: 'Lumpsum', amount: '₹2,000', units: '+66.2', nav: '₹30.21', status: 'Successful', ref: 'BSE0094821' },
-];
+const TRANSACTIONS: any[] = []; // REAL DATA REQUIREMENT: Fetch from backend
 
-const SIPS = [
-  { fund: 'Multi-Cap Growth Fund', folio: '9283749281', bank: 'HDFC Bank ending in 1234', amount: '₹11,000', freq: 'Monthly', nextDate: '10 Sep 2026', startDate: '10 May 2026', completed: 4, status: 'Active', goal: 'Wealth Creation' },
-  { fund: 'Stable Income Fund', folio: '1092837410', bank: 'HDFC Bank ending in 1234', amount: '₹11,000', freq: 'Monthly', nextDate: '10 Sep 2026', startDate: '10 May 2026', completed: 4, status: 'Active', goal: 'Wealth Creation' }
-];
+const SIPS: any[] = []; // REAL DATA REQUIREMENT: Fetch from backend
 
 const downloadRealPDF = async (title: string) => {
   try {
@@ -227,18 +160,15 @@ export default function FullPortfolioPage() {
         {/* 1. OVERVIEW TAB */}
         {tab === 'overview' && (
           <div className="flex flex-col gap-5">
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 grid grid-cols-2 gap-y-6 gap-x-4">
-              <div><p className="text-gray-400 text-xs font-bold mb-1">Total Invested</p><p className="text-[var(--dark)] font-extrabold text-base">₹9,286</p></div>
-              <div><p className="text-gray-400 text-xs font-bold mb-1">Current Value</p><p className="text-[var(--dark)] font-extrabold text-base">₹10,437</p></div>
-              <div><p className="text-gray-400 text-xs font-bold mb-1">Absolute Gain</p><p className="text-green-500 font-extrabold text-base">+₹1,151</p></div>
-              <div><p className="text-gray-400 text-xs font-bold mb-1">Return %</p><p className="text-green-500 font-extrabold text-base">+12.4%</p></div>
-              <div><p className="text-gray-400 text-xs font-bold mb-1">XIRR</p><p className="text-green-500 font-extrabold text-base">+14.2%</p></div>
-              <div><p className="text-gray-400 text-xs font-bold mb-1">Number of Funds</p><p className="text-[var(--dark)] font-extrabold text-base">3</p></div>
-              <div><p className="text-gray-400 text-xs font-bold mb-1">Active SIPs</p><p className="text-[var(--dark)] font-extrabold text-base">2</p></div>
-              <div><p className="text-gray-400 text-xs font-bold mb-1">Linked Goals</p><p className="text-[var(--dark)] font-extrabold text-base">2</p></div>
+            {/* Real Data Requirement: Wait for actual portfolio calculations */}
+            <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-2xl mb-4">📊</div>
+              <h3 className="font-extrabold text-[var(--dark)] mb-2">No Portfolio History</h3>
+              <p className="text-gray-400 text-xs max-w-[250px]">Your portfolio overview will appear here once you make your first investment and the provider confirms it.</p>
+              <button onClick={() => router.push('/buckets')} className="mt-6 text-xs font-bold text-white bg-[var(--primary)] px-6 py-3 rounded-xl shadow-md cursor-pointer hover:opacity-90">Explore Funds</button>
             </div>
-
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            
+            <div className="hidden">
               <h3 className="font-extrabold text-[var(--dark)] mb-4">Detailed Allocation</h3>
               <div className="flex justify-between text-xs font-bold text-gray-500 border-b pb-2 mb-2"><span className="w-1/2">Asset Class</span><span>Amount</span><span>%</span></div>
               <div className="flex justify-between text-xs font-bold text-[var(--dark)] py-1.5"><span className="w-1/2">Equity</span><span>₹6,784</span><span className="text-[var(--primary)]">65%</span></div>
@@ -300,9 +230,16 @@ export default function FullPortfolioPage() {
         )}
 
         {/* 2. HOLDINGS TAB */}
-        {tab === 'holdings' && (
+                {tab === 'holdings' && (
           <div className="flex flex-col gap-4">
-            {HOLDINGS.map((h) => (
+            {HOLDINGS.length === 0 ? (
+              <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 flex flex-col items-center text-center">
+                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-2xl mb-4">💼</div>
+                <h3 className="font-extrabold text-[var(--dark)] mb-2">No Holdings Yet</h3>
+                <p className="text-gray-400 text-xs max-w-[250px]">Your active investments will appear here.</p>
+                <button onClick={() => router.push('/buckets')} className="mt-6 text-xs font-bold text-white bg-[var(--primary)] px-6 py-3 rounded-xl shadow-md cursor-pointer">Explore Funds</button>
+              </div>
+            ) : HOLDINGS.map((h) => (
               <div key={h.name} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
                 <div className="flex justify-between items-start mb-4">
                   <div>

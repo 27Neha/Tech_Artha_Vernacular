@@ -1,7 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
-import { useTranslation } from '../../../../TranslationProvider';
+import { useTranslation } from '../../../TranslationProvider';
 
 type Message = { id: string; sender: 'user' | 'ai'; text: string; isError?: boolean };
 

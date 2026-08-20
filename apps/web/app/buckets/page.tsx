@@ -12,46 +12,102 @@ function BucketsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const goal = searchParams.get('goal') ?? 'wealth';
-  const [recommended, setRecommended] = useState('balanced');
+  
+  const [buckets, setBuckets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const riskCat = localStorage.getItem('risk_category') || 'MODERATE';
-    if (riskCat === 'CONSERVATIVE') setRecommended('stable');
-    else if (riskCat === 'AGGRESSIVE') setRecommended('high');
-    else setRecommended('balanced');
+    const fetchBuckets = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000'}/buckets`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        setBuckets(data.buckets || []);
+      } catch {
+        console.error("Failed to fetch buckets");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBuckets();
   }, []);
 
   return (
     <div className="flex flex-col min-h-screen p-6 bg-white">
-      <div className="flex items-center justify-between py-5 mb-4">
-        <button onClick={() => router.back()} className="text-4xl text-[var(--dark)] leading-none">‹</button>
+                  <div className="flex items-center justify-between py-5 mb-4">
+        <div 
+          onClick={() => router.push('/funds')}
+          className="w-full flex items-center gap-2 bg-gray-100 rounded-xl px-4 py-3 cursor-pointer hover:bg-gray-200 transition-all shadow-inner"
+        >
+          <span className="text-gray-400 text-lg">🔍</span>
+          <span className="text-gray-400 font-bold">Search for specific mutual funds...</span>
+        </div>
       </div>
 
       <h1 className="text-3xl font-extrabold text-[var(--dark)] mb-2">Choose your Bucket</h1>
       <p className="text-gray-500 mb-8">Based on your profile, here are the investment buckets available for you.</p>
 
-      <div className="flex flex-col gap-5">
-        {BUCKETS.map(b => (
-          <button
-            key={b.id}
-            onClick={() => router.push(`/plan?goal=${goal}&bucket=${b.id}`)}
-            className={`p-5 rounded-2xl border-2 transition-all text-left relative ${
-              recommended === b.id ? 'border-[var(--primary)] shadow-md' : 'border-gray-100 hover:border-[var(--primary-light)]'
-            }`}
-          >
-            {recommended === b.id && (
-              <span className="absolute -top-3 left-4 bg-[var(--orange)] text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">
-                Recommended
-              </span>
-            )}
-            <h3 className="font-bold text-lg text-[var(--dark)] mb-1">{b.name}</h3>
-            <p className="text-sm text-gray-500 mb-3">{b.desc}</p>
-            <span className={`text-xs font-bold px-3 py-1 rounded-full border ${b.color}`}>
-              {b.risk}
-            </span>
-          </button>
-        ))}
-      </div>
+      {loading ? (
+        <div className="flex justify-center mt-12"><div className="w-10 h-10 rounded-full border-4 border-[var(--primary)] border-t-transparent animate-spin" /></div>
+      ) : (
+        <div className="flex flex-col gap-5">
+          {Array.isArray(buckets) && buckets.map(b => (
+            <div
+              key={b.id}
+              className={`p-5 rounded-2xl border-2 transition-all text-left relative ${
+                b.recommended ? 'border-[var(--primary)] shadow-md' : 'border-gray-100 hover:border-[var(--primary-light)]'
+              }`}
+            >
+              {b.recommended && (
+                <span className="absolute -top-3 left-4 bg-[var(--orange)] text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">
+                  Recommended
+                </span>
+              )}
+              <h3 className="font-bold text-lg text-[var(--dark)] mb-1">{b.name}</h3>
+              <p className="text-sm text-gray-500 mb-3">{b.explanation}</p>
+              
+              <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                 <p className="text-xs font-bold text-gray-500 uppercase mb-2">Recommended Funds</p>
+                 {b.recommendedFunds?.map((f: any) => (
+                   <div key={f.schemeCode} className="flex justify-between items-center py-2 border-b border-gray-200 last:border-0 cursor-pointer hover:text-[var(--primary)]" onClick={() => router.push(`/funds/${f.schemeCode}`)}>
+                      <div className="flex-1 pr-2 min-w-0">
+                        <p className="text-sm font-bold truncate">{f.name}</p>
+                        <p className="text-xs text-gray-400 truncate">{f.category}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0 pl-2">
+                        <p className="text-sm font-bold text-[var(--primary)]">₹{f.nav ? parseFloat(f.nav).toFixed(2) : 'N/A'}</p>
+                        <p className="text-[10px] text-gray-400">{f.navDate}</p>
+                      </div>
+                   </div>
+                 ))}
+              </div>
+
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => {
+                    const customFunds = (b.recommendedFunds || []).map((f: any) => ({
+                      id: f.schemeCode,
+                      name: f.name,
+                      category: f.category,
+                      percentage: Math.floor(100 / (b.recommendedFunds.length || 1))
+                    }));
+                    localStorage.setItem('customBucketFunds', JSON.stringify(customFunds));
+                    router.push('/buckets/custom');
+                  }} 
+                  className="flex-1 py-3 bg-white border-2 border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--primary-light)] rounded-xl font-bold"
+                >
+                  Edit Bucket
+                </button>
+                <button onClick={() => router.push(`/plan?goal=${goal}&bucket=${b.id}`)} className="flex-1 py-3 bg-[var(--primary)] hover:opacity-90 text-white rounded-xl font-bold">
+                  Select
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

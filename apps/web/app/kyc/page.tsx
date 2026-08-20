@@ -47,7 +47,7 @@ export default function KycPage() {
     <div className="flex flex-col min-h-screen">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-white">
-        <button onClick={() => router.back()} className="text-4xl text-[var(--dark)] leading-none">‹</button>
+        
         <span className="font-extrabold text-[var(--dark)]">Identity Verification</span>
         <span className="text-[var(--orange)] text-sm font-bold">English</span>
       </div>

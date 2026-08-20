@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { RecommendationEngine } from '../recommendations/recommendation.engine';
+import { FundsService } from '../funds/funds.service';
 
 export type Bucket = { id: string; name: string; eligibleFor: string[]; allocation: { equity: number; debt: number; liquid: number }; horizon: string; explanation: string };
 
@@ -10,8 +12,44 @@ const BUCKETS: Bucket[] = [
 
 @Injectable()
 export class BucketsService {
-  listForProfile(category: string) {
-    return BUCKETS.filter((bucket) => bucket.eligibleFor.includes(category)).map((bucket) => ({ ...bucket, recommended: bucket.eligibleFor[0] === category || bucket.eligibleFor[1] === category, riskMeter: 'SCHEME_RISK_METER_REQUIRED' }));
+  constructor(
+    private readonly recommendationEngine: RecommendationEngine,
+    private readonly fundsService: FundsService,
+  ) {}
+
+  async listForProfile(category: string) {
+    const filteredBuckets = BUCKETS.filter((bucket) => bucket.eligibleFor.includes(category)).map((bucket) => ({ ...bucket, recommended: bucket.eligibleFor[0] === category || bucket.eligibleFor[1] === category, riskMeter: 'SCHEME_RISK_METER_REQUIRED' }));
+    
+    // For each bucket, we can fetch recommendations and fund details
+    const result = await Promise.all(filteredBuckets.map(async (bucket) => {
+      const schemeCodes = await this.recommendationEngine.getRecommendations({
+        riskProfile: category,
+        horizon: bucket.horizon,
+      });
+
+      const funds = await Promise.all(schemeCodes.map(async (code) => {
+        try {
+          const details = await this.fundsService.getFundDetails(code);
+          const nav = await this.fundsService.getLatestNAV(code);
+          return {
+            schemeCode: code,
+            name: details.meta?.scheme_name || 'Unknown Fund',
+            category: details.meta?.scheme_category || 'Unknown',
+            nav: nav?.nav || null,
+            navDate: nav?.date || null,
+          };
+        } catch (e) {
+          return { schemeCode: code, error: 'Could not fetch details' };
+        }
+      }));
+
+      return {
+        ...bucket,
+        recommendedFunds: funds,
+      };
+    }));
+
+    return result;
   }
 
   getEligible(bucketId: string, category: string) {

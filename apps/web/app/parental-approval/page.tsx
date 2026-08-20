@@ -34,7 +34,7 @@ export default function ParentalApprovalPage() {
   return (
     <div className="flex flex-col min-h-screen p-6 bg-white">
       <div className="flex items-center justify-between py-5 mb-4">
-        <button onClick={() => router.back()} className="text-4xl text-[var(--dark)] leading-none">‹</button>
+        
       </div>
 
       <div className="flex-1">

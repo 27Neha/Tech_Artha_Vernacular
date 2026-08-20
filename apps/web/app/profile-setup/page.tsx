@@ -47,7 +47,7 @@ export default function ProfileSetupPage() {
     <div className="flex flex-col min-h-screen p-6 bg-white overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between py-5 mb-4">
-        <button onClick={() => router.back()} className="text-4xl text-[var(--dark)] leading-none">‹</button>
+        
       </div>
 
       <h1 className="text-3xl font-extrabold text-[var(--dark)] mb-2">Personal Information</h1>

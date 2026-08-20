@@ -18,6 +18,7 @@ import { AssistantModule } from './modules/assistant/assistant.module';
 import { VoiceModule } from './modules/voice/voice.module';
 import { ApiHealthModule } from './modules/api-health/api-health.module';
 import { WhatsappModule } from './integrations/whatsapp/whatsapp.module';
+import { RecommendationsModule } from './modules/recommendations/recommendations.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { WhatsappModule } from './integrations/whatsapp/whatsapp.module';
     VoiceModule,
     ApiHealthModule,
     WhatsappModule,
+    RecommendationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
