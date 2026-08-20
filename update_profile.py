@@ -1,66 +1,28 @@
-'use client';
-import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import os
+import re
 
-const MENU_ITEMS = [
-  { icon: '📋', label: 'My Goals', desc: 'View and manage your financial goals' },
-  { icon: '🏦', label: 'Bank Accounts', desc: 'Manage your linked accounts' },
-  { icon: '📝', label: 'Mandates & Autopay', desc: 'View active SIP mandates' },
-  { icon: '👥', label: 'Nominee Details', desc: 'Add or update nominee information' },
-  { icon: '📂', label: 'Statements & Tax', desc: 'Download CAS, Capital Gains, and Tax proofs' },
-];
+filepath = 'apps/web/app/dashboard/profile/page.tsx'
+with open(filepath, 'r', encoding='utf-8') as f:
+    code = f.read()
 
-export default function ProfilePage() {
-  const router = useRouter();
-  const [name, setName] = useState('Priya Sharma');
-  const [mobile, setMobile] = useState('+91 98765 43210');
-  const [expanded, setExpanded] = useState<string | null>(null);
+# 1. Add `expanded` state
+state_old = "const [mobile, setMobile] = useState('+91 98765 43210');"
+state_new = "const [mobile, setMobile] = useState('+91 98765 43210');\n  const [expanded, setExpanded] = useState<string | null>(null);"
+code = code.replace(state_old, state_new)
 
-  useEffect(() => {
-    setName(localStorage.getItem('userName') || 'Priya Sharma');
-    setMobile(localStorage.getItem('mobile') || '+91 98765 43210');
-  }, []);
+# 2. Add toggleExpand function
+use_effect_old = "}, []);"
+use_effect_new = "}, []);\n\n  const toggleExpand = (label: string) => { setExpanded(expanded === label ? null : label); };"
+code = code.replace(use_effect_old, use_effect_new)
 
-  const toggleExpand = (label: string) => { setExpanded(expanded === label ? null : label); };
+# 3. Replace MENU_ITEMS map with a fully expanded UI
+start_str = "{/* Menu */}"
+end_str = '<p className="text-xs text-gray-300 text-center mt-6">'
 
-  return (
-    <div className="p-5">
-      {/* Avatar */}
-      <div className="flex items-center gap-4 mt-2 mb-6">
-        <div className="w-16 h-16 rounded-full bg-[var(--primary)] flex items-center justify-center text-white text-2xl font-extrabold shrink-0">
-          {name.charAt(0).toUpperCase()}
-        </div>
-        <div className="flex-1">
-          <p className="text-xl font-extrabold text-[var(--dark)]">{name}</p>
-          <p className="text-gray-400 text-sm mb-1">{mobile}</p>
-          <span className="bg-green-50 border border-green-100 text-green-600 text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">KYC Verified</span>
-        </div>
-        <button 
-          onClick={() => router.push('/dashboard/profile/edit')}
-          className="text-xs font-bold text-[var(--primary)] bg-[var(--primary-light)] px-4 py-2 rounded-xl flex items-center gap-1.5 hover:bg-[var(--primary)] hover:text-white transition-all shrink-0 shadow-sm"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-          Edit
-        </button>
-      </div>
+start_idx = code.find(start_str)
+end_idx = code.find(end_str)
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="card text-center py-4">
-          <p className="text-xl font-extrabold text-[var(--primary)]">1</p>
-          <p className="text-xs text-gray-400 mt-1">Active Goal</p>
-        </div>
-        <div className="card text-center py-4">
-          <p className="text-xl font-extrabold text-[var(--orange)]">₹9.2K</p>
-          <p className="text-xs text-gray-400 mt-1">Monthly SIP</p>
-        </div>
-        <div className="card text-center py-4">
-          <p className="text-xl font-extrabold text-green-600">+15%</p>
-          <p className="text-xs text-gray-400 mt-1">Returns</p>
-        </div>
-      </div>
-
-      {/* Menu */}
+menu_block_new = '''{/* Menu */}
       <div className="flex flex-col gap-3 mb-6">
         {/* MY GOALS */}
         <div className={`bg-white rounded-2xl border ${expanded === 'My Goals' ? 'border-[var(--primary)]' : 'border-gray-100'} transition-all shadow-sm overflow-hidden`}>
@@ -226,7 +188,10 @@ export default function ProfilePage() {
         </div>
       </div>
       
-      <p className="text-xs text-gray-300 text-center mt-6">TechArtha v1.0.0 · SEBI Registered MFD</p>
-    </div>
-  );
-}
+      '''
+
+code = code[:start_idx] + menu_block_new + code[end_idx:]
+
+with open(filepath, 'w', encoding='utf-8') as f:
+    f.write(code)
+print("Updated successfully!")
