@@ -11,15 +11,10 @@ export class MockOtpProvider implements OtpProvider {
 
   async send(input: { mobile: string; code: string; channel: OtpChannel }): Promise<void> {
     // In development mode, we log the OTP to the console so the developer can see it and test the UI.
-    console.log(`
-======================================================`);
+    console.log(`\n======================================================`);
     console.log(`[DEV MODE] OTP generated for ${input.mobile} via ${input.channel}`);
     console.log(`YOUR OTP CODE IS: ${input.code}`);
-    console.log(`======================================================
-`);
-  }
-}): Promise<void> {
-    // A real sandbox transport can be inserted here. Intentionally no logging: OTPs are secrets.
+    console.log(`======================================================\n`);
   }
 }
 
@@ -28,6 +23,6 @@ export class ProductionOtpProvider implements OtpProvider {
   readonly mode = 'NOT_CONFIGURED' as const;
 
   async send(): Promise<void> {
-    throw new Error('OTP delivery is NOT CONFIGURED — CREDENTIAL REQUIRED.');
+    throw new Error('OTP delivery is NOT CONFIGURED \u2014 CREDENTIAL REQUIRED.');
   }
 }

@@ -108,7 +108,39 @@ export default function DashboardPage() {
         </p>
       </div>
 
+      
+      {/* BSE Test Banner */}
+      <div className="bg-amber-50 rounded-2xl p-4 mt-6 border border-amber-200">
+        <p className="text-amber-800 font-bold text-sm">🔧 BSE API Integration Test</p>
+        <p className="text-amber-700 text-[11px] mt-1 mb-3 font-semibold">
+          Click below to test the live BSE Client Registration API (UCC Creation).
+        </p>
+        <div className="flex gap-2">
+          <button 
+            onClick={async () => {
+              try {
+                const token = localStorage.getItem('access_token');
+                alert('Sending 75-field pipe string to BSE UAT Server...');
+                const res = await fetch(`${API_URL}/api/v1/bse/test-register`, {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'BSE Request Failed');
+                alert(`SUCCESS! Client Code Generated: ${data.clientCode} | BSE Remarks: ${data.remarks}`);
+              } catch (e: any) {
+                alert(`BSE ERROR: ${e.message}`);
+              }
+            }}
+            className="bg-amber-600 text-white font-bold text-xs px-4 py-2 rounded-lg hover:bg-amber-700"
+          >
+            Create UCC (Test)
+          </button>
+        </div>
+      </div>
+
       {/* Learn Section */}
+
       <h2 className="text-lg font-extrabold text-[var(--dark)] mt-8 mb-4">Learn & Grow</h2>
       <div className="flex flex-col gap-3 pb-8">
         {LEARN_CARDS.map((c) => (

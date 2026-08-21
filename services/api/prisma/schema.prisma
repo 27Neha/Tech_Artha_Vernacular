@@ -24,6 +24,7 @@ model User {
   consents           Consent[]
   kycRecords         KycRecord[]
   kycApplication     KYCApplication?
+  bseClient          BseClient?
   guardian           Guardian?
   onboardingProgress OnboardingProgress?
   auditLogs          AuditLog[]
@@ -364,4 +365,16 @@ model KYCProviderEvent {
   payload       String
   status        String
   createdAt     DateTime       @default(now())
+}
+
+
+model BseClient {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id])
+  clientCode   String   @unique
+  status       String   @default("PENDING") // PENDING, REGISTERED, FAILED
+  bseRemarks   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
