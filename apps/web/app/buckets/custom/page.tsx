@@ -2,6 +2,21 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
+
+const autoBalance = (funds: any[]) => {
+  if (funds.length === 0) return [];
+  const equalShare = Math.floor(100 / funds.length);
+  let remainder = 100 % funds.length;
+  return funds.map(f => {
+    let p = equalShare;
+    if (remainder > 0) {
+      p += 1;
+      remainder -= 1;
+    }
+    return { ...f, percentage: p };
+  });
+};
+
 export default function CustomBucketPage() {
   const router = useRouter();
   
@@ -34,15 +49,16 @@ export default function CustomBucketPage() {
   };
 
   const removeFund = (id: string) => {
-    setFunds(funds.filter(f => f.id !== id));
+    const newFunds = funds.filter(f => f.id !== id);
+    setFunds(autoBalance(newFunds));
   };
 
   const isTotalValid = total === 100;
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#F8F9FB]">
+    <div className="flex flex-col min-h-screen bg-[#F8F9FB] pt-16">
       <div className="p-4 bg-[var(--primary)] shadow-md z-10 relative flex items-center gap-3">
-        <button onClick={() => router.back()} className="text-white text-xl">←</button>
+        
         <h2 className="text-white font-extrabold text-lg">Custom Bucket Builder</h2>
       </div>
 

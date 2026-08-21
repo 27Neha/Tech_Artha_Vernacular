@@ -18,6 +18,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
 
   const [loginMethod, setLoginMethod] = useState<'otp' | 'password'>('otp');
+  const [otpChannel, setOtpChannel] = useState<'SMS' | 'WHATSAPP'>('SMS');
   const [password, setPassword] = useState('');
 
   const handleSendOtp = async () => {
@@ -29,14 +30,17 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/send-otp`, {
+      const res = await fetch(`${API_URL}/auth/login/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: phone }),
+        body: JSON.stringify({ mobile: phone, channel: otpChannel }),
       });
       const data = await res.json();
+      if (res.status === 404) {
+        throw new Error('Account not found. Please Sign Up first.');
+      }
       if (!res.ok) throw new Error(data.message || 'Failed to send OTP');
-      if (data.devOtp) setOtpHint(data.devOtp);
+      
       setOtpSent(true);
     } catch (e: any) {
       setError(e.message || 'Something went wrong. Please try again.');
@@ -79,17 +83,23 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/verify-otp`, {
+      const res = await fetch(`${API_URL}/auth/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: phone, otp }),
+        body: JSON.stringify({ mobile: phone, otp, type: 'login' }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Invalid OTP');
-      localStorage.setItem('access_token', data.access_token);
+      localStorage.setItem('access_token', data.accessToken);
       localStorage.setItem('user_id', data.user?.id ?? '');
-      // Redirect to profile setup so user can experience the new age and risk flow
-      router.push('/profile-setup');
+      
+      // Navigate based on backend status
+      if (data.lastCompletedStep === 'ONBOARDING_COMPLETE' || data.lastCompletedStep === 'KYC') {
+        router.push('/dashboard');
+      } else {
+        // Mock routing to personal info if incomplete
+        router.push('/profile-setup');
+      }
     } catch (e: any) {
       setError(e.message || 'Invalid OTP. Please try again.');
     } finally {
@@ -102,8 +112,8 @@ export default function LoginPage() {
       <div className="flex-1 p-6">
         {!otpSent ? (
           <>
-            <h1 className="page-title">{t('login.title')}</h1>
-            <p className="page-desc">{t('login.desc')}</p>
+            <h1 className="page-title">{'Welcome Back'}</h1>
+            <p className="page-desc">{'Login to continue your investment journey'}</p>
 
             <label className="label">Mobile number</label>
             <div className="flex items-center border border-gray-200 rounded-2xl bg-white overflow-hidden shadow-sm mb-4">
@@ -148,6 +158,24 @@ export default function LoginPage() {
 
             {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
 
+            
+            {loginMethod === 'otp' && (
+              <div className="flex gap-4 mt-6">
+                <button 
+                  onClick={() => setOtpChannel('SMS')}
+                  className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all text-sm ${otpChannel === 'SMS' ? 'border-[var(--primary)] bg-[var(--primary-light)] text-[var(--primary)]' : 'border-gray-100 text-gray-400 bg-white hover:border-gray-200'}`}
+                >
+                  Send via SMS
+                </button>
+                <button 
+                  onClick={() => setOtpChannel('WHATSAPP')}
+                  className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all text-sm ${otpChannel === 'WHATSAPP' ? 'border-[#25D366] bg-[#dcf8c6] text-[#128C7E]' : 'border-gray-100 text-gray-400 bg-white hover:border-gray-200'}`}
+                >
+                  Send via WhatsApp
+                </button>
+              </div>
+            )}
+            
             <button
               onClick={handleLogin}
               disabled={loading}
@@ -164,16 +192,7 @@ export default function LoginPage() {
 
             <label className="label">One-Time Password (OTP)</label>
             
-            {/* Dev Mode OTP hint – remove in production */}
-            {otpHint && (
-              <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 mb-3 flex items-center gap-2">
-                <span className="text-amber-600 text-lg">🔐</span>
-                <div>
-                  <p className="text-amber-800 text-xs font-bold">Dev Mode — Your OTP</p>
-                  <p className="text-amber-900 text-2xl font-extrabold tracking-widest">{otpHint}</p>
-                </div>
-              </div>
-            )}
+            
 
             <input
               type="number"
@@ -190,12 +209,12 @@ export default function LoginPage() {
               disabled={loading}
               className="btn-primary mt-6"
             >
-              <span>{loading ? t('login.verifying') : t('login.verify')}</span>
+              <span>{loading ? 'Verifying...' : 'Verify OTP'}</span>
               <span>→</span>
             </button>
 
             <button onClick={() => setOtpSent(false)} className="w-full text-center text-[var(--primary)] font-semibold mt-4 py-2">
-              ← {t('login.changeNumber')}
+              ← {'Change Number'}
             </button>
           </>
         )}

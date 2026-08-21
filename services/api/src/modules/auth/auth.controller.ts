@@ -20,6 +20,23 @@ export class AuthController {
     return this.authService.verifyOtp(body.mobile ?? '', body.otp ?? '', body.deviceId);
   }
 
+  @Post('signup/start')
+  async signupStart(@Body() body: { mobile: string }) {
+    return this.authService.signupStart(body.mobile);
+  }
+
+  @Post('login/start')
+  async loginStart(@Body() body: { mobile: string }) {
+    return this.authService.loginStart(body.mobile);
+  }
+
+  @Post('otp/verify')
+  async dualFlowVerifyOtp(
+    @Body() body: { mobile: string; otp: string; type: 'login' | 'signup' },
+  ) {
+    return this.authService.dualFlowVerifyOtp(body.mobile, body.otp, body.type);
+  }
+
   @Post('signup')
   async signup(@Body() body: { mobile?: string; password?: string; clientType?: string; referralCode?: string; deviceId?: string }) {
     return this.authService.signup({

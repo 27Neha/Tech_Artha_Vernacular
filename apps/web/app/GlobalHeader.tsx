@@ -49,9 +49,14 @@ export default function GlobalHeader() {
       <div className="max-w-md mx-auto px-6 flex items-center justify-between h-12">
         <div className="flex items-center gap-2">
           {showBack && (
-            <button 
-              onClick={() => router.back()} 
-              className="text-4xl text-[var(--dark)] leading-none -ml-2 w-10 h-10 flex items-center justify-center"
+                        <button 
+              onClick={() => {
+                if (pathname === '/buckets/custom') router.push('/buckets');
+                else if (pathname === '/risk') router.push('/dashboard');
+                else if (pathname.startsWith('/funds/')) router.push('/funds');
+                else router.back();
+              }} 
+className="text-4xl text-[var(--dark)] leading-none -ml-2 w-10 h-10 flex items-center justify-center"
             >
               ‹
             </button>

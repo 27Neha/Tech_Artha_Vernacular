@@ -8,6 +8,21 @@ const BUCKETS = [
   { id: 'high', name: 'High Growth Bucket', desc: 'High equity exposure. Best for long-term wealth creation.', risk: 'Aggressive', color: 'bg-orange-50 border-orange-200 text-orange-700' }
 ];
 
+
+const autoBalance = (funds: any[]) => {
+  if (funds.length === 0) return [];
+  const equalShare = Math.floor(100 / funds.length);
+  let remainder = 100 % funds.length;
+  return funds.map(f => {
+    let p = equalShare;
+    if (remainder > 0) {
+      p += 1;
+      remainder -= 1;
+    }
+    return { ...f, percentage: p };
+  });
+};
+
 function BucketsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -94,12 +109,13 @@ function BucketsContent() {
               <div className="flex gap-3">
                 <button 
                   onClick={() => {
-                    const customFunds = (b.recommendedFunds || []).map((f: any) => ({
+                    let customFunds = (b.recommendedFunds || []).map((f: any) => ({
                       id: f.schemeCode,
                       name: f.name,
                       category: f.category,
-                      percentage: Math.floor(100 / (b.recommendedFunds.length || 1))
+                      percentage: 0
                     }));
+                    customFunds = autoBalance(customFunds);
                     localStorage.setItem('customBucketFunds', JSON.stringify(customFunds));
                     router.push('/buckets/custom');
                   }} 

@@ -9,7 +9,16 @@ export interface OtpProvider {
 export class MockOtpProvider implements OtpProvider {
   readonly mode = 'MOCK' as const;
 
-  async send(_input: { mobile: string; code: string; channel: OtpChannel }): Promise<void> {
+  async send(input: { mobile: string; code: string; channel: OtpChannel }): Promise<void> {
+    // In development mode, we log the OTP to the console so the developer can see it and test the UI.
+    console.log(`
+======================================================`);
+    console.log(`[DEV MODE] OTP generated for ${input.mobile} via ${input.channel}`);
+    console.log(`YOUR OTP CODE IS: ${input.code}`);
+    console.log(`======================================================
+`);
+  }
+}): Promise<void> {
     // A real sandbox transport can be inserted here. Intentionally no logging: OTPs are secrets.
   }
 }

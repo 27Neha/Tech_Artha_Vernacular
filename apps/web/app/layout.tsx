@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import Script from 'next/script';
 import { TranslationProvider } from './TranslationProvider';
 import GlobalHeader from './GlobalHeader';
 
@@ -19,6 +20,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        <Script src="https://hyperkyc.hyperverge.co/web/v3.0.0/hyperkyc.js" strategy="beforeInteractive" />
+      </head>
       <body className="min-h-screen bg-[#F8F9FB]">
         <TranslationProvider>
           <GlobalHeader />

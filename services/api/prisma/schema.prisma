@@ -23,6 +23,7 @@ model User {
   devices            Device[]
   consents           Consent[]
   kycRecords         KycRecord[]
+  kycApplication     KYCApplication?
   guardian           Guardian?
   onboardingProgress OnboardingProgress?
   auditLogs          AuditLog[]
@@ -125,14 +126,15 @@ model DisclosureVersion {
 }
 
 model OnboardingProgress {
-  id         String   @id @default(uuid())
-  userId     String   @unique
-  user       User     @relation(fields: [userId], references: [id])
-  step       String
-  percentage Int      @default(0)
-  completed  Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id])
+  step              String
+  percentage        Int      @default(0)
+  completed         Boolean  @default(false)
+  lastCompletedStep String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model Guardian {
@@ -311,4 +313,55 @@ model Notification {
   channel   String   @default("IN_APP")
   status    String   @default("PENDING")
   createdAt DateTime @default(now())
+}
+
+
+model KYCApplication {
+  id                    String            @id @default(uuid())
+  userId                String            @unique
+  user                  User              @relation(fields: [userId], references: [id])
+  provider              String            @default("HYPERVERGE")
+  providerTransactionId String?           @unique
+  workflowId            String?
+  status                String            @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, PENDING, MANUAL_REVIEW, VERIFIED, FAILED, REJECTED
+  panStatus             String            @default("PENDING")
+  documentStatus        String            @default("PENDING")
+  faceLivenessStatus    String            @default("PENDING")
+  faceMatchStatus       String            @default("PENDING")
+  amlStatus             String            @default("PENDING")
+  overallStatus         String            @default("PENDING")
+  failureReason         String?
+  manualReviewRequired  Boolean           @default(false)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  completedAt           DateTime?
+  verifications         KYCVerification[]
+  events                KYCProviderEvent[]
+}
+
+model KYCVerification {
+  id                        String         @id @default(uuid())
+  applicationId             String
+  application               KYCApplication @relation(fields: [applicationId], references: [id])
+  provider                  String
+  transactionId             String
+  verificationType          String         // PAN, FACE_LIVENESS, FACE_MATCH
+  status                    String
+  providerRequestId         String?
+  providerResponseReference String?
+  failureReason             String?
+  manualReview              Boolean        @default(false)
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
+}
+
+model KYCProviderEvent {
+  id            String         @id @default(uuid())
+  applicationId String
+  application   KYCApplication @relation(fields: [applicationId], references: [id])
+  eventId       String?
+  eventType     String
+  payload       String
+  status        String
+  createdAt     DateTime       @default(now())
 }

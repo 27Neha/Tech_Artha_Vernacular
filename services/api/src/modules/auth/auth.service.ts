@@ -60,6 +60,15 @@ export class AuthService {
 
   async verifyOtp(mobile: string, otp: string, deviceId?: string) {
     const normalizedMobile = this.normalizeMobile(mobile);
+    await this.validateOtp(normalizedMobile, otp);
+    const user = await this.prisma.user.upsert({ where: { mobile: normalizedMobile }, update: {}, create: { mobile: normalizedMobile } });
+    if (deviceId) {
+      await this.prisma.device.upsert({ where: { deviceId }, update: { userId: user.id, lastActiveAt: new Date() }, create: { userId: user.id, deviceId } });
+    }
+    return this.createSession(user, deviceId);
+  }
+
+  private async validateOtp(normalizedMobile: string, otp: string) {
     if (!/^\d{6}$/.test(otp)) throw new BadRequestException('Enter the 6-digit code.');
     const record = await this.prisma.otpVerification.findFirst({
       where: { mobile: normalizedMobile, status: 'PENDING' },
@@ -83,11 +92,43 @@ export class AuthService {
     }
 
     await this.prisma.otpVerification.update({ where: { id: record.id }, data: { status: 'VERIFIED', verifiedAt: new Date() } });
-    const user = await this.prisma.user.upsert({ where: { mobile: normalizedMobile }, update: {}, create: { mobile: normalizedMobile } });
-    if (deviceId) {
-      await this.prisma.device.upsert({ where: { deviceId }, update: { userId: user.id, lastActiveAt: new Date() }, create: { userId: user.id, deviceId } });
+  }
+
+  async signupStart(mobile: string) {
+    const normalizedMobile = this.normalizeMobile(mobile);
+    const existing = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile } });
+    if (existing) throw new HttpException('User already exists.', HttpStatus.CONFLICT);
+    
+    return this.sendOtp(mobile, 'SMS');
+  }
+
+  async loginStart(mobile: string) {
+    const normalizedMobile = this.normalizeMobile(mobile);
+    const existing = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile } });
+    if (!existing) throw new HttpException('User not found.', HttpStatus.NOT_FOUND);
+    
+    return this.sendOtp(mobile, 'SMS');
+  }
+
+  async dualFlowVerifyOtp(mobile: string, otp: string, type: 'login' | 'signup') {
+    const normalizedMobile = this.normalizeMobile(mobile);
+    await this.validateOtp(normalizedMobile, otp);
+    
+    if (type === 'signup') {
+      const user = await this.prisma.user.upsert({ where: { mobile: normalizedMobile }, update: {}, create: { mobile: normalizedMobile } });
+      const progress = await this.prisma.onboardingProgress.upsert({
+        where: { userId: user.id },
+        update: { lastCompletedStep: 'SIGNUP', step: 'SIGNUP' },
+        create: { userId: user.id, step: 'SIGNUP', lastCompletedStep: 'SIGNUP' }
+      });
+      const sessionData = await this.createSession(user);
+      return { ...sessionData, lastCompletedStep: progress.lastCompletedStep };
+    } else {
+      const user = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile }, include: { onboardingProgress: true } });
+      if (!user) throw new HttpException('User not found.', HttpStatus.NOT_FOUND);
+      const sessionData = await this.createSession(user);
+      return { ...sessionData, lastCompletedStep: user.onboardingProgress?.lastCompletedStep || null };
     }
-    return this.createSession(user, deviceId);
   }
 
   async signup(input: { mobile: string; password?: string; clientType?: string; referralCode?: string }, deviceId?: string) {

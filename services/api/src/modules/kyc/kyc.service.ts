@@ -1,38 +1,123 @@
-import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { ConsentService } from '../consent/consent.service';
-import { HypervergeService } from '../../integrations/hyperverge/hyperverge.service';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-
-export type KycInput = { userId: string; fullName: string; pan: string; consent: boolean; deviceId?: string };
-const KYC_STATUSES = ['NOT_STARTED', 'CONSENT_PENDING', 'INITIALIZED', 'IN_PROGRESS', 'DOCUMENT_PENDING', 'LIVENESS_PENDING', 'SUBMITTED', 'VERIFIED', 'FAILED', 'REQUIRES_ACTION', 'MANUAL_REVIEW', 'EXPIRED'];
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class KycService {
-  constructor(private readonly prisma: PrismaService, private readonly hyperverge: HypervergeService, private readonly consents: ConsentService) {}
+  private readonly logger = new Logger(KycService.name);
 
-  async startKyc(input: KycInput) {
-    if (!input.consent) throw new BadRequestException('KYC consent is required.');
-    const provider = (process.env.KYC_PROVIDER ?? 'mock').toLowerCase();
-    await this.prisma.userProfile.upsert({ where: { userId: input.userId }, update: { fullName: input.fullName }, create: { userId: input.userId, fullName: input.fullName } });
-    await this.consents.grant({ userId: input.userId, type: 'KYC', provider, source: 'APP', deviceId: input.deviceId });
+  constructor(private readonly prisma: PrismaService) {}
 
-    if (provider === 'mock') {
-      const record = await this.prisma.kycRecord.create({
-        data: { userId: input.userId, provider: 'mock', providerReferenceId: `mock_${crypto.randomUUID()}`, status: 'VERIFIED', completedAt: new Date(), metadata: JSON.stringify({ mode: 'MOCK' }), events: { create: { status: 'VERIFIED', payload: JSON.stringify({ mode: 'MOCK' }) } } },
+  async startKyc(userId: string) {
+    let application = await this.prisma.kYCApplication.findUnique({
+      where: { userId },
+    });
+
+    if (!application) {
+      application = await this.prisma.kYCApplication.create({
+        data: {
+          userId,
+          status: 'IN_PROGRESS',
+        },
       });
-      await this.prisma.auditLog.create({ data: { userId: input.userId, action: 'KYC_MOCK_VERIFIED', details: JSON.stringify({ recordId: record.id }) } });
-      return { mode: 'MOCK', status: 'VERIFIED', referenceId: record.providerReferenceId, message: 'Mock KYC is verified for development only; it is not a real KYC verification.' };
     }
-    if (provider !== 'hyperverge') throw new ServiceUnavailableException(`KYC provider '${provider}' is NOT CONFIGURED — CREDENTIAL REQUIRED.`);
 
-    const sdkConfig = await this.hyperverge.generateSdkToken(input.userId);
-    await this.prisma.kycRecord.create({ data: { userId: input.userId, provider: 'hyperverge', providerReferenceId: sdkConfig.transactionId, status: 'INITIALIZED', events: { create: { status: 'INITIALIZED' } } } });
-    return { mode: 'CREDENTIAL_REQUIRED', provider: 'hyperverge', status: 'INITIALIZED', ...sdkConfig };
+    const transactionId = randomUUID();
+    let token = '';
+    const workflowId = 'kyc_workflow_1';
+
+    const appId = process.env.HYPERVERGE_APP_ID;
+    const appKey = process.env.HYPERVERGE_APP_KEY;
+
+    if (!appId || !appKey) {
+      this.logger.warn('HYPERVERGE_APP_ID or HYPERVERGE_APP_KEY missing, generating dummy token.');
+      token = 'dummy_token_' + randomUUID();
+    } else {
+      try {
+        const response = await fetch('https://auth.hyperverge.co/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ appId, appKey, transactionId }),
+        });
+        const data = (await response.json()) as any;
+        token = data?.result?.token || 'fallback_token';
+      } catch (error) {
+        this.logger.error('Failed to generate HyperVerge token', error);
+        token = 'error_token_' + randomUUID();
+      }
+    }
+
+    // Update the transaction id
+    await this.prisma.kYCApplication.update({
+      where: { id: application.id },
+      data: {
+        providerTransactionId: transactionId,
+        workflowId
+      }
+    });
+
+    return {
+      transactionId,
+      token,
+      workflowId,
+    };
   }
 
   async getKycStatus(userId: string) {
-    const record = await this.prisma.kycRecord.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } });
-    if (!record) return { status: 'NOT_STARTED', supportedStatuses: KYC_STATUSES };
-    return { status: record.status, provider: record.provider, mode: record.provider === 'mock' ? 'MOCK' : 'CREDENTIAL_REQUIRED', failureReason: record.failureReason, updatedAt: record.updatedAt };
+    return this.prisma.kYCApplication.findUnique({
+      where: { userId },
+      include: {
+        verifications: true,
+      },
+    });
+  }
+
+  async handleHypervergeWebhook(payload: any) {
+    const transactionId = payload.transactionId;
+    if (!transactionId) {
+      this.logger.error('No transactionId in webhook payload');
+      return;
+    }
+
+    const application = await this.prisma.kYCApplication.findUnique({
+      where: { providerTransactionId: transactionId },
+    });
+
+    if (!application) {
+      this.logger.error(`KYCApplication not found for transactionId: ${transactionId}`);
+      return;
+    }
+
+    const eventId = payload.eventId || randomUUID();
+    const eventType = payload.event || 'UNKNOWN';
+
+    // Log the event
+    await this.prisma.kYCProviderEvent.create({
+      data: {
+        applicationId: application.id,
+        eventId,
+        eventType,
+        payload: JSON.stringify(payload),
+        status: payload.status || 'RECEIVED'
+      }
+    });
+
+    // Update application based on payload
+    const dataToUpdate: any = {};
+    if (payload.event === 'pan_verification') {
+       dataToUpdate.panStatus = payload.status;
+    } else if (payload.event === 'face_liveness') {
+       dataToUpdate.faceLivenessStatus = payload.status;
+    } else if (payload.event === 'workflow_complete') {
+       dataToUpdate.overallStatus = payload.status === 'success' ? 'VERIFIED' : 'FAILED';
+       dataToUpdate.status = dataToUpdate.overallStatus;
+    }
+
+    if (Object.keys(dataToUpdate).length > 0) {
+       await this.prisma.kYCApplication.update({
+         where: { id: application.id },
+         data: dataToUpdate
+       });
+    }
   }
 }

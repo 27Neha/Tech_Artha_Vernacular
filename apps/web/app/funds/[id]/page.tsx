@@ -4,6 +4,21 @@ import { useRouter } from 'next/navigation';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
+
+const autoBalance = (funds: any[]) => {
+  if (funds.length === 0) return [];
+  const equalShare = Math.floor(100 / funds.length);
+  let remainder = 100 % funds.length;
+  return funds.map(f => {
+    let p = equalShare;
+    if (remainder > 0) {
+      p += 1;
+      remainder -= 1;
+    }
+    return { ...f, percentage: p };
+  });
+};
+
 export default function FundDetailsPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [details, setDetails] = useState<any>(null);
@@ -112,9 +127,10 @@ export default function FundDetailsPage({ params }: { params: { id: string } }) 
 
       <div className="mt-auto p-6 border-t border-gray-100 bg-white flex gap-3">
         <button onClick={() => {
-          const currentBucket = JSON.parse(localStorage.getItem('customBucketFunds') || '[]');
+          let currentBucket = JSON.parse(localStorage.getItem('customBucketFunds') || '[]');
           if (!currentBucket.find((f: any) => f.id === params.id)) {
             currentBucket.push({ id: params.id, name: meta.scheme_name, category: meta.scheme_category, percentage: 0 });
+            currentBucket = autoBalance(currentBucket);
             localStorage.setItem('customBucketFunds', JSON.stringify(currentBucket));
           }
           router.push('/buckets/custom');
