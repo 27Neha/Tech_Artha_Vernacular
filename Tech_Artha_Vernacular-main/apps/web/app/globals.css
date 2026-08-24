@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #3C3985;
+  --primary-light: #EBEBFA;
+  --orange: #F7941E;
+  --dark: #102A54;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #F8F9FB;
+  overscroll-behavior-y: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+input, textarea {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
+/* Hide scrollbar for clean app view */
+::-webkit-scrollbar {
+  display: none;
+}
+* {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-[var(--primary)] text-white font-bold py-4 px-8 rounded-2xl w-full flex items-center justify-between transition-all hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-outline {
+    @apply border-2 border-[var(--primary)] text-[var(--primary)] font-bold py-4 px-8 rounded-2xl w-full text-center transition-all hover:bg-[var(--primary-light)];
+  }
+  .card {
+    @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-6;
+  }
+  .input-field {
+    @apply w-full border border-gray-200 rounded-2xl px-4 py-4 text-[var(--dark)] text-base focus:outline-none focus:border-[var(--primary)] bg-white;
+  }
+  .label {
+    @apply text-sm font-bold text-[#2D3748] mt-6 mb-2 block;
+  }
+  .page-title {
+    @apply text-3xl font-extrabold text-[var(--dark)] mt-4;
+  }
+  .page-desc {
+    @apply text-gray-500 text-base mt-2 leading-relaxed;
+  }
+}
