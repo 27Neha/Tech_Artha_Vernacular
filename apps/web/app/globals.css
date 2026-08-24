@@ -56,3 +56,16 @@ input, textarea {
     @apply text-gray-500 text-base mt-2 leading-relaxed;
   }
 }
+
+
+/* Hide Google Translate Toolbar */
+.goog-te-banner-frame { display: none !important; }
+body { top: 0 !important; }
+.goog-te-combo { display: none !important; }
+.goog-logo-link { display: none !important; }
+.goog-te-gadget { color: transparent !important; }
+
+
+iframe[src*='translate.googleapis.com'], iframe[name='c'], iframe.skiptranslate { display: none !important; visibility: hidden !important; opacity: 0 !important; height: 0 !important; }
+body, html { top: 0px !important; position: static !important; margin-top: 0px !important; padding-top: 0px !important; }
+

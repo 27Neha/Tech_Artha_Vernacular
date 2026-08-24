@@ -3,12 +3,30 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useTranslation } from './TranslationProvider';
 import { useState, useRef, useEffect } from 'react';
 
+const ALL_LANGUAGES = [
+  { code: 'en', name: 'English', nativeName: 'English' },
+  { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी' },
+  { code: 'mr', name: 'Marathi', nativeName: 'मराठी' },
+  { code: 'gu', name: 'Gujarati', nativeName: 'ગુજરાતી' },
+  { code: 'bn', name: 'Bengali', nativeName: 'বাংলা' },
+  { code: 'ta', name: 'Tamil', nativeName: 'தமிழ்' },
+  { code: 'te', name: 'Telugu', nativeName: 'తెలుగు' },
+  { code: 'kn', name: 'Kannada', nativeName: 'ಕನ್ನಡ' },
+  { code: 'ml', name: 'Malayalam', nativeName: 'മലയാളം' },
+  { code: 'pa', name: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ' },
+  { code: 'or', name: 'Odia', nativeName: 'ଓଡ଼ିଆ' },
+  { code: 'ur', name: 'Urdu', nativeName: 'اردو' },
+  { code: 'as', name: 'Assamese', nativeName: 'অসমীয়া' }
+];
+
 export default function GlobalHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const { lang, setLang } = useTranslation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  const [searchQuery, setSearchQuery] = useState('');
   
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
@@ -42,21 +60,29 @@ export default function GlobalHeader() {
     setLang(newLang as any);
     localStorage.setItem('language', newLang);
     setDropdownOpen(false);
+    setSearchQuery('');
   };
+
+  const filteredLanguages = ALL_LANGUAGES.filter(
+    (l) => l.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+           l.nativeName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const currentLangObj = ALL_LANGUAGES.find((l) => l.code === lang) || ALL_LANGUAGES[0];
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 pb-2 pt-[max(1rem,env(safe-area-inset-top))]">
       <div className="max-w-md mx-auto px-6 flex items-center justify-between h-12">
         <div className="flex items-center gap-2">
           {showBack && (
-                        <button 
+            <button 
               onClick={() => {
                 if (pathname === '/buckets/custom') router.push('/buckets');
                 else if (pathname === '/risk') router.push('/dashboard');
                 else if (pathname.startsWith('/funds/')) router.push('/funds');
                 else router.back();
               }} 
-className="text-4xl text-[var(--dark)] leading-none -ml-2 w-10 h-10 flex items-center justify-center"
+              className="text-4xl text-[var(--dark)] leading-none -ml-2 w-10 h-10 flex items-center justify-center"
             >
               ‹
             </button>
@@ -71,22 +97,45 @@ className="text-4xl text-[var(--dark)] leading-none -ml-2 w-10 h-10 flex items-c
             <div className="relative" ref={dropdownRef}>
               <button 
                 onClick={() => setDropdownOpen(!dropdownOpen)} 
-                className="flex items-center gap-1 text-xs font-bold text-[var(--primary)] bg-[var(--primary-light)] px-3 py-1.5 rounded-full uppercase transition-all hover:bg-[var(--primary)] hover:text-white"
+                className="flex items-center gap-1 text-xs font-bold text-[var(--primary)] bg-[var(--primary-light)] px-3 py-1.5 rounded-full uppercase transition-all hover:bg-[var(--primary)] hover:text-white notranslate"
+                translate="no"
               >
                 <span>🌐</span>
-                <span>{lang === 'en' ? 'EN' : lang === 'hi' ? 'हिंदी' : 'मराठी'}</span>
+                <span>{currentLangObj.code.toUpperCase()}</span>
                 <span className={`ml-1 text-[10px] transition-transform ${dropdownOpen ? 'rotate-180' : ''}`}>▼</span>
               </button>
               
               {dropdownOpen && (
-                <div className="absolute right-0 mt-2 w-32 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50">
-                  <button onClick={() => handleLangSelect('en')} className={`w-full text-left px-4 py-3 text-sm font-bold hover:bg-[var(--primary-light)] ${lang === 'en' ? 'text-[var(--primary)]' : 'text-[var(--dark)]'}`}>English</button>
-                  <button onClick={() => handleLangSelect('hi')} className={`w-full text-left px-4 py-3 text-sm font-bold border-t border-gray-50 hover:bg-[var(--primary-light)] ${lang === 'hi' ? 'text-[var(--primary)]' : 'text-[var(--dark)]'}`}>हिंदी</button>
-                  <button onClick={() => handleLangSelect('mr')} className={`w-full text-left px-4 py-3 text-sm font-bold border-t border-gray-50 hover:bg-[var(--primary-light)] ${lang === 'mr' ? 'text-[var(--primary)]' : 'text-[var(--dark)]'}`}>मराठी</button>
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 max-h-[80vh] flex flex-col notranslate" translate="no">
+                  <div className="p-3 border-b border-gray-100 bg-gray-50">
+                    <input 
+                      type="text" 
+                      placeholder="Search language..." 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold outline-none focus:border-[var(--primary)]"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="overflow-y-auto no-scrollbar" style={{ maxHeight: '300px' }}>
+                    {filteredLanguages.length > 0 ? filteredLanguages.map((l) => (
+                      <button 
+                        key={l.code}
+                        onClick={() => handleLangSelect(l.code)} 
+                        className={`w-full flex items-center justify-between px-4 py-3 text-sm font-bold border-b border-gray-50 hover:bg-[var(--primary-light)] ${lang === l.code ? 'text-[var(--primary)] bg-[var(--primary-light)]/50' : 'text-[var(--dark)]'}`}
+                      >
+                        <span>{l.name}</span>
+                        <span className="text-gray-400 text-xs font-normal">{l.nativeName}</span>
+                      </button>
+                    )) : (
+                      <div className="p-4 text-center text-sm text-gray-500 font-bold">No language found.</div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
           )}
+          
           {showProfile && (
             <div className="relative" ref={profileDropdownRef}>
               <button 

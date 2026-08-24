@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 const HOLDINGS: any[] = []; // REAL DATA REQUIREMENT: Fetch from backend
@@ -91,9 +91,37 @@ const downloadRealPDF = async (title: string) => {
   }
 };
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 export default function FullPortfolioPage() {
   const router = useRouter();
   const [tab, setTab] = useState<'overview' | 'holdings' | 'transactions' | 'sips' | 'statements'>('overview');
+
+  const [portfolio, setPortfolio] = useState({ totalInvested: 0, currentValue: 0, totalReturns: 0, holdings: [] });
+  const [fetchingPortfolio, setFetchingPortfolio] = useState(true);
+
+  useEffect(() => {
+    const fetchPortfolio = async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_URL}/portfolio`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.data) {
+            setPortfolio(data.data);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch portfolio', err);
+      } finally {
+        setFetchingPortfolio(false);
+      }
+    };
+    fetchPortfolio();
+  }, []);
+
   const [viewingStatement, setViewingStatement] = useState<string | null>(null);
 
   const handleSipAction = (action: string, fund: string) => {
@@ -124,19 +152,17 @@ export default function FullPortfolioPage() {
               <circle cx="50" cy="50" r="38" stroke="#60a5fa" strokeWidth="14" fill="transparent" strokeDasharray="238.76" strokeDashoffset="200" strokeLinecap="round" className="transition-all duration-1000 ease-out" />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-black/10 rounded-full m-4 backdrop-blur-sm border border-white/10">
-              <span className="font-extrabold text-lg">₹10.4K</span>
+              <span className="font-extrabold text-lg">{fetchingPortfolio ? "..." : `₹${portfolio.currentValue > 1000 ? (portfolio.currentValue/1000).toFixed(1) + "K" : portfolio.currentValue}`}</span>
               <span className="text-[10px] text-white/80 font-bold tracking-wider uppercase">Current</span>
             </div>
           </div>
 
           <div className="flex-1 pl-6">
             <p className="text-white/70 text-[10px] uppercase font-bold mb-1 tracking-wider">Amount Invested</p>
-            <p className="text-white font-extrabold text-2xl mb-5">₹9,286</p>
+            <p className="text-white font-extrabold text-2xl mb-5">{fetchingPortfolio ? "₹..." : `₹${portfolio.totalInvested.toLocaleString("en-IN")}`}</p>
             
             <p className="text-white/70 text-[10px] uppercase font-bold mb-1 tracking-wider">Total Returns</p>
-            <p className="text-green-300 font-extrabold text-sm bg-green-900/30 inline-block px-3 py-1.5 rounded-lg border border-green-400/20">
-              +₹1,151 (12.4%)
-            </p>
+            <p className="text-green-300 font-extrabold text-sm bg-green-900/30 inline-block px-3 py-1.5 rounded-lg border border-green-400/20">{fetchingPortfolio ? "..." : `₹${portfolio.totalReturns.toLocaleString("en-IN")} (0%)`}</p>
           </div>
         </div>
       </div>
@@ -192,39 +218,20 @@ export default function FullPortfolioPage() {
             
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
               <h3 className="font-extrabold text-[var(--dark)] mb-4">Detailed Portfolio Health</h3>
-              <div className="flex flex-col gap-4">
-                <div>
-                  <p className="text-xs font-bold text-[var(--dark)] flex items-center justify-between">Diversification <span className="text-green-600">78/100</span></p>
-                  <p className="text-[10px] text-gray-500 mt-1">Your assets are well spread. <em>What to review:</em> Consider adding international equity exposure.</p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-[var(--dark)] flex items-center justify-between">Goal Alignment <span className="text-green-600">85/100</span></p>
-                  <p className="text-[10px] text-gray-500 mt-1">100% of your SIPs are mapped to a specific financial goal. Great job!</p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-[var(--dark)] flex items-center justify-between">SIP Consistency <span className="text-green-600">91/100</span></p>
-                  <p className="text-[10px] text-gray-500 mt-1">You haven't missed or paused a single SIP installment.</p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-[var(--dark)] flex items-center justify-between">Concentration <span className="text-amber-600">65/100</span></p>
-                  <p className="text-[10px] text-gray-500 mt-1">Top 2 funds form 82% of portfolio. <em>What to review:</em> Avoid adding more to top heavy funds.</p>
-                </div>
-              </div>
+              {portfolio.totalInvested === 0 ? (
+                <p className="text-sm text-gray-500">Health analytics will be generated automatically once your first investment is verified.</p>
+              ) : (
+                <p className="text-sm text-gray-500">Calculating your portfolio health metrics from live Cybrilla data...</p>
+              )}
             </div>
 
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
               <h3 className="font-extrabold text-[var(--dark)] mb-4">Goal Linking</h3>
-              <div className="border border-gray-100 p-4 rounded-xl">
-                <div className="flex justify-between items-center mb-1"><span className="text-sm font-bold text-[var(--primary)]">Child Education</span><span className="text-xs font-bold text-gray-500">0.7%</span></div>
-                <div className="w-full bg-gray-100 rounded-full h-1.5 mb-2"><div className="bg-[var(--primary)] h-1.5 rounded-full" style={{ width: '0.7%' }}></div></div>
-                <p className="text-xs font-bold text-[var(--dark)] mb-3">₹10,437 <span className="text-gray-400 font-normal">/ ₹15,00,000 target</span></p>
-                <p className="text-[10px] text-gray-500 mb-0.5">Linked Funds: Multi-Cap Growth, Stable Income</p>
-                <p className="text-[10px] text-gray-500 mb-3">Monthly SIP: ₹2,000 • Target: 2034</p>
-                <div className="flex gap-2">
-                  <button className="flex-1 bg-[var(--primary-light)] text-[var(--primary)] text-[10px] font-bold py-1.5 rounded-lg">View Goal</button>
-                  <button className="flex-1 bg-[var(--primary-light)] text-[var(--primary)] text-[10px] font-bold py-1.5 rounded-lg">Modify Plan</button>
-                </div>
-              </div>
+              {portfolio.totalInvested === 0 ? (
+                <p className="text-sm text-gray-500">No active SIPs to link to goals yet.</p>
+              ) : (
+                <p className="text-sm text-gray-500">Fetching goal linkages...</p>
+              )}
             </div>
           </div>
         )}

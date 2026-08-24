@@ -2,7 +2,7 @@ import { BadRequestException, HttpException, HttpStatus, Injectable, Unauthorize
 import { JwtService } from '@nestjs/jwt';
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { MockOtpProvider, OtpChannel, OtpProvider, ProductionOtpProvider } from './otp.provider';
+import { MockOtpProvider, GupshupOtpProvider, OtpChannel, OtpProvider, ProductionOtpProvider } from './otp.provider';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
@@ -14,9 +14,10 @@ export class AuthService {
   constructor(private readonly prisma: PrismaService, private readonly jwtService: JwtService) {}
 
   private get otpProvider(): OtpProvider {
-    return (process.env.OTP_PROVIDER ?? 'mock').toLowerCase() === 'mock'
-      ? new MockOtpProvider()
-      : new ProductionOtpProvider();
+    const providerStr = (process.env.OTP_PROVIDER ?? 'mock').toLowerCase();
+    if (providerStr === 'gupshup') return new GupshupOtpProvider();
+    if (providerStr === 'mock') return new MockOtpProvider();
+    return new ProductionOtpProvider();
   }
 
   private normalizeMobile(mobile: string) {

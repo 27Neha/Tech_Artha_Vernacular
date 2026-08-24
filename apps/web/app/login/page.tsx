@@ -94,12 +94,9 @@ export default function LoginPage() {
       localStorage.setItem('user_id', data.user?.id ?? '');
       
       // Navigate based on backend status
-      if (data.lastCompletedStep === 'ONBOARDING_COMPLETE' || data.lastCompletedStep === 'KYC') {
-        router.push('/dashboard');
-      } else {
-        // Mock routing to personal info if incomplete
-        router.push('/profile-setup');
-      }
+      // If the user uses the Login flow, we assume they are an existing user.
+      // Route them straight to the dashboard to prevent forcing them through onboarding.
+      router.push('/dashboard');
     } catch (e: any) {
       setError(e.message || 'Invalid OTP. Please try again.');
     } finally {

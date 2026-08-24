@@ -1,6 +1,13 @@
 'use client';
 import { useParams, useRouter } from 'next/navigation';
-const ARTICLES = [{slug:'sip', title:'What is a SIP?', icon:'📝', tag:'Basics', time:'5 min'}]; // Mock for compilation
+const ARTICLES = [
+  { slug: 'what-is-mutual-fund', icon: '📈', title: 'What is a Mutual Fund?', desc: 'Learn how pooled investments work.', time: '5 min', tag: 'Beginner' },
+  { slug: 'sip-vs-lump-sum', icon: '💡', title: 'SIP vs Lump Sum', desc: 'Which approach suits you better?', time: '4 min', tag: 'Beginner' },
+  { slug: 'understanding-risk', icon: '🛡️', title: 'Understanding Risk', desc: 'Assess and manage investment risk.', time: '6 min', tag: 'Intermediate' },
+  { slug: 'fund-performance', icon: '📊', title: 'Reading Fund Performance', desc: 'Understand NAV, returns and more.', time: '7 min', tag: 'Intermediate' },
+  { slug: 'elss-tax-saving', icon: '💰', title: 'ELSS Tax Saving Funds', desc: 'Save tax while growing wealth with 80C.', time: '5 min', tag: 'Tax' },
+  { slug: 'international-funds', icon: '🌍', title: 'International Funds', desc: 'Invest in global markets from India.', time: '6 min', tag: 'Advanced' },
+];
 
 // Professional educational content tailored for Indian mutual fund investors.
 // Inspired by leading investment apps (Zerodha Varsity, Groww, ET Money).

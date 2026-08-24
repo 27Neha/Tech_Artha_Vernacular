@@ -15,8 +15,31 @@ export default function DashboardPage() {
   const router = useRouter();
   const [profile, setProfile] = useState('Moderate');
   const [recommendedFunds, setRecommendedFunds] = useState<any[]>([]);
+  const [portfolio, setPortfolio] = useState({ totalInvested: 0, currentValue: 0, holdings: [] });
+  const [fetchingPortfolio, setFetchingPortfolio] = useState(true);
 
   useEffect(() => {
+    const fetchPortfolio = async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_URL}/portfolio`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.data) {
+            setPortfolio(data.data);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch portfolio', err);
+      } finally {
+        setFetchingPortfolio(false);
+      }
+    };
+    fetchPortfolio();
+
     const saved = localStorage.getItem('investorProfile');
     if (saved) setProfile(saved);
 
@@ -49,8 +72,12 @@ export default function DashboardPage() {
       {/* Balance Card */}
       <div className="bg-[var(--primary)] rounded-3xl p-6 mb-6 text-white shadow-xl shadow-indigo-900/10">
         <p className="text-[#EBEAF8] text-xs font-bold tracking-widest uppercase">TOTAL INVESTED</p>
-        <p className="text-5xl font-extrabold mt-2">₹9,286</p>
-        <p className="text-[#EBEAF8] text-sm mt-1">This month's SIP · Next: 10th Sep</p>
+        <p className="text-5xl font-extrabold mt-2">
+            {fetchingPortfolio ? '₹...' : `₹${portfolio.totalInvested.toLocaleString('en-IN')}`}
+          </p>
+        <p className="text-[#EBEAF8] text-sm mt-1">
+            {portfolio.totalInvested === 0 ? "You haven't made any investments yet." : "Verified via Cybrilla/ONDC"}
+          </p>
         <div className="flex gap-3 mt-4">
           <button
             onClick={() => router.push('/funds')}
@@ -72,7 +99,10 @@ export default function DashboardPage() {
         <div className="flex items-end justify-between mb-4">
           <div>
             <h2 className="text-lg font-extrabold text-[var(--dark)]">Recommended For You</h2>
-            <p className="text-xs text-gray-500 font-bold mt-0.5">Based on your {profile} profile</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-xs text-gray-500 font-bold">Based on your {profile} profile</p>
+              <button onClick={() => router.push('/risk')} className="text-[10px] text-[var(--primary)] bg-[var(--primary-light)] px-2 py-0.5 rounded-full font-bold">Retake ✎</button>
+            </div>
           </div>
           <button onClick={() => router.push('/buckets')} className="text-[var(--primary)] text-xs font-bold mb-0.5">See Buckets</button>
         </div>
@@ -109,35 +139,7 @@ export default function DashboardPage() {
       </div>
 
       
-      {/* BSE Test Banner */}
-      <div className="bg-amber-50 rounded-2xl p-4 mt-6 border border-amber-200">
-        <p className="text-amber-800 font-bold text-sm">🔧 BSE API Integration Test</p>
-        <p className="text-amber-700 text-[11px] mt-1 mb-3 font-semibold">
-          Click below to test the live BSE Client Registration API (UCC Creation).
-        </p>
-        <div className="flex gap-2">
-          <button 
-            onClick={async () => {
-              try {
-                const token = localStorage.getItem('access_token');
-                alert('Sending 75-field pipe string to BSE UAT Server...');
-                const res = await fetch(`${API_URL}/api/v1/bse/test-register`, {
-                  method: 'POST',
-                  headers: { 'Authorization': `Bearer ${token}` }
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.message || 'BSE Request Failed');
-                alert(`SUCCESS! Client Code Generated: ${data.clientCode} | BSE Remarks: ${data.remarks}`);
-              } catch (e: any) {
-                alert(`BSE ERROR: ${e.message}`);
-              }
-            }}
-            className="bg-amber-600 text-white font-bold text-xs px-4 py-2 rounded-lg hover:bg-amber-700"
-          >
-            Create UCC (Test)
-          </button>
-        </div>
-      </div>
+      
 
       {/* Learn Section */}
 

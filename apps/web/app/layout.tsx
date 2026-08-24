@@ -3,6 +3,7 @@ import './globals.css';
 import Script from 'next/script';
 import { TranslationProvider } from './TranslationProvider';
 import GlobalHeader from './GlobalHeader';
+import GoogleTranslateWidget from './GoogleTranslateWidget';
 
 export const metadata: Metadata = {
   title: 'TechArtha – Finance Simplified',
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen bg-[#F8F9FB]">
         <TranslationProvider>
+          <GoogleTranslateWidget />
           <GlobalHeader />
           <div className="max-w-md mx-auto min-h-screen relative pt-[calc(3.5rem+env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)] flex flex-col">
             {children}
