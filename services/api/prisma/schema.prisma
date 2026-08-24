@@ -1,0 +1,380 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                String   @id @default(uuid())
+  mobile            String   @unique
+  preferredLanguage String   @default("en")
+  passwordHash      String?
+  referralCode      String?
+  clientType        String?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  profile            UserProfile?
+  sessions           Session[]
+  devices            Device[]
+  consents           Consent[]
+  kycRecords         KycRecord[]
+  kycApplication     KYCApplication?
+  bseClient          BseClient?
+  guardian           Guardian?
+  onboardingProgress OnboardingProgress?
+  auditLogs          AuditLog[]
+  riskProfile        RiskProfile?
+  riskAssessments    RiskAssessment[]
+  goals              Goal[]
+  portfolio          Portfolio?
+  expenses           Expense[]
+  learningProgress   LearningProgress[]
+  supportTickets     SupportTicket[]
+  notifications      Notification[]
+}
+
+model UserProfile {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id])
+  fullName     String?
+  dateOfBirth  DateTime?
+  email        String?  @unique
+  gender       String?
+  age          Int?
+  investorType String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Device {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  deviceId     String   @unique
+  deviceType   String?
+  fcmToken     String?
+  createdAt    DateTime @default(now())
+  lastActiveAt DateTime @updatedAt
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  token        String   @unique
+  refreshToken String?  @unique
+  deviceId     String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  isActive     Boolean  @default(true)
+}
+
+model OtpVerification {
+  id         String   @id @default(uuid())
+  mobile     String
+  otpHash    String
+  expiresAt  DateTime
+  attempts   Int      @default(0)
+  channel    String   @default("SMS")
+  verifiedAt DateTime?
+  createdAt  DateTime @default(now())
+  status     String
+}
+
+model Consent {
+  id        String         @id @default(uuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id])
+  type      String
+  version   String
+  purpose   String
+  provider  String?
+  status    String
+  ipAddress String?
+  deviceId  String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  events    ConsentEvent[]
+}
+
+model ConsentEvent {
+  id        String   @id @default(uuid())
+  consentId String
+  consent   Consent  @relation(fields: [consentId], references: [id])
+  event     String
+  source    String
+  details   String?
+  createdAt DateTime @default(now())
+}
+
+model DisclosureVersion {
+  id            String   @id @default(uuid())
+  disclosureKey String
+  version       String
+  content       String
+  locale        String   @default("en")
+  status        String   @default("PUBLISHED")
+  effectiveAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@unique([disclosureKey, version, locale])
+}
+
+model OnboardingProgress {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id])
+  step              String
+  percentage        Int      @default(0)
+  completed         Boolean  @default(false)
+  lastCompletedStep String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Guardian {
+  id           String   @id @default(uuid())
+  minorUserId  String   @unique
+  minorUser    User     @relation(fields: [minorUserId], references: [id])
+  fullName     String
+  mobile       String
+  relationship String
+  status       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model KycRecord {
+  id                  String     @id @default(uuid())
+  userId              String
+  user                User       @relation(fields: [userId], references: [id])
+  provider            String
+  providerReferenceId String?    @unique
+  status              String
+  failureReason       String?
+  metadata            String?
+  initiatedAt         DateTime   @default(now())
+  completedAt         DateTime?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  events              KycEvent[]
+}
+
+model KycEvent {
+  id          String    @id @default(uuid())
+  kycRecordId String
+  kycRecord   KycRecord @relation(fields: [kycRecordId], references: [id])
+  status      String
+  payload     String?
+  createdAt   DateTime  @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  details   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
+
+model WebhookEvent {
+  id          String   @id @default(uuid())
+  provider    String
+  eventId     String   @unique
+  eventType   String
+  payloadHash String
+  status      String
+  error       String?
+  retryCount  Int      @default(0)
+  receivedAt  DateTime @default(now())
+  processedAt DateTime?
+}
+
+model RiskProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  score     Int
+  category  String
+  answers   String
+  version   String   @default("2026.08")
+  reasons   String   @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RiskAssessment {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  version   String
+  score     Int
+  category  String
+  answers   String
+  reasons   String
+  createdAt DateTime @default(now())
+}
+
+model Goal {
+  id               String   @id @default(uuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  name             String
+  targetAmount     Float
+  timePeriod       Int
+  monthlySip       Float
+  bucketName       String
+  sipDate          Int
+  goalType         String   @default("CUSTOM")
+  currentSavings   Float    @default(0)
+  inflationRate    Float    @default(0)
+  returnAssumption Float    @default(0)
+  status           String   @default("ACTIVE")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Portfolio {
+  id            String    @id @default(uuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id])
+  totalInvested Float
+  currentValue  Float
+  totalReturns  Float
+  lastSyncedAt  DateTime  @default(now())
+  source        String    @default("NOT_CONNECTED")
+  status        String    @default("NOT_CONNECTED")
+  holdings      Holding[]
+}
+
+model Holding {
+  id             String    @id @default(uuid())
+  portfolioId    String
+  portfolio      Portfolio @relation(fields: [portfolioId], references: [id])
+  fundName       String
+  amountInvested Float
+  currentValue   Float
+  units          Float
+  nav            Float
+  returns        Float
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  amount      Float
+  category    String
+  description String?
+  occurredAt  DateTime
+  source      String   @default("MANUAL")
+  createdAt   DateTime @default(now())
+
+  @@index([userId, occurredAt])
+}
+
+model LearningProgress {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  lessonKey String
+  completed Boolean  @default(false)
+  score     Int?
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, lessonKey])
+}
+
+model SupportTicket {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  subject   String
+  message   String
+  status    String   @default("OPEN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String
+  title     String
+  body      String
+  channel   String   @default("IN_APP")
+  status    String   @default("PENDING")
+  createdAt DateTime @default(now())
+}
+
+
+model KYCApplication {
+  id                    String            @id @default(uuid())
+  userId                String            @unique
+  user                  User              @relation(fields: [userId], references: [id])
+  provider              String            @default("HYPERVERGE")
+  providerTransactionId String?           @unique
+  workflowId            String?
+  status                String            @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, PENDING, MANUAL_REVIEW, VERIFIED, FAILED, REJECTED
+  panStatus             String            @default("PENDING")
+  documentStatus        String            @default("PENDING")
+  faceLivenessStatus    String            @default("PENDING")
+  faceMatchStatus       String            @default("PENDING")
+  amlStatus             String            @default("PENDING")
+  overallStatus         String            @default("PENDING")
+  failureReason         String?
+  manualReviewRequired  Boolean           @default(false)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  completedAt           DateTime?
+  verifications         KYCVerification[]
+  events                KYCProviderEvent[]
+}
+
+model KYCVerification {
+  id                        String         @id @default(uuid())
+  applicationId             String
+  application               KYCApplication @relation(fields: [applicationId], references: [id])
+  provider                  String
+  transactionId             String
+  verificationType          String         // PAN, FACE_LIVENESS, FACE_MATCH
+  status                    String
+  providerRequestId         String?
+  providerResponseReference String?
+  failureReason             String?
+  manualReview              Boolean        @default(false)
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
+}
+
+model KYCProviderEvent {
+  id            String         @id @default(uuid())
+  applicationId String
+  application   KYCApplication @relation(fields: [applicationId], references: [id])
+  eventId       String?
+  eventType     String
+  payload       String
+  status        String
+  createdAt     DateTime       @default(now())
+}
+
+
+model BseClient {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id])
+  clientCode   String   @unique
+  status       String   @default("PENDING") // PENDING, REGISTERED, FAILED
+  bseRemarks   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
