@@ -58,6 +58,19 @@ export class AuthController {
     return this.authService.refresh(refreshToken ?? '');
   }
 
+  @Post('dev/generate-otp')
+  @HttpCode(202)
+  async devGenerateOtp(@Body() body: { mobile: string }) {
+    if (process.env.NODE_ENV === 'production') {
+      const { NotFoundException } = require('@nestjs/common');
+      throw new NotFoundException();
+    }
+    const result = await this.authService.sendOtp(body.mobile, 'SMS');
+    // Ensure we do not leak the devOtp to the frontend for this endpoint
+    delete result.devOtp;
+    return result;
+  }
+
   @Post('logout')
   @UseGuards(AccessTokenGuard)
   @HttpCode(204)

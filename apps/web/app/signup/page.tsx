@@ -55,6 +55,22 @@ export default function SignupPage() {
       setStep(1.5);
     } catch (e: any) {
       setError(e.message);
+      } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDevGenerateOtp = async () => {
+    setLoading(true);
+    try {
+      await fetch(`${API_URL}/auth/dev/generate-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobile })
+      });
+      alert('Test OTP generated. Check the backend terminal.');
+    } catch (e: any) {
+      console.error(e);
     } finally {
       setLoading(false);
     }
@@ -257,6 +273,12 @@ export default function SignupPage() {
           
           <input type="number" value={otp} onChange={e => setOtp(e.target.value)} placeholder="000000" className="input-field text-center text-2xl tracking-widest font-bold" maxLength={6} />
           
+          {process.env.NODE_ENV !== 'production' && (
+            <button onClick={handleDevGenerateOtp} disabled={loading} className="mt-4 w-full py-3 rounded-xl border-2 border-dashed border-gray-300 text-gray-500 font-bold hover:bg-gray-50 transition-colors text-sm flex items-center justify-center gap-2">
+              <span>🔧</span> Generate Test OTP
+            </button>
+          )}
+
           <button onClick={handleVerifyOtp} disabled={otp.length < 4 || loading} className="btn-primary mt-8">
             <span>{loading ? 'Verifying...' : 'Verify OTP'}</span><span>→</span>
           </button>

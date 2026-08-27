@@ -7,15 +7,21 @@ export interface OtpProvider {
   send(input: { mobile: string; code: string; channel: OtpChannel }): Promise<void>;
 }
 
-/** Development-only provider. It never logs or returns the one-time code. */
+/** Development-only provider. */
 export class MockOtpProvider implements OtpProvider {
   readonly mode = 'MOCK' as const;
 
-  async send(input: { mobile: string; code: string; channel: OtpChannel }): Promise<void> {
-    console.log(`\n======================================================`);
-    console.log(`[DEV MODE] OTP generated for ${input.mobile} via ${input.channel}`);
-    console.log(`YOUR OTP CODE IS: ${input.code}`);
-    console.log(`======================================================\n`);
+  async send(input: {
+    mobile: string;
+    code: string;
+    channel: OtpChannel;
+  }): Promise<void> {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`\n======================================================`);
+      console.log(`[DEV MODE] OTP generated for ${input.mobile} via ${input.channel}`);
+      console.log(`YOUR OTP CODE IS: ${input.code}`);
+      console.log(`======================================================\n`);
+    }
   }
 }
 
