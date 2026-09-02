@@ -21,20 +21,20 @@ export class AuthController {
   }
 
   @Post('signup/start')
-  async signupStart(@Body() body: { mobile: string }) {
-    return this.authService.signupStart(body.mobile);
+  async signupStart(@Body() body: { mobile: string; channel?: 'SMS' | 'WHATSAPP' | 'EMAIL' }) {
+    return this.authService.signupStart(body.mobile, body.channel);
   }
 
   @Post('login/start')
-  async loginStart(@Body() body: { mobile: string }) {
-    return this.authService.loginStart(body.mobile);
+  async loginStart(@Body() body: { mobile: string; channel?: 'SMS' | 'WHATSAPP' | 'EMAIL' }) {
+    return this.authService.loginStart(body.mobile, body.channel);
   }
 
   @Post('otp/verify')
   async dualFlowVerifyOtp(
-    @Body() body: { mobile: string; otp: string; type: 'login' | 'signup' },
+    @Body() body: { mobile: string; otp: string; type: 'login' | 'signup'; password?: string },
   ) {
-    return this.authService.dualFlowVerifyOtp(body.mobile, body.otp, body.type);
+    return this.authService.dualFlowVerifyOtp(body.mobile, body.otp, body.type, body.password);
   }
 
   @Post('signup')

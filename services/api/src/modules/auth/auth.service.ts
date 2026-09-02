@@ -2,7 +2,8 @@ import { BadRequestException, HttpException, HttpStatus, Injectable, Unauthorize
 import { JwtService } from '@nestjs/jwt';
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { MockOtpProvider, GupshupOtpProvider, OtpChannel, OtpProvider, ProductionOtpProvider } from './otp.provider';
+import { InteraktService } from '../../integrations/interakt/interakt.service';
+import { MockOtpProvider, InteraktOtpProvider, OtpChannel, OtpProvider } from './otp.provider';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
@@ -11,13 +12,16 @@ const OTP_RATE_LIMIT_COUNT = 5;
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService, private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly prisma: PrismaService, 
+    private readonly jwtService: JwtService,
+    private readonly interaktService: InteraktService,
+  ) {}
 
   private get otpProvider(): OtpProvider {
     const providerStr = (process.env.OTP_PROVIDER ?? 'mock').toLowerCase();
-    if (providerStr === 'gupshup') return new GupshupOtpProvider();
-    if (providerStr === 'mock') return new MockOtpProvider();
-    return new ProductionOtpProvider();
+    if (providerStr === 'interakt') return new InteraktOtpProvider(this.interaktService);
+    return new MockOtpProvider();
   }
 
   private normalizeMobile(mobile: string) {
@@ -59,10 +63,15 @@ export class AuthService {
     };
   }
 
-  async verifyOtp(mobile: string, otp: string, deviceId?: string) {
+  async verifyOtp(mobile: string, otp: string, deviceId?: string, password?: string) {
     const normalizedMobile = this.normalizeMobile(mobile);
     await this.validateOtp(normalizedMobile, otp);
-    const user = await this.prisma.user.upsert({ where: { mobile: normalizedMobile }, update: {}, create: { mobile: normalizedMobile } });
+    const hashedPassword = password ? this.hash(password) : undefined;
+    const user = await this.prisma.user.upsert({ 
+      where: { mobile: normalizedMobile }, 
+      update: { passwordHash: hashedPassword }, 
+      create: { mobile: normalizedMobile, passwordHash: hashedPassword } 
+    });
     if (deviceId) {
       await this.prisma.device.upsert({ where: { deviceId }, update: { userId: user.id, lastActiveAt: new Date() }, create: { userId: user.id, deviceId } });
     }
@@ -95,28 +104,33 @@ export class AuthService {
     await this.prisma.otpVerification.update({ where: { id: record.id }, data: { status: 'VERIFIED', verifiedAt: new Date() } });
   }
 
-  async signupStart(mobile: string) {
+  async signupStart(mobile: string, channel: 'SMS' | 'WHATSAPP' | 'EMAIL' = 'SMS') {
     const normalizedMobile = this.normalizeMobile(mobile);
     const existing = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile } });
     if (existing) throw new HttpException('User already exists.', HttpStatus.CONFLICT);
     
-    return this.sendOtp(mobile, 'SMS');
+    return this.sendOtp(mobile, channel);
   }
 
-  async loginStart(mobile: string) {
+  async loginStart(mobile: string, channel: 'SMS' | 'WHATSAPP' | 'EMAIL' = 'SMS') {
     const normalizedMobile = this.normalizeMobile(mobile);
     const existing = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile } });
     if (!existing) throw new HttpException('User not found.', HttpStatus.NOT_FOUND);
     
-    return this.sendOtp(mobile, 'SMS');
+    return this.sendOtp(mobile, channel);
   }
 
-  async dualFlowVerifyOtp(mobile: string, otp: string, type: 'login' | 'signup') {
+  async dualFlowVerifyOtp(mobile: string, otp: string, type: 'login' | 'signup', password?: string) {
     const normalizedMobile = this.normalizeMobile(mobile);
     await this.validateOtp(normalizedMobile, otp);
     
     if (type === 'signup') {
-      const user = await this.prisma.user.upsert({ where: { mobile: normalizedMobile }, update: {}, create: { mobile: normalizedMobile } });
+      const hashedPassword = password ? this.hash(password) : undefined;
+      const user = await this.prisma.user.upsert({ 
+        where: { mobile: normalizedMobile }, 
+        update: { passwordHash: hashedPassword }, 
+        create: { mobile: normalizedMobile, passwordHash: hashedPassword } 
+      });
       const progress = await this.prisma.onboardingProgress.upsert({
         where: { userId: user.id },
         update: { lastCompletedStep: 'SIGNUP', step: 'SIGNUP' },

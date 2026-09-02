@@ -36,14 +36,23 @@ export default function SignupPage() {
     setStep(s => s + 1);
   };
 
-  const handleSendSignupOtp = async () => {
+  const handleContinueToOtp = () => {
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    setError('');
+    setStep(1.5);
+  };
+
+  const handleSendSignupOtp = async (channel: 'SMS' | 'WHATSAPP') => {
     setLoading(true);
     setError('');
     try {
       const res = await fetch(`${API_URL}/auth/signup/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile, channel: 'WHATSAPP' })
+        body: JSON.stringify({ mobile, channel })
       });
       const data = await res.json();
       if (res.status === 409) {
@@ -51,12 +60,10 @@ export default function SignupPage() {
       }
       if (!res.ok) throw new Error(data.message || 'Failed to send OTP');
       
-      
       setOtpSent(true);
-      setStep(1.5);
     } catch (e: any) {
       setError(e.message);
-      } finally {
+    } finally {
       setLoading(false);
     }
   };
@@ -252,10 +259,10 @@ export default function SignupPage() {
           
           
           
-          <button onClick={handleSendSignupOtp}
+                    <button onClick={handleContinueToOtp}
  disabled={mobile.length !== 10 || !isPasswordStrong || loading} className="btn-primary mt-8">
-            <span>{loading ? 'Sending OTP...' : 'Continue'}</span><span>→</span>
-          </button>
+              <span>Continue</span><span>→</span>
+            </button>
         </div>
       )}
 
@@ -266,11 +273,22 @@ export default function SignupPage() {
           
           <input type="number" value={otp} onChange={e => setOtp(e.target.value)} placeholder="000000" className="input-field text-center text-2xl tracking-widest font-bold" maxLength={6} />
           
-          {process.env.NODE_ENV !== 'production' && (
-            <button onClick={handleDevGenerateOtp} disabled={loading} className="mt-4 w-full py-3 rounded-xl border-2 border-dashed border-gray-300 text-gray-500 font-bold hover:bg-gray-50 transition-colors text-sm flex items-center justify-center gap-2">
-              <span>🔧</span> Generate Test OTP
-            </button>
-          )}
+          <div className="flex gap-4 mt-6">
+              <button 
+                onClick={() => handleSendSignupOtp('SMS')}
+                disabled={loading}
+                className="flex-1 py-3 rounded-xl border-2 font-bold transition-all text-sm border-gray-100 text-gray-400 bg-white hover:border-gray-200"
+              >
+                Send via SMS
+              </button>
+              <button 
+                onClick={() => handleSendSignupOtp('WHATSAPP')}
+                disabled={loading}
+                className="flex-1 py-3 rounded-xl border-2 font-bold transition-all text-sm border-[#25D366] bg-[#dcf8c6] text-[#128C7E]"
+              >
+                Send via WhatsApp
+              </button>
+            </div>
 
           <button onClick={handleVerifyOtp} disabled={otp.length < 4 || loading} className="btn-primary mt-8">
             <span>{loading ? 'Verifying...' : 'Verify OTP'}</span><span>→</span>

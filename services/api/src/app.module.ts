@@ -19,6 +19,8 @@ import { VoiceModule } from './modules/voice/voice.module';
 import { ApiHealthModule } from './modules/api-health/api-health.module';
 import { WhatsappModule } from './integrations/whatsapp/whatsapp.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
+import { InteraktModule } from './integrations/interakt/interakt.module';
+import { CybrillaModule } from './modules/cybrilla/cybrilla.module';
 
 @Module({
   imports: [
@@ -40,6 +42,8 @@ import { RecommendationsModule } from './modules/recommendations/recommendations
     ApiHealthModule,
     WhatsappModule,
     RecommendationsModule,
+    InteraktModule,
+    CybrillaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

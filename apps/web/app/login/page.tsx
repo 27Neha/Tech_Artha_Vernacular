@@ -21,7 +21,7 @@ export default function LoginPage() {
   const [otpChannel, setOtpChannel] = useState<'SMS' | 'WHATSAPP'>('SMS');
   const [password, setPassword] = useState('');
 
-  const handleSendOtp = async () => {
+  const handleSendOtp = async (channel: 'SMS' | 'WHATSAPP' = 'WHATSAPP') => {
     setError('');
     setOtpHint('');
     if (!/^\d{10}$/.test(phone)) {
@@ -33,7 +33,7 @@ export default function LoginPage() {
       const res = await fetch(`${API_URL}/auth/login/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: phone, channel: otpChannel }),
+        body: JSON.stringify({ mobile: phone, channel }),
       });
       const data = await res.json();
       if (res.status === 404) {
@@ -71,7 +71,7 @@ export default function LoginPage() {
         setLoading(false);
       }
     } else {
-      handleSendOtp();
+      setOtpSent(true);
     }
   };
 
@@ -156,22 +156,7 @@ export default function LoginPage() {
             {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
 
             
-            {loginMethod === 'otp' && (
-              <div className="flex gap-4 mt-6">
-                <button 
-                  onClick={() => setOtpChannel('SMS')}
-                  className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all text-sm ${otpChannel === 'SMS' ? 'border-[var(--primary)] bg-[var(--primary-light)] text-[var(--primary)]' : 'border-gray-100 text-gray-400 bg-white hover:border-gray-200'}`}
-                >
-                  Send via SMS
-                </button>
-                <button 
-                  onClick={() => setOtpChannel('WHATSAPP')}
-                  className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all text-sm ${otpChannel === 'WHATSAPP' ? 'border-[#25D366] bg-[#dcf8c6] text-[#128C7E]' : 'border-gray-100 text-gray-400 bg-white hover:border-gray-200'}`}
-                >
-                  Send via WhatsApp
-                </button>
-              </div>
-            )}
+            
             
             <button
               onClick={handleLogin}
@@ -198,6 +183,23 @@ export default function LoginPage() {
               placeholder="Enter OTP"
               className="input-field text-center text-2xl font-bold tracking-widest"
             />
+
+            <div className="flex gap-4 mt-6">
+              <button 
+                onClick={() => handleSendOtp('SMS')}
+                disabled={loading}
+                className="flex-1 py-3 rounded-xl border-2 font-bold transition-all text-sm border-gray-100 text-gray-400 bg-white hover:border-gray-200"
+              >
+                Send via SMS
+              </button>
+              <button 
+                onClick={() => handleSendOtp('WHATSAPP')}
+                disabled={loading}
+                className="flex-1 py-3 rounded-xl border-2 font-bold transition-all text-sm border-[#25D366] bg-[#dcf8c6] text-[#128C7E]"
+              >
+                Send via WhatsApp
+              </button>
+            </div>
 
             {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
 
