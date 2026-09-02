@@ -43,7 +43,7 @@ export default function SignupPage() {
       const res = await fetch(`${API_URL}/auth/signup/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile, channel: otpChannel })
+        body: JSON.stringify({ mobile, channel: 'WHATSAPP' })
       });
       const data = await res.json();
       if (res.status === 409) {
@@ -250,20 +250,7 @@ export default function SignupPage() {
           </div>
           
           
-          <div className="flex gap-4 mt-6">
-            <button 
-              onClick={() => setOtpChannel('SMS')}
-              className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all text-sm ${otpChannel === 'SMS' ? 'border-[var(--primary)] bg-[var(--primary-light)] text-[var(--primary)]' : 'border-gray-100 text-gray-400 bg-white hover:border-gray-200'}`}
-            >
-              Send via SMS
-            </button>
-            <button 
-              onClick={() => setOtpChannel('WHATSAPP')}
-              className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all text-sm ${otpChannel === 'WHATSAPP' ? 'border-[#25D366] bg-[#dcf8c6] text-[#128C7E]' : 'border-gray-100 text-gray-400 bg-white hover:border-gray-200'}`}
-            >
-              Send via WhatsApp
-            </button>
-          </div>
+          
           
           <button onClick={handleSendSignupOtp}
  disabled={mobile.length !== 10 || !isPasswordStrong || loading} className="btn-primary mt-8">
