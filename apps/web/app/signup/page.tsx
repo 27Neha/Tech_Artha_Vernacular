@@ -10,6 +10,7 @@ export default function SignupPage() {
   
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [clientType, setClientType] = useState('retail');
   const [referralCode, setReferralCode] = useState('');
@@ -216,16 +217,21 @@ export default function SignupPage() {
           <input type="tel" value={mobile} onChange={e => setMobile(e.target.value)} placeholder="10-digit number" className="input-field" maxLength={10} />
           
                     <label className="label">Create Password</label>
-          <div className="relative flex items-center">
-            <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="Secure password" className="input-field w-full pr-10" />
-            <button 
-              type="button" 
-              onClick={() => setShowPassword(!showPassword)} 
-              className="absolute right-3 text-gray-400 hover:text-[var(--primary)] font-bold text-sm focus:outline-none"
-            >
-              {showPassword ? 'Hide' : 'Show'}
-            </button>
-          </div>
+            <div className="relative flex items-center">
+              <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="Secure password" className="input-field w-full pr-10" />
+              <button 
+                type="button" 
+                onClick={() => setShowPassword(!showPassword)} 
+                className="absolute right-3 text-gray-400 hover:text-[var(--primary)] font-bold text-sm focus:outline-none"
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            
+            <label className="label mt-4">Confirm Password</label>
+            <div className="relative flex items-center">
+              <input type={showPassword ? "text" : "password"} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Confirm your password" className="input-field w-full pr-10" />
+            </div>
           
           <div className="mt-3 flex flex-col gap-1.5 p-3 bg-gray-50 rounded-xl border border-gray-100">
             <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Password Requirements</p>
@@ -364,14 +370,14 @@ export default function SignupPage() {
           
           <button 
             onClick={() => router.push('/dashboard')} 
-            disabled={panVerified !== 'SUCCESS' || faceVerified !== 'SUCCESS'} 
+            disabled={panVerified !== 'SUCCESS'} 
             className={`w-full py-3.5 rounded-xl font-extrabold text-white mt-auto mb-4 transition-all ${
-              panVerified === 'SUCCESS' && faceVerified === 'SUCCESS' 
+              panVerified === 'SUCCESS' 
                 ? 'bg-[var(--primary)]' 
                 : 'bg-gray-300 cursor-not-allowed'
             }`}
           >
-            {panVerified === 'SUCCESS' && faceVerified === 'SUCCESS' ? 'Complete KYC' : 'Overall KYC Pending'}
+            {panVerified === 'SUCCESS' ? 'Complete KYC' : 'KYC Pending'}
           </button>
         </div>
       )}
