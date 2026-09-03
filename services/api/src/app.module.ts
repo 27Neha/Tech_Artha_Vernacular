@@ -5,7 +5,6 @@ import { KycModule } from './modules/kyc/kyc.module';
 import { FundsModule } from './modules/funds/funds.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
-import { HypervergeModule } from './integrations/hyperverge/hyperverge.module';
 import { RiskModule } from './modules/risk/risk.module';
 import { GoalModule } from './modules/goal/goal.module';
 import { PortfolioModule } from './modules/portfolio/portfolio.module';
@@ -28,7 +27,6 @@ import { CybrillaModule } from './modules/cybrilla/cybrilla.module';
     FundsModule,
     AuthModule,
     PrismaModule,
-    HypervergeModule,
     RiskModule,
     GoalModule,
     PortfolioModule,

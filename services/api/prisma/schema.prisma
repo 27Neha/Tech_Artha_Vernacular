@@ -36,20 +36,22 @@ model User {
   learningProgress   LearningProgress[]
   supportTickets     SupportTicket[]
   notifications      Notification[]
+  FpInvestorProfile  FpInvestorProfile?
+  FpMandate          FpMandate[]
 }
 
 model UserProfile {
-  id           String   @id @default(uuid())
-  userId       String   @unique
-  user         User     @relation(fields: [userId], references: [id])
+  id           String    @id @default(uuid())
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id])
   fullName     String?
   dateOfBirth  DateTime?
-  email        String?  @unique
+  email        String?   @unique
   gender       String?
   age          Int?
   investorType String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
 model Device {
@@ -76,14 +78,14 @@ model Session {
 }
 
 model OtpVerification {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   mobile     String
   otpHash    String
   expiresAt  DateTime
-  attempts   Int      @default(0)
-  channel    String   @default("SMS")
+  attempts   Int       @default(0)
+  channel    String    @default("SMS")
   verifiedAt DateTime?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
   status     String
 }
 
@@ -186,15 +188,15 @@ model AuditLog {
 }
 
 model WebhookEvent {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   provider    String
-  eventId     String   @unique
+  eventId     String    @unique
   eventType   String
   payloadHash String
   status      String
   error       String?
-  retryCount  Int      @default(0)
-  receivedAt  DateTime @default(now())
+  retryCount  Int       @default(0)
+  receivedAt  DateTime  @default(now())
   processedAt DateTime?
 }
 
@@ -316,25 +318,24 @@ model Notification {
   createdAt DateTime @default(now())
 }
 
-
 model KYCApplication {
-  id                    String            @id @default(uuid())
-  userId                String            @unique
-  user                  User              @relation(fields: [userId], references: [id])
-  provider              String            @default("HYPERVERGE")
-  providerTransactionId String?           @unique
+  id                    String             @id @default(uuid())
+  userId                String             @unique
+  user                  User               @relation(fields: [userId], references: [id])
+  provider              String             @default("HYPERVERGE")
+  providerTransactionId String?            @unique
   workflowId            String?
-  status                String            @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, PENDING, MANUAL_REVIEW, VERIFIED, FAILED, REJECTED
-  panStatus             String            @default("PENDING")
-  documentStatus        String            @default("PENDING")
-  faceLivenessStatus    String            @default("PENDING")
-  faceMatchStatus       String            @default("PENDING")
-  amlStatus             String            @default("PENDING")
-  overallStatus         String            @default("PENDING")
+  status                String             @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, PENDING, MANUAL_REVIEW, VERIFIED, FAILED, REJECTED
+  panStatus             String             @default("PENDING")
+  documentStatus        String             @default("PENDING")
+  faceLivenessStatus    String             @default("PENDING")
+  faceMatchStatus       String             @default("PENDING")
+  amlStatus             String             @default("PENDING")
+  overallStatus         String             @default("PENDING")
   failureReason         String?
-  manualReviewRequired  Boolean           @default(false)
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
+  manualReviewRequired  Boolean            @default(false)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
   completedAt           DateTime?
   verifications         KYCVerification[]
   events                KYCProviderEvent[]
@@ -346,7 +347,7 @@ model KYCVerification {
   application               KYCApplication @relation(fields: [applicationId], references: [id])
   provider                  String
   transactionId             String
-  verificationType          String         // PAN, FACE_LIVENESS, FACE_MATCH
+  verificationType          String // PAN, FACE_LIVENESS, FACE_MATCH
   status                    String
   providerRequestId         String?
   providerResponseReference String?
@@ -367,14 +368,89 @@ model KYCProviderEvent {
   createdAt     DateTime       @default(now())
 }
 
-
 model BseClient {
-  id           String   @id @default(uuid())
-  userId       String   @unique
-  user         User     @relation(fields: [userId], references: [id])
-  clientCode   String   @unique
-  status       String   @default("PENDING") // PENDING, REGISTERED, FAILED
-  bseRemarks   String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id])
+  clientCode String   @unique
+  status     String   @default("PENDING") // PENDING, REGISTERED, FAILED
+  bseRemarks String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model FpInvestorProfile {
+  id             String                  @id @default(uuid())
+  userId         String                  @unique
+  fpProfileId    String?                 @unique
+  name           String
+  pan            String
+  dateOfBirth    String
+  gender         String
+  taxStatus      String                  @default("resident_individual")
+  occupation     String
+  incomeSlab     String
+  sourceOfWealth String
+  status         String                  @default("CREATED")
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  user           User                    @relation(fields: [userId], references: [id])
+  mfAccounts     FpMfInvestmentAccount[]
+}
+
+model FpMfInvestmentAccount {
+  id                String            @id @default(uuid())
+  fpAccountId       String            @unique
+  investorProfileId String
+  holdingPattern    String            @default("single")
+  status            String            @default("ACTIVE")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  investorProfile   FpInvestorProfile @relation(fields: [investorProfileId], references: [id])
+  orders            FpPurchaseOrder[]
+  plans             FpPurchasePlan[]
+}
+
+model FpPurchaseOrder {
+  id             String                @id @default(uuid())
+  fpOrderId      String?               @unique
+  accountId      String
+  schemeIsin     String
+  amount         Float
+  status         String                @default("PENDING")
+  folioNumber    String?
+  allottedUnits  Float?
+  purchasedPrice Float?
+  failureReason  String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  account        FpMfInvestmentAccount @relation(fields: [accountId], references: [id])
+}
+
+model FpPurchasePlan {
+  id             String                @id @default(uuid())
+  fpPlanId       String?               @unique
+  accountId      String
+  schemeIsin     String
+  amount         Float
+  frequency      String                @default("MONTHLY")
+  installmentDay Int
+  status         String                @default("CREATED")
+  mandateId      String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  account        FpMfInvestmentAccount @relation(fields: [accountId], references: [id])
+}
+
+model FpMandate {
+  id            String   @id @default(uuid())
+  fpMandateId   String?  @unique
+  userId        String
+  type          String   @default("UPI_AUTOPAY")
+  status        String   @default("CREATED")
+  maxAmount     Float
+  bankAccountId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id])
 }

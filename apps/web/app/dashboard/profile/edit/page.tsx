@@ -55,7 +55,7 @@ export default function EditProfilePage() {
         <div className="bg-green-50 p-4 rounded-xl border border-green-200 mt-6 flex justify-between items-center">
           <div>
             <p className="text-sm font-bold text-green-800">KYC Status</p>
-            <p className="text-xs text-green-700">Verified via Hyperverge</p>
+            <p className="text-xs text-green-700">Verified via Cybrilla</p>
           </div>
           <span className="text-green-600 font-bold bg-green-100 rounded-full w-6 h-6 flex items-center justify-center">✓</span>
         </div>

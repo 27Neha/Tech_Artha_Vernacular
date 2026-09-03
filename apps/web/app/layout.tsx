@@ -22,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        <Script src="https://hyperkyc.hyperverge.co/web/v3.0.0/hyperkyc.js" strategy="beforeInteractive" />
+        
       </head>
       <body className="min-h-screen bg-[#F8F9FB]">
         <TranslationProvider>

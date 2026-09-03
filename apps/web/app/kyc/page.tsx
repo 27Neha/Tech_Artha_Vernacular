@@ -123,7 +123,7 @@ export default function KycPage() {
         </button>
 
         <p className="text-xs text-gray-400 text-center mt-4">
-          Powered by Hyperverge KYC · Bank-grade security
+          Powered by Cybrilla · Bank-grade security
         </p>
       </div>
     </div>

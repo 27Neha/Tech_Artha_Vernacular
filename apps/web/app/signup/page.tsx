@@ -153,11 +153,11 @@ export default function SignupPage() {
     }
   };
 
-  const startHyperVergeWorkflow = async () => {
+  const startKycWorkflow = async () => {
     setLoading(true);
     setPanVerified('IN_PROGRESS');
     try {
-      // 1. Ask backend for transaction ID and HyperVerge Token
+      // 1. Ask backend to start KYC
       const token = localStorage.getItem('access_token');
       const res = await fetch(`${API_URL}/api/v1/kyc/start`, {
         method: 'POST',
@@ -171,31 +171,7 @@ export default function SignupPage() {
       
       setTransactionId(data.transactionId);
 
-      // 2. Launch actual HyperVerge Web SDK (Assuming script is loaded)
-      // Reference: https://documentation.hyperverge.co/sdks/
-      if (typeof window !== 'undefined' && (window as any).HyperKYC) {
-        const hyperKycConfig = new (window as any).HyperKYCConfig(
-          data.hvToken, 
-          data.workflowId, 
-          data.transactionId
-        );
-        
-        (window as any).HyperKYC.launch(hyperKycConfig, (result: any) => {
-          if (result.status === 'auto_approved') {
-            // Wait for backend webhook to sync, then poll
-            setTimeout(() => pollKycStatus(data.transactionId), 2000);
-          } else if (result.status === 'auto_declined') {
-            setPanVerified('FAILED');
-            setFaceVerified('FAILED');
-          } else if (result.status === 'user_cancelled') {
-            setPanVerified('PENDING');
-            setFaceVerified('PENDING');
-          }
-        });
-      } else {
-        alert('HyperVerge SDK is not loaded or configured correctly. Please check SDK docs.');
-        setPanVerified('FAILED');
-      }
+      if (data.status === 'VERIFIED') { setPanVerified('SUCCESS'); } else { setPanVerified('FAILED'); }
     } catch (e: any) {
       setError(e.message);
       setPanVerified('FAILED');
@@ -322,7 +298,7 @@ export default function SignupPage() {
         <div className="flex-1 flex flex-col">
           <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 mb-6">
             <p className="text-sm text-amber-800 font-semibold mb-1">Identity Verification Required</p>
-            <p className="text-xs text-amber-700">We use <b>Hyperverge</b> to securely verify your identity. Real documents and a live selfie are required.</p>
+            <p className="text-xs text-amber-700">Your PAN and KYC details are securely verified through our regulated investment onboarding partner.</p>
           </div>
           
           <div className="flex flex-col gap-4">
@@ -339,7 +315,7 @@ export default function SignupPage() {
               </div>
               <div>
                 {panVerified === 'PENDING' && (
-                  <button onClick={startHyperVergeWorkflow} disabled={loading} className="px-4 py-2 bg-[var(--primary)] text-white font-bold rounded-lg text-sm">
+                  <button onClick={startKycWorkflow} disabled={loading} className="px-4 py-2 bg-[var(--primary)] text-white font-bold rounded-lg text-sm">
                     {loading ? 'Starting...' : 'Verify Now'}
                   </button>
                 )}
@@ -362,7 +338,7 @@ export default function SignupPage() {
               </div>
               <div>
                 {panVerified === 'SUCCESS' && faceVerified === 'PENDING' && (
-                  <button onClick={startHyperVergeWorkflow} disabled={loading} className="px-4 py-2 bg-[var(--primary)] text-white font-bold rounded-lg text-sm">
+                  <button onClick={startKycWorkflow} disabled={loading} className="px-4 py-2 bg-[var(--primary)] text-white font-bold rounded-lg text-sm">
                     Start
                   </button>
                 )}
