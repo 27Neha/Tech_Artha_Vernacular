@@ -10,8 +10,8 @@ export class KycController {
 
   @Post('start')
   @HttpCode(200)
-  startKyc(@CurrentUser() user: AuthenticatedUser) {
-    return this.kycService.startKyc(user.id);
+  startKyc(@CurrentUser() user: AuthenticatedUser, @Body() body: { fullName?: string; pan?: string; dob?: string }) {
+    return this.kycService.startKyc(user.id, body.fullName ?? '', body.pan ?? '', body.dob ?? '');
   }
 
   @Get('status')
