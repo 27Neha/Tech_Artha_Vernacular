@@ -1,44 +1,55 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { randomUUID } from 'crypto';
+import { CybrillaService } from '../cybrilla/cybrilla.service';
 
 @Injectable()
 export class KycService {
   private readonly logger = new Logger(KycService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cybrilla: CybrillaService,
+  ) {}
 
-  async startKyc(userId: string) {
-    let application = await this.prisma.kYCApplication.findUnique({
-      where: { userId },
-    });
+  async startKyc(userId: string, fullName: string, pan: string, dob: string) {
+    if (!fullName || !pan || !dob) {
+      throw new BadRequestException('fullName, pan, and dob are required to start KYC.');
+    }
 
+    let application = await this.prisma.kYCApplication.findUnique({ where: { userId } });
     if (!application) {
       application = await this.prisma.kYCApplication.create({
-        data: {
-          userId,
-          status: 'IN_PROGRESS',
-        },
+        data: { userId, provider: 'CYBRILLA', status: 'IN_PROGRESS' },
       });
     }
 
-    const transactionId = randomUUID();
-    const token = 'cybrilla_token_' + randomUUID();
-    const workflowId = 'kyc_workflow_1';
+    const result = await this.cybrilla.verifyPan(pan, fullName, dob);
 
-    // Update the transaction id
+    const allVerified = ['pan', 'name', 'date_of_birth'].every((field) => result[field]?.status === 'verified');
+    const overallStatus = result.status === 'completed' ? (allVerified ? 'VERIFIED' : 'FAILED') : 'IN_PROGRESS';
+    const failureReason = allVerified
+      ? null
+      : ['pan', 'name', 'date_of_birth']
+          .map((field) => (result[field]?.status === 'failed' ? `${field}: ${result[field]?.reason ?? result[field]?.code}` : null))
+          .filter(Boolean)
+          .join('; ') || null;
+
     await this.prisma.kYCApplication.update({
       where: { id: application.id },
       data: {
-        providerTransactionId: transactionId,
-        workflowId
-      }
+        provider: 'CYBRILLA',
+        providerTransactionId: result.id,
+        panStatus: result.pan?.status === 'verified' ? 'VERIFIED' : result.pan?.status === 'failed' ? 'FAILED' : 'PENDING',
+        overallStatus,
+        status: overallStatus,
+        failureReason,
+      },
     });
 
     return {
-      transactionId,
-      token,
-      workflowId,
+      transactionId: result.id,
+      status: overallStatus,
+      providerResponse: result,
     };
   }
 
