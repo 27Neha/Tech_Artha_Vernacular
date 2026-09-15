@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Body, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, UseGuards, BadRequestException } from '@nestjs/common';
 import { AccessTokenGuard, CurrentUser } from '../../common/auth';
 import type { AuthenticatedUser } from '../../common/auth';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BucketsService } from './buckets.service';
 import { CustomBucketDto } from './custom-bucket.dto';
+import { InvestInBucketDto } from './invest-in-bucket.dto';
 
 @Controller('buckets')
 @UseGuards(AccessTokenGuard)
@@ -14,6 +15,16 @@ export class BucketsController {
   async list(@CurrentUser() user: AuthenticatedUser) {
     const profile = await this.prisma.riskProfile.findUnique({ where: { userId: user.id } });
     return { investorProfile: profile?.category ?? 'ASSESSMENT_REQUIRED', buckets: profile ? await this.buckets.listForProfile(profile.category) : [] };
+  }
+
+  @Get('investments')
+  async listInvestments(@CurrentUser() user: AuthenticatedUser) {
+    return this.buckets.listInvestments(user.id);
+  }
+
+  @Post(':id/invest')
+  async invest(@CurrentUser() user: AuthenticatedUser, @Param('id') bucketId: string, @Body() dto: InvestInBucketDto) {
+    return this.buckets.invest(user.id, bucketId, dto);
   }
 
   @Post('custom')

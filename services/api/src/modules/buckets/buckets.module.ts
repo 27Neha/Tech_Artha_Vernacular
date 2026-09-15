@@ -5,9 +5,10 @@ import { BucketsController } from './buckets.controller';
 import { BucketsService } from './buckets.service';
 import { RecommendationsModule } from '../recommendations/recommendations.module';
 import { FundsModule } from '../funds/funds.module';
+import { CybrillaModule } from '../cybrilla/cybrilla.module';
 
-@Module({ 
-  imports: [AuthModule, PrismaModule, RecommendationsModule, FundsModule], 
+@Module({
+  imports: [AuthModule, PrismaModule, RecommendationsModule, FundsModule, CybrillaModule],
   controllers: [BucketsController], 
   providers: [BucketsService], 
   exports: [BucketsService] 

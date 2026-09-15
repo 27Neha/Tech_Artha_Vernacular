@@ -223,4 +223,40 @@ export class CybrillaService {
       throw new InternalServerErrorException('Cybrilla Bank Account creation failed.');
     }
   }
+
+  async createInvestmentAccount(investorProfileId: string, holdingPattern: 'single' | 'joint' | 'anyone_survivor' = 'single') {
+    if (!this.accessToken) {
+      await this.authenticate();
+    }
+
+    const tenantId = process.env.CYBRILLA_TENANT_ID;
+
+    try {
+      const url = `${this.sandboxBaseUrl}/v2/mf_investment_accounts`;
+      this.logger.log(`Creating Cybrilla MF Investment Account for investor ${investorProfileId}...`);
+
+      const response = await axios.post(
+        url,
+        { primary_investor: investorProfileId, holding_pattern: holdingPattern },
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+            'x-tenant-id': tenantId,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      this.logger.log(`MF Investment Account created successfully. Status: ${response.status}`);
+      return response.data;
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const responseData = error?.response?.data;
+
+      this.logger.error(`Cybrilla MF Investment Account creation failed. HTTP Status: ${status || 'Unknown'}`);
+      this.logger.error(`Response Data: ${JSON.stringify(responseData)}`);
+
+      throw new InternalServerErrorException('Cybrilla MF Investment Account creation failed.');
+    }
+  }
 }

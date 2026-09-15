@@ -46,6 +46,13 @@ export class KycService {
       },
     });
 
+    // Retain the submitted identity details so later steps (e.g. investing) don't need to ask again.
+    await this.prisma.userProfile.upsert({
+      where: { userId },
+      update: { fullName, pan, dateOfBirth: new Date(dob) },
+      create: { userId, fullName, pan, dateOfBirth: new Date(dob) },
+    });
+
     return {
       transactionId: result.id,
       status: overallStatus,
