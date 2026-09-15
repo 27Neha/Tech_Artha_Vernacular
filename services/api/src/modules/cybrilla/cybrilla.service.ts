@@ -154,6 +154,24 @@ export class CybrillaService {
     }
   }
 
+  /** Poll for the resolved result of a previously-submitted PAN pre-verification. */
+  async fetchPreVerification(id: string) {
+    if (!this.preVerifyAccessToken) {
+      await this.authenticatePreVerify();
+    }
+
+    try {
+      const response = await axios.get(`${this.preVerifyBaseUrl}/poa/pre_verifications/${id}`, {
+        headers: { Authorization: `Bearer ${this.preVerifyAccessToken}` },
+      });
+      return response.data;
+    } catch (error: any) {
+      const status = error?.response?.status;
+      this.logger.error(`Cybrilla pre-verification fetch failed for ${id}. HTTP Status: ${status || 'Unknown'}`);
+      throw new InternalServerErrorException('Could not check verification status right now.');
+    }
+  }
+
   async createInvestorProfile(profileData: any) {
     if (!this.accessToken) {
       await this.authenticate();
