@@ -8,7 +8,8 @@ export class InvestInBucketDto {
   @IsInt()
   @Min(1)
   @Max(28)
-  installmentDay: number;
+  @IsOptional()
+  installmentDay?: number;
 
   @IsIn(['male', 'female', 'transgender'])
   gender: 'male' | 'female' | 'transgender';
@@ -31,4 +32,12 @@ export class InvestInBucketDto {
   @IsIn(['savings', 'current'])
   @IsOptional()
   accountType?: 'savings' | 'current';
+
+  @IsString()
+  @MinLength(3)
+  addressLine1!: string;
+
+  @IsString()
+  @MinLength(6)
+  postalCode!: string;
 }

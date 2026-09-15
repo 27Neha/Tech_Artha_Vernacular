@@ -25,11 +25,18 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   PENDING_MANDATE_SETUP: 'Order in progress',
   CREATED: 'Order in progress',
   PENDING: 'Order in progress',
+  UNDER_REVIEW: 'Order in progress',
+  SUBMITTED: 'Order in progress',
   ACTIVE: 'Order fulfilled',
   COMPLETED: 'Order fulfilled',
+  SUCCEEDED: 'Order fulfilled',
+  CONFIRMED: 'Order fulfilled',
   FAILED: 'Order failed',
+  REVERSED: 'Order failed',
   CANCELLED: 'Cancelled',
 };
+
+const bucketIdForIsin = (isin: string): string | undefined => Object.entries(BUCKET_SCHEME).find(([, s]) => s.isin === isin)?.[0];
 
 @Injectable()
 export class BucketsService {
@@ -159,7 +166,19 @@ export class BucketsService {
         type: dto.accountType ?? 'savings',
       });
 
-      const cybrillaAccount = await this.cybrilla.createInvestmentAccount(fpProfileId, 'single');
+      // folio_defaults fields are references to separately-created contact resources, not inline values.
+      const [email, phone, address] = await Promise.all([
+        this.cybrilla.createEmailAddress(fpProfileId, dto.email),
+        this.cybrilla.createPhoneNumber(fpProfileId, '91', user!.mobile.replace(/^\+?91/, '')),
+        this.cybrilla.createAddress(fpProfileId, dto.addressLine1, 'IN', dto.postalCode),
+      ]);
+
+      const cybrillaAccount = await this.cybrilla.createInvestmentAccount(fpProfileId, 'single', {
+        communication_email_address: email.id,
+        communication_mobile_number: phone.id,
+        communication_address: address.id,
+        payout_bank_account: bank.data.id,
+      });
 
       account = await this.prisma.fpMfInvestmentAccount.create({
         data: {
@@ -172,36 +191,57 @@ export class BucketsService {
       });
     }
 
-    // Actual order/SIP submission to Cybrilla (POST /v2/mf_purchases) requires the investment
-    // account's `folio_defaults` to be set first - the exact nested schema for that isn't
-    // confirmed yet (see conversation notes). Queue the SIP honestly rather than fake activation.
-    const plan = await this.prisma.fpPurchasePlan.create({
+    // Real one-time (lumpsum) order placement. Recurring SIP via auto-debit mandate isn't wired
+    // yet - Cybrilla's mandate request schema isn't confirmed (see conversation notes), so for now
+    // each "invest" call places a single real order rather than registering a recurring plan.
+    const orderResult = await this.cybrilla.createPurchaseOrder({
+      mfInvestmentAccount: account.fpAccountId,
+      scheme: scheme.isin,
+      gateway: scheme.gateway,
+      amount: dto.amount,
+      userIp: '127.0.0.1',
+    });
+
+    const orderStatus = this.mapCybrillaOrderState(orderResult.state);
+
+    const order = await this.prisma.fpPurchaseOrder.create({
       data: {
         accountId: account.id,
-        bucketId,
+        fpOrderId: orderResult.id,
         schemeIsin: scheme.isin,
         amount: dto.amount,
-        frequency: 'MONTHLY',
-        installmentDay: dto.installmentDay,
-        status: 'PENDING_MANDATE_SETUP',
+        status: orderStatus,
       },
     });
 
     await this.prisma.auditLog.create({
-      data: { userId, action: 'SIP_QUEUED', details: JSON.stringify({ bucketId, amount: dto.amount, schemeIsin: scheme.isin, planId: plan.id }) },
+      data: { userId, action: 'ORDER_PLACED', details: JSON.stringify({ bucketId, amount: dto.amount, schemeIsin: scheme.isin, orderId: order.id, fpOrderId: orderResult.id }) },
     });
 
     return {
-      planId: plan.id,
+      orderId: order.id,
       bucketId,
       fundName: scheme.fundName,
       schemeIsin: scheme.isin,
-      amount: plan.amount,
-      installmentDay: plan.installmentDay,
-      status: plan.status,
-      statusLabel: ORDER_STATUS_LABELS[plan.status] ?? plan.status,
-      message: 'Your SIP has been queued. Final activation is pending bank mandate setup completion.',
+      amount: order.amount,
+      status: order.status,
+      statusLabel: ORDER_STATUS_LABELS[order.status] ?? order.status,
+      message: 'Your order has been placed with Cybrilla. This is a one-time investment - recurring SIP auto-debit is coming soon.',
     };
+  }
+
+  /** Maps a Cybrilla mf_purchase "state" onto our own FpPurchaseOrder status vocabulary. */
+  private mapCybrillaOrderState(state: string): string {
+    const map: Record<string, string> = {
+      under_review: 'UNDER_REVIEW',
+      submitted: 'SUBMITTED',
+      succeeded: 'SUCCEEDED',
+      confirmed: 'CONFIRMED',
+      failed: 'FAILED',
+      reversed: 'REVERSED',
+      cancelled: 'CANCELLED',
+    };
+    return map[state] ?? 'UNDER_REVIEW';
   }
 
   async listInvestments(userId: string) {
@@ -212,7 +252,31 @@ export class BucketsService {
     if (!investorProfile) return { plans: [], orders: [] };
 
     const plans = investorProfile.mfAccounts.flatMap((a) => a.plans);
-    const orders = investorProfile.mfAccounts.flatMap((a) => a.orders);
+    let orders = investorProfile.mfAccounts.flatMap((a) => a.orders);
+
+    // Self-heal: poll Cybrilla for any order still in a non-terminal state.
+    const terminal = new Set(['SUCCEEDED', 'CONFIRMED', 'FAILED', 'REVERSED', 'CANCELLED']);
+    orders = await Promise.all(
+      orders.map(async (o) => {
+        if (terminal.has(o.status) || !o.fpOrderId) return o;
+        try {
+          const fresh = await this.cybrilla.fetchPurchaseOrder(o.fpOrderId);
+          const freshStatus = this.mapCybrillaOrderState(fresh.state);
+          if (freshStatus === o.status) return o;
+          return this.prisma.fpPurchaseOrder.update({
+            where: { id: o.id },
+            data: {
+              status: freshStatus,
+              folioNumber: fresh.folio_number ?? o.folioNumber,
+              allottedUnits: fresh.allotted_units ?? o.allottedUnits,
+              purchasedPrice: fresh.purchased_price ?? o.purchasedPrice,
+            },
+          });
+        } catch {
+          return o; // Cybrilla unreachable - show last known state rather than failing the whole list.
+        }
+      }),
+    );
 
     return {
       plans: plans.map((p) => ({
@@ -229,6 +293,8 @@ export class BucketsService {
       })),
       orders: orders.map((o) => ({
         id: o.id,
+        bucketId: bucketIdForIsin(o.schemeIsin),
+        fundName: BUCKET_SCHEME[bucketIdForIsin(o.schemeIsin) ?? '']?.fundName ?? o.schemeIsin,
         schemeIsin: o.schemeIsin,
         amount: o.amount,
         status: o.status,

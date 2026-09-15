@@ -242,7 +242,39 @@ export class CybrillaService {
     }
   }
 
-  async createInvestmentAccount(investorProfileId: string, holdingPattern: 'single' | 'joint' | 'anyone_survivor' = 'single') {
+  private async tenantPost(path: string, body: any) {
+    if (!this.accessToken) {
+      await this.authenticate();
+    }
+    const tenantId = process.env.CYBRILLA_TENANT_ID;
+    const response = await axios.post(`${this.sandboxBaseUrl}${path}`, body, {
+      headers: {
+        Authorization: `Bearer ${this.accessToken}`,
+        'x-tenant-id': tenantId,
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.data;
+  }
+
+  /** Contact detail resources - referenced by ID (not inline) in an MF Investment Account's folio_defaults. */
+  async createEmailAddress(investorProfileId: string, email: string) {
+    return this.tenantPost('/v2/email_addresses', { profile: investorProfileId, email });
+  }
+
+  async createPhoneNumber(investorProfileId: string, isd: string, number: string) {
+    return this.tenantPost('/v2/phone_numbers', { profile: investorProfileId, isd, number });
+  }
+
+  async createAddress(investorProfileId: string, line1: string, country: string, postalCode: string) {
+    return this.tenantPost('/v2/addresses', { profile: investorProfileId, line1, country, postal_code: postalCode });
+  }
+
+  async createInvestmentAccount(
+    investorProfileId: string,
+    holdingPattern: 'single' | 'joint' | 'anyone_survivor' = 'single',
+    folioDefaults?: { communication_email_address: string; communication_mobile_number: string; communication_address: string; payout_bank_account: string },
+  ) {
     if (!this.accessToken) {
       await this.authenticate();
     }
@@ -255,7 +287,7 @@ export class CybrillaService {
 
       const response = await axios.post(
         url,
-        { primary_investor: investorProfileId, holding_pattern: holdingPattern },
+        { primary_investor: investorProfileId, holding_pattern: holdingPattern, ...(folioDefaults ? { folio_defaults: folioDefaults } : {}) },
         {
           headers: {
             Authorization: `Bearer ${this.accessToken}`,
@@ -275,6 +307,43 @@ export class CybrillaService {
       this.logger.error(`Response Data: ${JSON.stringify(responseData)}`);
 
       throw new InternalServerErrorException('Cybrilla MF Investment Account creation failed.');
+    }
+  }
+
+  async createPurchaseOrder(params: { mfInvestmentAccount: string; scheme: string; gateway: string; amount: number; userIp: string }) {
+    try {
+      this.logger.log(`Placing Cybrilla purchase order: ${params.scheme} x ₹${params.amount}`);
+      return await this.tenantPost('/v2/mf_purchases', {
+        mf_investment_account: params.mfInvestmentAccount,
+        scheme: params.scheme,
+        gateway: params.gateway,
+        amount: params.amount,
+        user_ip: params.userIp,
+      });
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const responseData = error?.response?.data;
+      this.logger.error(`Cybrilla purchase order failed. HTTP Status: ${status || 'Unknown'} - Data: ${JSON.stringify(responseData)}`);
+      if (status === 400) {
+        throw new BadRequestException(responseData?.error?.errors ?? responseData?.error?.message ?? 'Could not place this order.');
+      }
+      throw new InternalServerErrorException('Cybrilla purchase order failed.');
+    }
+  }
+
+  async fetchPurchaseOrder(fpOrderId: string) {
+    if (!this.accessToken) {
+      await this.authenticate();
+    }
+    const tenantId = process.env.CYBRILLA_TENANT_ID;
+    try {
+      const response = await axios.get(`${this.sandboxBaseUrl}/v2/mf_purchases/${fpOrderId}`, {
+        headers: { Authorization: `Bearer ${this.accessToken}`, 'x-tenant-id': tenantId },
+      });
+      return response.data;
+    } catch (error: any) {
+      this.logger.error(`Could not fetch purchase order ${fpOrderId}: ${error?.response?.status || 'Unknown'}`);
+      throw new InternalServerErrorException('Could not check order status right now.');
     }
   }
 }

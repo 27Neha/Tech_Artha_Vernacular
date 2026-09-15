@@ -46,6 +46,7 @@ model UserProfile {
   user         User      @relation(fields: [userId], references: [id])
   fullName     String?
   dateOfBirth  DateTime?
+  pan          String?
   email        String?   @unique
   gender       String?
   age          Int?
@@ -402,6 +403,7 @@ model FpMfInvestmentAccount {
   id                String            @id @default(uuid())
   fpAccountId       String            @unique
   investorProfileId String
+  bankAccountId     String?
   holdingPattern    String            @default("single")
   status            String            @default("ACTIVE")
   createdAt         DateTime          @default(now())
@@ -431,6 +433,7 @@ model FpPurchasePlan {
   id             String                @id @default(uuid())
   fpPlanId       String?               @unique
   accountId      String
+  bucketId       String
   schemeIsin     String
   amount         Float
   frequency      String                @default("MONTHLY")
