@@ -2,9 +2,30 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-type Language = 'en' | 'hi' | 'mr';
+// All languages shown in the language selector.
+// Translations exist for en/hi/mr; others fall back to English strings automatically.
+export const SUPPORTED_LANGUAGES = [
+  { code: 'en', name: 'English',   nativeName: 'English' },
+  { code: 'hi', name: 'Hindi',     nativeName: 'हिन्दी' },
+  { code: 'mr', name: 'Marathi',   nativeName: 'मराठी' },
+  { code: 'gu', name: 'Gujarati',  nativeName: 'ગુજરાતી' },
+  { code: 'bn', name: 'Bengali',   nativeName: 'বাংলা' },
+  { code: 'ta', name: 'Tamil',     nativeName: 'தமிழ்' },
+  { code: 'te', name: 'Telugu',    nativeName: 'తెలుగు' },
+  { code: 'kn', name: 'Kannada',   nativeName: 'ಕನ್ನಡ' },
+  { code: 'ml', name: 'Malayalam', nativeName: 'മലയാളം' },
+  { code: 'pa', name: 'Punjabi',   nativeName: 'ਪੰਜਾਬੀ' },
+  { code: 'or', name: 'Odia',      nativeName: 'ଓଡ଼ିଆ' },
+  { code: 'ur', name: 'Urdu',      nativeName: 'اردو' },
+  { code: 'as', name: 'Assamese',  nativeName: 'অসমীয়া' },
+] as const;
 
-const TRANSLATIONS: Record<Language, Record<string, string>> = {
+// All known valid language codes — used to validate stored values
+const ALL_KNOWN_CODES = SUPPORTED_LANGUAGES.map(l => l.code) as string[];
+
+type Language = typeof SUPPORTED_LANGUAGES[number]['code'];
+
+const TRANSLATIONS: Partial<Record<Language, Record<string, string>>> = {
   en: {
     'nav.language': 'English',
     'welcome.title': 'Invest in your future, simply and securely.',
@@ -103,21 +124,35 @@ const TranslationContext = createContext<TranslationContextType | null>(null);
 export function TranslationProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Language>('en');
 
-  // Load preferred language from localStorage on mount
   useEffect(() => {
-    const savedLang = localStorage.getItem('language');
-    if (savedLang && (savedLang === 'en' || savedLang === 'hi' || savedLang === 'mr')) {
-      setLang(savedLang as Language);
-    }
+    // Force English ('en') on every browser refresh
+    const resolvedLang: Language = 'en';
+
+    // 1. Unconditionally clear the googtrans cookie to prevent Google Translate from auto-translating
+    const cookieDomain = window.location.hostname;
+    document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+    document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=${cookieDomain}; path=/;`;
+
+    // 2. Unconditionally clear localStorage saved language to prevent state syncing issues
+    localStorage.setItem('language', 'en');
+
+    // 3. Apply English state
+    setLang(resolvedLang);
   }, []);
 
   const changeLang = (l: Language) => {
     setLang(l);
     localStorage.setItem('language', l);
+    if (typeof (window as any).changeGoogleTranslate === 'function') {
+      (window as any).changeGoogleTranslate(l);
+    }
   };
 
+  // t() always returns a string: uses the language's own translations if available,
+  // falls back to English for languages without dedicated translations (gu, bn, ta, etc.)
   const t = (key: string): string => {
-    return TRANSLATIONS[lang]?.[key] || TRANSLATIONS['en'][key] || key;
+    const langTranslations = (TRANSLATIONS as Record<string, Record<string, string>>)[lang];
+    return langTranslations?.[key] || TRANSLATIONS.en?.[key] || key;
   };
 
   // Bhashini API Integration Stub

@@ -32,6 +32,7 @@ model User {
   riskAssessments    RiskAssessment[]
   goals              Goal[]
   portfolio          Portfolio?
+  nominees           Nominee[]
   expenses           Expense[]
   learningProgress   LearningProgress[]
   supportTickets     SupportTicket[]
@@ -453,4 +454,18 @@ model FpMandate {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   user          User     @relation(fields: [userId], references: [id])
+}
+
+model Nominee {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  name         String
+  relationship String
+  dateOfBirth  String
+  percentage   Float
+  guardianName String?
+  guardianPan  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

@@ -28,9 +28,28 @@ export default function ProfileSetupPage() {
     }
   }, [dob]);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (name && dob && gender && age !== '') {
+      try {
+        const token = localStorage.getItem('access_token');
+        const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+        
+        // Save to backend
+        await fetch(`${API_URL}/auth/me`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          },
+          body: JSON.stringify({ fullName: name, dateOfBirth: dob, gender, age })
+        });
+      } catch (e) {
+        console.error('Failed to save profile to backend', e);
+      }
+
+      // Legacy fallback
       localStorage.setItem('user_name', name);
+      localStorage.setItem('userName', name); // sync naming
       localStorage.setItem('user_dob', dob);
       localStorage.setItem('user_gender', gender);
       localStorage.setItem('user_age', age.toString());

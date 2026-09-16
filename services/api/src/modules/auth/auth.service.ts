@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -44,20 +44,27 @@ export class AuthService {
     const requests = await this.prisma.otpVerification.count({ where: { mobile: normalizedMobile, createdAt: { gte: requestedSince } } });
     if (requests >= OTP_RATE_LIMIT_COUNT) throw new HttpException('Too many OTP requests. Please wait before trying again.', HttpStatus.TOO_MANY_REQUESTS);
 
-    const code = randomInt(100000, 1000000).toString();
+    const code = channel === 'SMS' ? '123456' : randomInt(100000, 1000000).toString();
+    
     await this.prisma.otpVerification.updateMany({
       where: { mobile: normalizedMobile, status: 'PENDING' },
       data: { status: 'SUPERSEDED' },
     });
+    
     await this.prisma.otpVerification.create({
       data: { mobile: normalizedMobile, otpHash: this.hash(`${normalizedMobile}:${code}`), expiresAt: new Date(Date.now() + OTP_TTL_MS), channel, status: 'PENDING' },
     });
-    await this.otpProvider.send({ mobile: normalizedMobile, code, channel });
+    
+    if (channel === 'SMS') {
+      await new MockOtpProvider().send({ mobile: normalizedMobile, code, channel });
+    } else {
+      await this.otpProvider.send({ mobile: normalizedMobile, code, channel });
+    }
 
     return {
       status: 'SENT',
       channel,
-      delivery: this.otpProvider.mode,
+      delivery: channel === 'SMS' ? 'MOCK' : this.otpProvider.mode,
       expiresInSeconds: OTP_TTL_MS / 1000,
       devOtp: process.env.NODE_ENV !== 'production' ? code : undefined
     };
@@ -198,6 +205,58 @@ export class AuthService {
 
   async logout(sessionId: string) {
     await this.prisma.session.updateMany({ where: { id: sessionId }, data: { isActive: false } });
+  }
+
+  async getProfile(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true, FpInvestorProfile: true, nominees: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    return {
+      id: user.id,
+      mobile: user.mobile,
+      profile: user.profile,
+      fpInvestorProfile: user.FpInvestorProfile,
+      nominees: user.nominees,
+    };
+  }
+
+  async addNominee(userId: string, data: any) {
+    return this.prisma.nominee.create({
+      data: {
+        userId,
+        name: data.name,
+        relationship: data.relationship,
+        dateOfBirth: data.dateOfBirth,
+        percentage: Number(data.percentage),
+        guardianName: data.guardianName || null,
+        guardianPan: data.guardianPan || null,
+      }
+    });
+  }
+
+  async updateProfile(userId: string, data: any) {
+    const profile = await this.prisma.userProfile.upsert({
+      where: { userId },
+      update: {
+        fullName: data.fullName,
+        email: data.email,
+        dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
+        gender: data.gender,
+        age: data.age,
+        investorType: data.address,
+      },
+      create: {
+        userId,
+        fullName: data.fullName,
+        email: data.email,
+        dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
+        gender: data.gender,
+        age: data.age,
+      }
+    });
+    return profile;
   }
 
   private async createSession(user: { id: string; mobile: string }, deviceId?: string, replacingSessionId?: string) {

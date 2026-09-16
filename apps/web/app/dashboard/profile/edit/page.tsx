@@ -8,23 +8,80 @@ export default function EditProfilePage() {
   const [mobile, setMobile] = useState('');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
-  
-  useEffect(() => {
-    setName(localStorage.getItem('userName') || 'Priya Sharma');
-    setMobile(localStorage.getItem('mobile') || '+91 98765 43210');
-    setEmail(localStorage.getItem('userEmail') || '');
-    setAddress(localStorage.getItem('userAddress') || '');
-  }, []);
+  const [loading, setLoading] = useState(true);
+  const [kycStatus, setKycStatus] = useState("Pending");
 
-  const handleSave = () => {
-    localStorage.setItem('userName', name);
-    localStorage.setItem('mobile', mobile);
-    localStorage.setItem('userEmail', email);
-    localStorage.setItem('userAddress', address);
-    
-    alert("Profile saved successfully!");
-    router.push('/dashboard/profile');
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          router.push('/welcome');
+          return;
+        }
+
+        const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+        const res = await fetch(`${API_URL}/auth/me`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          // Use DB values, fallback to empty string if not found, instead of dummy data
+          setName(data.profile?.fullName || data.fpInvestorProfile?.name || '');
+          setMobile(data.mobile || '');
+          setEmail(data.profile?.email || '');
+          setAddress(data.profile?.investorType || '');
+          try {
+            const kycRes = await fetch(`${API_URL}/kyc/status`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (kycRes.ok) {
+              const kycData = await kycRes.json();
+              setKycStatus(kycData.status || 'Pending');
+            }
+          } catch(e) {}
+        }
+      } catch (e) {
+        console.error('Failed to fetch profile', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+  }, [router]);
+
+  const handleSave = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+      const res = await fetch(`${API_URL}/auth/me`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ fullName: name, email, address })
+      });
+
+      if (res.ok) {
+        // Also update local storage just in case other parts of the app rely on it temporarily
+        localStorage.setItem('userName', name);
+        localStorage.setItem('mobile', mobile);
+        localStorage.setItem('userEmail', email);
+        localStorage.setItem('userAddress', address);
+        
+        alert("Profile saved successfully!");
+        router.push('/dashboard/profile');
+      } else {
+        alert("Failed to save profile");
+      }
+    } catch (e) {
+      alert("Error saving profile");
+    }
   };
+
+  if (loading) return <div className="p-6 text-center mt-20">Loading profile...</div>;
 
   return (
     <div className="flex flex-col min-h-screen p-6 bg-white pb-32">
@@ -52,13 +109,23 @@ export default function EditProfilePage() {
         <label className="label mt-0">Communication Address</label>
         <textarea rows={3} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Enter your full address" className="input-field mb-4" />
 
-        <div className="bg-green-50 p-4 rounded-xl border border-green-200 mt-6 flex justify-between items-center">
-          <div>
-            <p className="text-sm font-bold text-green-800">KYC Status</p>
-            <p className="text-xs text-green-700">Verified via Cybrilla</p>
+        {kycStatus === 'VERIFIED' ? (
+          <div className="bg-green-50 p-4 rounded-xl border border-green-200 mt-6 flex justify-between items-center">
+            <div>
+              <p className="text-sm font-bold text-green-800">KYC Status</p>
+              <p className="text-xs text-green-700">Verified</p>
+            </div>
+            <span className="text-green-600 font-bold bg-green-100 rounded-full w-6 h-6 flex items-center justify-center">✓</span>
           </div>
-          <span className="text-green-600 font-bold bg-green-100 rounded-full w-6 h-6 flex items-center justify-center">✓</span>
-        </div>
+        ) : (
+          <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 mt-6 flex justify-between items-center">
+            <div>
+              <p className="text-sm font-bold text-amber-800">KYC Status</p>
+              <p className="text-xs text-amber-700">{kycStatus}</p>
+            </div>
+            <span className="text-amber-600 font-bold bg-amber-100 rounded-full w-6 h-6 flex items-center justify-center">!</span>
+          </div>
+        )}
       </div>
 
       <button className="btn-primary mt-8 mb-6" onClick={handleSave}>

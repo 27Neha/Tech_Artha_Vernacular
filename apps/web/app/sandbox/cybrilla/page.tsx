@@ -4,6 +4,11 @@ import { useState } from 'react';
 export default function CybrillaSandboxPage() {
   const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
+  // KYC Status State
+  const [kycPan, setKycPan] = useState('');
+  const [kycResult, setKycResult] = useState<any>(null);
+  const [kycLoading, setKycLoading] = useState(false);
+
   // Investor Profile State
   const [profileData, setProfileData] = useState({
     type: "individual",
@@ -27,6 +32,24 @@ export default function CybrillaSandboxPage() {
   });
   const [bankResult, setBankResult] = useState<any>(null);
   const [bankLoading, setBankLoading] = useState(false);
+
+  const handleKycCheck = async () => {
+    if (!kycPan) return;
+    setKycLoading(true);
+    setKycResult(null);
+    try {
+      const res = await fetch(`${API_URL}/cybrilla/sandbox/kyc-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pan: kycPan })
+      });
+      const data = await res.json();
+      setKycResult({ status: res.status, data });
+    } catch (e: any) {
+      setKycResult({ error: e.message || 'Network Error' });
+    }
+    setKycLoading(false);
+  };
 
   const handleCreateProfile = async () => {
     setProfileLoading(true);
@@ -76,9 +99,45 @@ export default function CybrillaSandboxPage() {
           </p>
         </div>
 
+        {/* KYC Status Section */}
+        <section className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-bold mb-4">Step 1 — KYC Status Check</h2>
+          <div className="text-sm text-gray-500 mb-4 p-3 bg-blue-50 rounded border border-blue-100">
+            <p className="font-semibold text-blue-800 mb-1">Sandbox Test PANs:</p>
+            <ul className="list-disc pl-5">
+              <li><code className="bg-blue-100 px-1 rounded cursor-pointer" onClick={() => setKycPan('XXXPX3751X')}>XXXPX3751X</code> = KYC compliant, status true</li>
+              <li><code className="bg-blue-100 px-1 rounded cursor-pointer" onClick={() => setKycPan('XXXPX3753X')}>XXXPX3753X</code> = KYC not available, status false</li>
+            </ul>
+          </div>
+          
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">PAN</label>
+            <div className="flex gap-2">
+              <input type="text" className="border rounded p-2 flex-1 max-w-xs uppercase" placeholder="Enter PAN" value={kycPan} onChange={e => setKycPan(e.target.value.toUpperCase())} maxLength={10} />
+              <button onClick={handleKycCheck} disabled={kycLoading || kycPan.length !== 10} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 font-medium">
+                {kycLoading ? 'Checking...' : 'Check KYC Status'}
+              </button>
+            </div>
+          </div>
+
+          {kycResult && (
+            <div className={`mt-4 p-4 rounded overflow-auto text-sm font-mono ${kycResult.error || kycResult.status >= 400 ? 'bg-red-50 text-red-900 border border-red-200' : 'bg-gray-100'}`}>
+              <div className="flex justify-between items-center mb-2">
+                <strong>Status Code: {kycResult.status || 'ERROR'}</strong>
+                {kycResult.data?.data?.status && (
+                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-bold text-xs uppercase">
+                    {kycResult.data.data.status}
+                  </span>
+                )}
+              </div>
+              <pre className="whitespace-pre-wrap">{JSON.stringify(kycResult.error || kycResult.data, null, 2)}</pre>
+            </div>
+          )}
+        </section>
+
         {/* Investor Profile Section */}
         <section className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-bold mb-4">1. Create Investor Profile</h2>
+          <h2 className="text-xl font-bold mb-4">Step 2 — Create Investor Profile</h2>
           
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
@@ -121,7 +180,7 @@ export default function CybrillaSandboxPage() {
 
         {/* Bank Account Section */}
         <section className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-bold mb-4">2. Create Bank Account</h2>
+          <h2 className="text-xl font-bold mb-4">Step 3 — Create Bank Account</h2>
           <p className="text-sm text-gray-500 mb-4">You need an Investor Profile ID to link this bank account.</p>
 
           <div className="grid grid-cols-2 gap-4 mb-4">

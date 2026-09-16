@@ -1,7 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { useTranslation } from '../../TranslationProvider';
+import { useTranslation, SUPPORTED_LANGUAGES } from '../../TranslationProvider';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -28,8 +28,7 @@ export default function SettingsPage() {
   };
 
   const handleLangSelect = (newLang: string) => {
-    setLang(newLang as any);
-    localStorage.setItem('language', newLang);
+    setLang(newLang as any); // changeLang in TranslationProvider also saves to localStorage
   };
 
   const toggleExpand = (label: string) => {
@@ -56,11 +55,14 @@ export default function SettingsPage() {
             <span className={`text-gray-300 text-xl transition-transform ${expanded === 'Language' ? 'rotate-90' : ''}`}>›</span>
           </button>
           {expanded === 'Language' && (
-            <div className="px-4 pb-4 pt-1 flex flex-col gap-2 border-t border-gray-50">
-              {['en', 'hi', 'mr'].map((l) => (
-                <button key={l} onClick={() => handleLangSelect(l)} className={`flex items-center justify-between p-3 rounded-xl border ${lang === l ? 'bg-blue-50 border-[var(--primary)] text-[var(--primary)]' : 'border-gray-100 text-[var(--dark)]'}`}>
-                  <span className="font-bold text-sm">{l === 'en' ? 'English' : l === 'hi' ? 'हिंदी' : 'मराठी'}</span>
-                  {lang === l && <span className="font-bold">✓</span>}
+            <div className="px-4 pb-4 pt-1 flex flex-col gap-2 border-t border-gray-50 max-h-64 overflow-y-auto">
+              {SUPPORTED_LANGUAGES.map((l) => (
+                <button key={l.code} onClick={() => handleLangSelect(l.code)} className={`flex items-center justify-between p-3 rounded-xl border ${lang === l.code ? 'bg-blue-50 border-[var(--primary)] text-[var(--primary)]' : 'border-gray-100 text-[var(--dark)]'}`}>
+                  <div>
+                    <span className="font-bold text-sm block">{l.nativeName}</span>
+                    <span className="text-xs text-gray-400">{l.name}</span>
+                  </div>
+                  {lang === l.code && <span className="font-bold text-[var(--primary)]">✓</span>}
                 </button>
               ))}
             </div>

@@ -240,7 +240,17 @@ export default function RiskPage() {
             return (
               <button
                 key={i}
-                onClick={() => setSelectedScore(opt.score)}
+                onClick={() => {
+                  setSelectedScore(opt.score);
+                  // Auto-advance for better UX on all but the last question
+                  if (current < QUESTIONS.length - 1) {
+                    setTimeout(() => {
+                      const newAnswers = [...answers.slice(0, current), opt.score];
+                      setAnswers(newAnswers);
+                      setCurrent(current + 1);
+                    }, 400);
+                  }
+                }}
                 className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all text-left ${
                   isSelected 
                     ? 'border-[var(--primary)] bg-[var(--primary-light)]' 

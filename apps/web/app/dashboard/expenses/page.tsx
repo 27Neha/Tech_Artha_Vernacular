@@ -16,7 +16,7 @@ export default function ExpensesPage() {
           Expense tracking requires secure read-only access to your bank statements via the RBI Account Aggregator framework.
         </p>
         <button 
-          onClick={() => alert('Account Aggregator integration will be activated after Cybrilla investment flows are live.')} 
+          onClick={() => router.push('/dashboard/profile?expand=Bank Accounts')} 
           className="text-xs font-bold text-[var(--primary)] border border-dashed border-[var(--primary)] bg-[var(--primary-light)] px-4 py-2 rounded-lg"
         >
           + Link Bank Account

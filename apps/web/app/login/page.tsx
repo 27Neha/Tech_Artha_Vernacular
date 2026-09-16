@@ -1,6 +1,6 @@
 'use client';
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslation } from '../TranslationProvider';
@@ -18,10 +18,25 @@ export default function LoginPage() {
   const [error, setError] = useState('');
 
   const [loginMethod, setLoginMethod] = useState<'otp' | 'password'>('otp');
-  const [otpChannel, setOtpChannel] = useState<'SMS' | 'WHATSAPP'>('SMS');
+  const [otpChannel, setOtpChannel] = useState<'SMS' | 'WHATSAPP' | null>(null);
   const [password, setPassword] = useState('');
 
-  const handleSendOtp = async (channel: 'SMS' | 'WHATSAPP' = 'WHATSAPP') => {
+  const [smsTimer, setSmsTimer] = useState(0);
+  const [waTimer, setWaTimer] = useState(0);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (smsTimer > 0 || waTimer > 0) {
+      interval = setInterval(() => {
+        setSmsTimer((s) => (s > 0 ? s - 1 : 0));
+        setWaTimer((w) => (w > 0 ? w - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [smsTimer, waTimer]);
+
+  const handleSendOtp = async (channel: 'SMS' | 'WHATSAPP') => {
+    setOtpChannel(channel);
     setError('');
     setOtpHint('');
     if (!/^\d{10}$/.test(phone)) {
@@ -42,6 +57,8 @@ export default function LoginPage() {
       if (!res.ok) throw new Error(data.message || 'Failed to send OTP');
       
       setOtpSent(true);
+      if (channel === 'SMS') setSmsTimer(120);
+      if (channel === 'WHATSAPP') setWaTimer(120);
     } catch (e: any) {
       setError(e.message || 'Something went wrong. Please try again.');
     } finally {
@@ -174,30 +191,43 @@ export default function LoginPage() {
 
             <label className="label">One-Time Password (OTP)</label>
             
-            
-
             <input
               type="number"
               value={otp}
-              onChange={(e) => setOtp(e.target.value.slice(0, 6))}
+              onChange={(e) => {
+                if (!otpChannel) {
+                  setError('Please select SMS or WhatsApp first.');
+                  return;
+                }
+                setOtp(e.target.value.slice(0, 6));
+                setError('');
+              }}
+              onFocus={() => {
+                if (!otpChannel) {
+                  setError('Please select SMS or WhatsApp first.');
+                }
+              }}
+              readOnly={!otpChannel}
               placeholder="Enter OTP"
-              className="input-field text-center text-2xl font-bold tracking-widest"
+              className={`input-field text-center text-2xl font-bold tracking-widest ${!otpChannel ? 'bg-gray-50 opacity-70 cursor-not-allowed' : ''}`}
             />
 
             <div className="flex gap-4 mt-6">
               <button 
                 onClick={() => handleSendOtp('SMS')}
-                disabled={loading}
-                className="flex-1 py-3 rounded-xl border-2 font-bold transition-all text-sm border-gray-100 text-gray-400 bg-white hover:border-gray-200"
+                disabled={loading || smsTimer > 0}
+                className={`flex-1 py-3 flex flex-col items-center justify-center rounded-xl border-2 font-bold transition-all ${otpChannel === 'SMS' ? 'border-[var(--primary)] text-[var(--dark)] bg-[var(--primary-light)]' : 'border-gray-100 text-gray-400 bg-white hover:border-gray-200'} ${smsTimer > 0 ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
-                Send via SMS
+                <span className="text-sm">Send via SMS</span>
+                {smsTimer > 0 && <span className="text-[10px] mt-0.5 opacity-80">Resend in {Math.floor(smsTimer / 60)}:{(smsTimer % 60).toString().padStart(2, '0')}</span>}
               </button>
               <button 
                 onClick={() => handleSendOtp('WHATSAPP')}
-                disabled={loading}
-                className="flex-1 py-3 rounded-xl border-2 font-bold transition-all text-sm border-[#25D366] bg-[#dcf8c6] text-[#128C7E]"
+                disabled={loading || waTimer > 0}
+                className={`flex-1 py-3 flex flex-col items-center justify-center rounded-xl border-2 font-bold transition-all ${otpChannel === 'WHATSAPP' ? 'border-[#25D366] text-[#128C7E] bg-[#dcf8c6]' : 'border-gray-100 text-gray-400 bg-white hover:border-gray-200'} ${waTimer > 0 ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
-                Send via WhatsApp
+                <span className="text-sm">Send via WhatsApp</span>
+                {waTimer > 0 && <span className="text-[10px] mt-0.5 opacity-80">Resend in {Math.floor(waTimer / 60)}:{(waTimer % 60).toString().padStart(2, '0')}</span>}
               </button>
             </div>
 
@@ -220,6 +250,11 @@ export default function LoginPage() {
 
         <p className="text-xs text-gray-400 text-center mt-6">
           By continuing, you agree to our <span className="underline">Terms</span> and <span className="underline">Privacy Policy</span>.
+        </p>
+
+        <p className="text-sm text-center mt-6">
+          <span className="text-gray-500">Not have an account? </span>
+          <button onClick={() => router.push('/signup')} className="font-bold text-[var(--primary)] hover:underline">Sign up</button>
         </p>
       </div>
     </div>

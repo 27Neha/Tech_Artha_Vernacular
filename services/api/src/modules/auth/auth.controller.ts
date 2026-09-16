@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, Get, Put, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AccessTokenGuard, CurrentUser } from '../../common/auth';
 import type { AuthenticatedUser } from '../../common/auth';
@@ -76,6 +76,18 @@ export class AuthController {
   @HttpCode(204)
   async logout(@CurrentUser() user: AuthenticatedUser) {
     await this.authService.logout(user.sessionId);
+  }
+
+  @Get('me')
+  @UseGuards(AccessTokenGuard)
+  async getMe(@CurrentUser() user: AuthenticatedUser) {
+    return this.authService.getProfile(user.id);
+  }
+
+  @Put('me')
+  @UseGuards(AccessTokenGuard)
+  async updateMe(@CurrentUser() user: AuthenticatedUser, @Body() body: any) {
+    return this.authService.updateProfile(user.id, body);
   }
 }
 

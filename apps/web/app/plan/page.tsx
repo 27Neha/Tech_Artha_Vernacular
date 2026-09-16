@@ -22,6 +22,17 @@ function PlanContent() {
   const searchParams = useSearchParams();
   const goal = searchParams.get('goal') ?? 'wealth';
   const bucket = searchParams.get('bucket') ?? 'balanced';
+  const amountParam = searchParams.get('amount') ?? '1500000';
+  const periodParam = searchParams.get('period') ?? '8';
+  
+  const targetAmount = parseInt(amountParam, 10) || 1500000;
+  const timePeriod = parseInt(periodParam, 10) || 8;
+  
+  // Calculate a mock SIP purely for visual representation: Assuming 12% returns roughly
+  const rate = 0.12;
+  const months = timePeriod * 12;
+  const monthlySIP = Math.round(targetAmount * (rate / 12) / (Math.pow(1 + rate / 12, months) - 1));
+
   const [sipDate, setSipDate] = useState(10);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [consent, setConsent] = useState(false);
@@ -42,8 +53,8 @@ function PlanContent() {
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          userId, name: goal, targetAmount: 1500000,
-          timePeriod: 8, bucketName: bucket, sipDate, consent
+          userId, name: goal, targetAmount,
+          timePeriod, bucketName: bucket, sipDate, consent
         }),
       });
       const data = await res.json();
@@ -60,7 +71,7 @@ function PlanContent() {
     <div className="flex flex-col min-h-screen">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-white">
-        
+        <button onClick={() => router.back()} className="text-gray-400 hover:text-[var(--dark)]">←</button>
         <span className="font-extrabold text-[var(--dark)]">Your Investment Plan</span>
         <span className="w-6" />
       </div>
@@ -70,8 +81,8 @@ function PlanContent() {
         <div className="card mb-6">
           {[
             { label: 'GOAL', value: GOAL_NAMES[goal] ?? goal },
-            { label: 'Target Amount', value: '₹15,00,000' },
-            { label: 'Time Period', value: '8 years' },
+            { label: 'Target Amount', value: `₹${targetAmount.toLocaleString('en-IN')}` },
+            { label: 'Time Period', value: `${timePeriod} years` },
             { label: 'Investment Bucket', value: BUCKET_NAMES[bucket] },
           ].map((row, i, arr) => (
             <div key={row.label}>
@@ -85,7 +96,7 @@ function PlanContent() {
           <div className="h-px bg-gray-100" />
           <div className="flex justify-between items-center py-3">
             <span className="text-gray-500 text-sm">Monthly SIP</span>
-            <span className="text-[var(--primary)] font-extrabold text-xl">₹9,286 / mo</span>
+            <span className="text-[var(--primary)] font-extrabold text-xl">₹{monthlySIP.toLocaleString('en-IN')} / mo</span>
           </div>
         </div>
 
