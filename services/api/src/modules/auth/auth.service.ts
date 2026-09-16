@@ -59,7 +59,7 @@ export class AuthService {
       channel,
       delivery: this.otpProvider.mode,
       expiresInSeconds: OTP_TTL_MS / 1000,
-      devOtp: process.env.NODE_ENV !== 'production' ? code : undefined
+      devOtp: process.env.NODE_ENV !== 'production' && process.env.AUTH_DEV_BYPASS === 'true' ? code : undefined,
     };
   }
 

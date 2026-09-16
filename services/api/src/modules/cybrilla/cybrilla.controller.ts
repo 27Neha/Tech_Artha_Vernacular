@@ -1,7 +1,9 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { AccessTokenGuard } from '../../common/auth';
 import { CybrillaService } from './cybrilla.service';
 
 @Controller('cybrilla/sandbox')
+@UseGuards(AccessTokenGuard)
 export class CybrillaController {
   constructor(private readonly cybrillaService: CybrillaService) {}
 
