@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -8,13 +8,52 @@ export default function KycPage() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [pan, setPan] = useState('');
+  const [dob, setDob] = useState('');
   const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const [checkingStatus, setCheckingStatus] = useState(true);
+  const [existingStatus, setExistingStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          setCheckingStatus(false);
+          return;
+        }
+        const res = await fetch(`${API_URL}/api/v1/kyc/status`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.status) {
+            setExistingStatus(data.status);
+            if (data.status === 'VERIFIED' || data.status === 'IN_PROGRESS') {
+              router.push('/profile-setup');
+              return;
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to check KYC status', e);
+      }
+      setCheckingStatus(false);
+    };
+    checkStatus();
+  }, [router]);
+
+  if (checkingStatus) {
+    return <div className="min-h-screen flex items-center justify-center bg-white"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]"></div></div>;
+  }
+
+
   const handleSubmit = async () => {
     setError('');
     if (!name.trim()) { setError('Please enter your full name.'); return; }
+    if (!dob) { setError('Please enter your date of birth.'); return; }
     if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan.toUpperCase())) {
       setError('Please enter a valid PAN number (e.g. ABCDE1234F).'); return;
     }
@@ -25,13 +64,13 @@ export default function KycPage() {
       const userId = localStorage.getItem('user_id');
       const token = localStorage.getItem('access_token');
       const mobile = localStorage.getItem('mobile');
-      const res = await fetch(`${API_URL}/kyc/start`, {
+      const res = await fetch(`${API_URL}/api/v1/kyc/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ userId, fullName: name, pan: pan.toUpperCase(), mobile, consent }),
+        body: JSON.stringify({ fullName: name, pan: pan.toUpperCase(), dob }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'KYC failed');
@@ -77,7 +116,14 @@ export default function KycPage() {
           className="input-field"
         />
 
-        <label className="label">PAN Number</label>
+        <label className="label mt-4">Date of Birth</label>
+        <input
+          type="date"
+          value={dob}
+          onChange={(e) => setDob(e.target.value)}
+          className="input-field font-bold"
+        />
+        <label className="label mt-4">PAN Number</label>
         <input
           type="text"
           value={pan}

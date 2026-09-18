@@ -125,6 +125,26 @@ export class CybrillaService {
    * Distinct product/gateway from the tenant OMS APIs above:
    * https://poa.cybrilla.com/docs/additional-apis/pre-verifications
    */
+  
+  async getPreVerification(id: string) {
+    if (!this.preVerifyAccessToken) {
+      await this.authenticatePreVerify();
+    }
+    const url = `${this.preVerifyBaseUrl}/poa/pre_verifications/${id}`;
+    try {
+      const response = await axios.get(url, {
+        headers: {
+          Authorization: `Bearer ${this.preVerifyAccessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      this.logger.error(`Failed to get pre-verification ${id}`, error?.response?.data || error.message);
+      throw new InternalServerErrorException('Failed to get Cybrilla pre-verification status');
+    }
+  }
+
   async verifyPan(pan: string, name: string, dateOfBirth: string) {
     if (!this.preVerifyAccessToken) {
       await this.authenticatePreVerify();
