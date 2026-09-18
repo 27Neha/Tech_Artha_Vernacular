@@ -17,6 +17,29 @@ export default function DashboardPage() {
   const [recommendedFunds, setRecommendedFunds] = useState<any[]>([]);
   const [portfolio, setPortfolio] = useState({ totalInvested: 0, currentValue: 0, holdings: [] });
   const [fetchingPortfolio, setFetchingPortfolio] = useState(true);
+  const [sipPlans, setSipPlans] = useState<any[]>([]);
+  const [fetchingSips, setFetchingSips] = useState(true);
+
+  useEffect(() => {
+    const fetchInvestments = async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_URL}/buckets/investments`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          const orders = (data.orders || []).map((o: any) => ({ ...o, kind: 'order' }));
+          const plans = (data.plans || []).map((p: any) => ({ ...p, kind: 'plan' }));
+          setSipPlans([...orders, ...plans]);
+        }
+      } catch (err) {
+        console.error('Failed to fetch SIPs', err);
+      } finally {
+        setFetchingSips(false);
+      }
+    };
+    fetchInvestments();
+  }, []);
 
   useEffect(() => {
     const fetchPortfolio = async () => {
@@ -93,6 +116,34 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Active orders / SIPs from bucket investments */}
+      {!fetchingSips && sipPlans.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-lg font-extrabold text-[var(--dark)] mb-3">Your Orders</h2>
+          <div className="flex flex-col gap-3">
+            {sipPlans.map((p) => {
+              const badge =
+                p.statusLabel === 'Order fulfilled'
+                  ? 'bg-green-50 text-green-700'
+                  : p.statusLabel === 'Order failed'
+                  ? 'bg-red-50 text-red-600'
+                  : 'bg-amber-50 text-amber-700';
+              return (
+                <div key={p.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="font-bold text-[var(--dark)] text-sm truncate pr-2">{p.fundName}</p>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${badge}`}>{p.statusLabel}</span>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    ₹{p.amount.toLocaleString('en-IN')} {p.kind === 'plan' ? `/${p.frequency.toLowerCase()} · day ${p.installmentDay}` : '· one-time'}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Recommended Funds based on Risk */}
       <div>

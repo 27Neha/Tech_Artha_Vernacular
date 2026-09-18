@@ -23,16 +23,63 @@ const autoBalance = (funds: any[]) => {
   });
 };
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+
+const emptyInvestForm = { amount: '', gender: 'male', email: '', bankAccountHolderName: '', bankAccountNumber: '', ifscCode: '', addressLine1: '', postalCode: '' };
+
 function BucketsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const goal = searchParams.get('goal') ?? 'wealth';
+
   const amount = searchParams.get('amount') ?? '1500000';
   const period = searchParams.get('period') ?? '8';
   
   const [buckets, setBuckets] = useState<any[]>([]);
   const [investorProfile, setInvestorProfile] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [investingBucketId, setInvestingBucketId] = useState<string | null>(null);
+  const [investForm, setInvestForm] = useState(emptyInvestForm);
+  const [investLoading, setInvestLoading] = useState(false);
+  const [investError, setInvestError] = useState('');
+  const [investSuccess, setInvestSuccess] = useState<any>(null);
+
+  const openInvestForm = (bucketId: string) => {
+    setInvestingBucketId(bucketId);
+    setInvestForm(emptyInvestForm);
+    setInvestError('');
+    setInvestSuccess(null);
+  };
+
+  const submitInvest = async () => {
+    setInvestError('');
+    setInvestLoading(true);
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_URL}/buckets/${investingBucketId}/invest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          amount: Number(investForm.amount),
+          gender: investForm.gender,
+          email: investForm.email,
+          bankAccountHolderName: investForm.bankAccountHolderName,
+          bankAccountNumber: investForm.bankAccountNumber,
+          ifscCode: investForm.ifscCode,
+          addressLine1: investForm.addressLine1,
+          postalCode: investForm.postalCode,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(Array.isArray(data.message) ? data.message.map((m: any) => m.message || m).join(', ') : data.message || 'Could not place your order.');
+      setInvestSuccess(data);
+    } catch (e: any) {
+      setInvestError(e.message || 'Something went wrong.');
+    } finally {
+      setInvestLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchBuckets = async () => {
@@ -149,8 +196,98 @@ function BucketsContent() {
                   <span>→</span>
                 </button>
               </div>
+              <button onClick={() => openInvestForm(b.id)} className="w-full mt-3 py-3 bg-[var(--dark)] hover:opacity-90 text-white rounded-xl font-bold">
+                Invest Now (Start SIP)
+              </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {investingBucketId && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            {investSuccess ? (
+              <div className="text-center py-4">
+                <span className="text-4xl block mb-3">✅</span>
+                <h3 className="font-extrabold text-lg text-[var(--dark)] mb-2">Order Placed</h3>
+                <p className="text-sm text-gray-500 mb-1">{investSuccess.fundName}</p>
+                <p className="text-sm text-gray-500 mb-4">₹{investSuccess.amount} one-time investment</p>
+                <div className="bg-amber-50 text-amber-700 text-xs font-bold rounded-xl p-3 mb-4">{investSuccess.statusLabel}: {investSuccess.message}</div>
+                <button onClick={() => { setInvestingBucketId(null); router.push('/dashboard'); }} className="w-full py-3 bg-[var(--primary)] text-white rounded-xl font-bold">
+                  View on Dashboard
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-extrabold text-lg text-[var(--dark)]">Invest Now (One-time)</h3>
+                  <button onClick={() => setInvestingBucketId(null)} className="text-gray-400 text-xl leading-none">✕</button>
+                </div>
+                <p className="text-xs text-gray-400 -mt-2 mb-2">Recurring SIP auto-debit is coming soon. This places a single one-time order.</p>
+
+                {investError && <div className="bg-red-50 text-red-500 text-xs font-bold rounded-xl p-3 mb-4">{investError}</div>}
+
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase">Amount (₹)</label>
+                    <input type="number" min={100} value={investForm.amount} onChange={(e) => setInvestForm({ ...investForm, amount: e.target.value })} className="input-field w-full mt-1" placeholder="5000" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase">Gender</label>
+                    <select value={investForm.gender} onChange={(e) => setInvestForm({ ...investForm, gender: e.target.value })} className="input-field w-full mt-1">
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="transgender">Transgender</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase">Email</label>
+                    <input type="email" value={investForm.email} onChange={(e) => setInvestForm({ ...investForm, email: e.target.value })} className="input-field w-full mt-1" placeholder="you@example.com" />
+                  </div>
+                  <p className="text-xs font-bold text-gray-500 uppercase mt-2">Bank Account (for auto-debit)</p>
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase">Account Holder Name</label>
+                    <input value={investForm.bankAccountHolderName} onChange={(e) => setInvestForm({ ...investForm, bankAccountHolderName: e.target.value })} className="input-field w-full mt-1" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase">Account Number</label>
+                    <input value={investForm.bankAccountNumber} onChange={(e) => setInvestForm({ ...investForm, bankAccountNumber: e.target.value })} className="input-field w-full mt-1" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase">IFSC Code</label>
+                    <input value={investForm.ifscCode} onChange={(e) => setInvestForm({ ...investForm, ifscCode: e.target.value.toUpperCase() })} className="input-field w-full mt-1" placeholder="HDFC0000001" />
+                  </div>
+                  <p className="text-xs font-bold text-gray-500 uppercase mt-2">Communication Address</p>
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase">Address Line 1</label>
+                    <input value={investForm.addressLine1} onChange={(e) => setInvestForm({ ...investForm, addressLine1: e.target.value })} className="input-field w-full mt-1" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase">Postal Code</label>
+                    <input value={investForm.postalCode} onChange={(e) => setInvestForm({ ...investForm, postalCode: e.target.value })} className="input-field w-full mt-1" placeholder="400001" />
+                  </div>
+
+                  <button
+                    onClick={submitInvest}
+                    disabled={
+                      investLoading ||
+                      !investForm.amount ||
+                      !investForm.email ||
+                      !investForm.bankAccountHolderName ||
+                      !investForm.bankAccountNumber ||
+                      investForm.ifscCode.length < 11 ||
+                      !investForm.addressLine1 ||
+                      investForm.postalCode.length < 6
+                    }
+                    className="w-full py-3 mt-2 bg-[var(--primary)] disabled:opacity-40 text-white rounded-xl font-bold"
+                  >
+                    {investLoading ? 'Placing order...' : 'Confirm Order'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

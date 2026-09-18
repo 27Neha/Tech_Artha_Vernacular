@@ -1,17 +1,11 @@
-import { Controller, Post, Get, Body, Param, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { AccessTokenGuard } from '../../common/auth';
 import { CybrillaService } from './cybrilla.service';
 
 @Controller('cybrilla/sandbox')
+@UseGuards(AccessTokenGuard)
 export class CybrillaController {
   constructor(private readonly cybrillaService: CybrillaService) {}
-
-  @Post('kyc-status')
-  async checkKycStatus(@Body() body: { pan: string }) {
-    if (!body?.pan || typeof body.pan !== 'string' || !/^[a-zA-Z]{5}[0-9]{4}[a-zA-Z]{1}$/.test(body.pan)) {
-      throw new BadRequestException('A valid 10-character PAN is required');
-    }
-    return this.cybrillaService.testKycStatusCheck(body.pan.toUpperCase());
-  }
 
   @Post('investor-profile')
   async createInvestorProfile(@Body() body: any) {
@@ -22,20 +16,4 @@ export class CybrillaController {
   async createBankAccount(@Body() body: any) {
     return this.cybrillaService.createBankAccount(body);
   }
-
-  @Get('bank-accounts/:profileId')
-  async getBankAccounts(@Param('profileId') profileId: string) {
-    return this.cybrillaService.getBankAccounts(profileId);
-  }
-
-  @Post('mandates')
-  async createMandate(@Body() body: any) {
-    return this.cybrillaService.createMandate(body);
-  }
-
-  @Get('mandates/:profileId')
-  async getMandates(@Param('profileId') profileId: string) {
-    return this.cybrillaService.getMandates(profileId);
-  }
 }
-

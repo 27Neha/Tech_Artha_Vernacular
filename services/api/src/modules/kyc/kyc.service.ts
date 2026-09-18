@@ -25,50 +25,81 @@ export class KycService {
 
     let result = await this.cybrilla.verifyPan(pan, fullName, dob);
 
-    // Poll Cybrilla if status is accepted
     if (result.status === 'accepted') {
       let attempts = 0;
       while (result.status === 'accepted' && attempts < 5) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        result = await this.cybrilla.getPreVerification(result.id);
+        result = await this.cybrilla.fetchPreVerification(result.id);
         attempts++;
       }
     }
 
-    const allVerified = ['pan', 'name', 'date_of_birth'].every((field) => result[field]?.status === 'verified');
-    const overallStatus = result.status === 'completed' ? (allVerified ? 'VERIFIED' : 'FAILED') : 'IN_PROGRESS';
-    const failureReason = allVerified
-      ? null
-      : ['pan', 'name', 'date_of_birth']
-          .map((field) => (result[field]?.status === 'failed' ? `${field}: ${result[field]?.reason ?? result[field]?.code}` : null))
-          .filter(Boolean)
-          .join('; ') || null;
+    const evaluated = this.evaluateVerification(result);
 
-    await this.prisma.kYCApplication.update({
+    application = await this.prisma.kYCApplication.update({
       where: { id: application.id },
-      data: {
-        provider: 'CYBRILLA',
-        providerTransactionId: result.id,
-        panStatus: result.pan?.status === 'verified' ? 'VERIFIED' : result.pan?.status === 'failed' ? 'FAILED' : 'PENDING',
-        overallStatus,
-        status: overallStatus,
-        failureReason,
-      },
+      data: { provider: 'CYBRILLA', providerTransactionId: result.id, ...evaluated },
+    });
+
+    // Retain the submitted identity details so later steps (e.g. investing) don't need to ask again.
+    await this.prisma.userProfile.upsert({
+      where: { userId },
+      update: { fullName, pan, dateOfBirth: new Date(dob) },
+      create: { userId, fullName, pan, dateOfBirth: new Date(dob) },
     });
 
     return {
       transactionId: result.id,
-      status: overallStatus,
+      status: evaluated.overallStatus,
       providerResponse: result,
     };
   }
 
   async getKycStatus(userId: string) {
-    return this.prisma.kYCApplication.findUnique({
+    let application = await this.prisma.kYCApplication.findUnique({
       where: { userId },
-      include: {
-        verifications: true,
-      },
+      include: { verifications: true },
     });
+
+    if (application?.status === 'IN_PROGRESS' && application.providerTransactionId) {
+      try {
+        const result = await this.cybrilla.fetchPreVerification(application.providerTransactionId);
+        const evaluated = this.evaluateVerification(result);
+
+        if (evaluated.overallStatus !== application.status) {
+          application = await this.prisma.kYCApplication.update({
+            where: { id: application.id },
+            data: evaluated,
+            include: { verifications: true },
+          });
+        }
+      } catch (error) {
+        // Cybrilla being unreachable shouldn't break the status read - just return the last known state.
+        this.logger.warn(`Could not poll pre-verification status for user ${userId}: ${(error as Error).message}`);
+      }
+    }
+
+    return application;
+  }
+
+  /** Maps a Cybrilla pre-verification response onto our KYCApplication fields. */
+  private evaluateVerification(result: any) {
+    const fields = ['pan', 'name', 'date_of_birth'];
+    const allVerified = fields.every((field) => result[field]?.status === 'verified');
+    const overallStatus = result.status === 'completed' ? (allVerified ? 'VERIFIED' : 'FAILED') : 'IN_PROGRESS';
+    const failureReason = allVerified
+      ? null
+      : fields
+          .map((field) => (result[field]?.status === 'failed' ? `${field}: ${result[field]?.reason ?? result[field]?.code}` : null))
+          .filter(Boolean)
+          .join('; ') || null;
+
+    return {
+      panStatus: result.pan?.status === 'verified' ? 'VERIFIED' : result.pan?.status === 'failed' ? 'FAILED' : 'PENDING',
+      overallStatus,
+      status: overallStatus,
+      failureReason,
+      completedAt: result.status === 'completed' ? new Date(result.completed_at ?? Date.now()) : null,
+    };
   }
 }
