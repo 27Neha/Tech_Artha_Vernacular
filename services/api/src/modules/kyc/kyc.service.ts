@@ -23,17 +23,7 @@ export class KycService {
       });
     }
 
-    let result = await this.cybrilla.verifyPan(pan, fullName, dob);
-
-    if (result.status === 'accepted') {
-      let attempts = 0;
-      while (result.status === 'accepted' && attempts < 5) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        result = await this.cybrilla.fetchPreVerification(result.id);
-        attempts++;
-      }
-    }
-
+    const result = await this.cybrilla.verifyPan(pan, fullName, dob);
     const evaluated = this.evaluateVerification(result);
 
     application = await this.prisma.kYCApplication.update({
