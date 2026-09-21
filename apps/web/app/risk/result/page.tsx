@@ -7,37 +7,29 @@ function ResultContent() {
   const searchParams = useSearchParams();
   const scoreParam = searchParams.get('score');
   
-  const score = scoreParam ? Number(scoreParam) : 26; // Default to moderate
+  const score = scoreParam ? Number(scoreParam) : 0;
+  const categoryParam = searchParams.get('category') || 'MODERATE';
   
-  let label = '';
+  let label = categoryParam.charAt(0).toUpperCase() + categoryParam.slice(1).toLowerCase();
   let desc = '';
   let rotation = 0;
   
-  if (score <= 18) {
-    label = 'Conservative';
+  if (categoryParam === 'CONSERVATIVE') {
     desc = 'Low risk, capital preservation is your priority.';
-    rotation = -72; // Left side
-  } else if (score <= 25) {
-    label = 'Moderately Conservative';
-    desc = 'Slightly higher risk tolerance but mostly focused on safety.';
-    rotation = -36;
-  } else if (score <= 31) {
-    label = 'Moderate';
+    rotation = -50;
+  } else if (categoryParam === 'MODERATE') {
     desc = 'Balanced approach between risk and return.';
-    rotation = 0; // Center
-  } else if (score <= 40) {
-    label = 'Moderately Aggressive';
-    desc = 'Seeking higher growth with some tolerance for volatility.';
-    rotation = 36;
-  } else {
-    label = 'Aggressive';
+    rotation = 0;
+  } else if (categoryParam === 'AGGRESSIVE') {
     desc = 'High risk tolerance, seeking maximum long-term growth.';
-    rotation = 72; // Right side
+    rotation = 50;
+  } else {
+    desc = 'Balanced approach between risk and return.';
+    rotation = 0;
   }
 
-  // Save the profile to localStorage so the dashboard can access it
   if (typeof window !== 'undefined') {
-    localStorage.setItem('user_risk_profile', label);
+    localStorage.setItem('investorProfile', label);
   }
 
   return (

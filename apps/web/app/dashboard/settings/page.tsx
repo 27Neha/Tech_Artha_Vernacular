@@ -1,12 +1,10 @@
-'use client';
+﻿'use client';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { useTranslation } from '../../TranslationProvider';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { lang, setLang } = useTranslation();
-  
+    
   const [expanded, setExpanded] = useState<string | null>(null);
   const [pushEnabled, setPushEnabled] = useState(true);
   const [theme, setTheme] = useState('system');
@@ -25,12 +23,20 @@ export default function SettingsPage() {
   const handleThemeChange = (newTheme: string) => {
     setTheme(newTheme);
     localStorage.setItem('appTheme', newTheme);
+    if (newTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else if (newTheme === 'light') {
+      document.documentElement.classList.remove('dark');
+    } else {
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
   };
 
-  const handleLangSelect = (newLang: string) => {
-    setLang(newLang as any);
-    localStorage.setItem('language', newLang);
-  };
+  
 
   const toggleExpand = (label: string) => {
     if (expanded === label) setExpanded(null);
@@ -45,28 +51,6 @@ export default function SettingsPage() {
       </div>
 
       <div className="flex flex-col gap-3">
-        {/* LANGUAGE SETTING */}
-        <div className={`bg-white rounded-2xl border ${expanded === 'Language' ? 'border-[var(--primary)]' : 'border-gray-100'} transition-all shadow-sm overflow-hidden`}>
-          <button onClick={() => toggleExpand('Language')} className="w-full p-4 flex items-center gap-4 text-left">
-            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">🌐</div>
-            <div className="flex-1">
-              <p className="font-bold text-[var(--dark)] text-sm">Language</p>
-              <p className="text-gray-400 text-xs mt-0.5">Change app language</p>
-            </div>
-            <span className={`text-gray-300 text-xl transition-transform ${expanded === 'Language' ? 'rotate-90' : ''}`}>›</span>
-          </button>
-          {expanded === 'Language' && (
-            <div className="px-4 pb-4 pt-1 flex flex-col gap-2 border-t border-gray-50">
-              {['en', 'hi', 'mr'].map((l) => (
-                <button key={l} onClick={() => handleLangSelect(l)} className={`flex items-center justify-between p-3 rounded-xl border ${lang === l ? 'bg-blue-50 border-[var(--primary)] text-[var(--primary)]' : 'border-gray-100 text-[var(--dark)]'}`}>
-                  <span className="font-bold text-sm">{l === 'en' ? 'English' : l === 'hi' ? 'हिंदी' : 'मराठी'}</span>
-                  {lang === l && <span className="font-bold">✓</span>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
         {/* PUSH NOTIFICATIONS SETTING */}
         <div className="bg-white rounded-2xl border border-gray-100 transition-all shadow-sm overflow-hidden p-4 flex items-center gap-4 text-left">
           <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">🔔</div>
@@ -174,3 +158,6 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+
+

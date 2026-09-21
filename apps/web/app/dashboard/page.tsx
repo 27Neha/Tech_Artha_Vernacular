@@ -13,7 +13,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [profile, setProfile] = useState('Moderate');
+  const [profile, setProfile] = useState('');
   const [recommendedFunds, setRecommendedFunds] = useState<any[]>([]);
   const [portfolio, setPortfolio] = useState({ totalInvested: 0, currentValue: 0, holdings: [] });
   const [fetchingPortfolio, setFetchingPortfolio] = useState(true);
@@ -63,8 +63,24 @@ export default function DashboardPage() {
     };
     fetchPortfolio();
 
-    const saved = localStorage.getItem('investorProfile');
-    if (saved) setProfile(saved);
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        const res = await fetch(`${API_URL}/auth/profile`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.riskProfile?.category) {
+            const cat = data.riskProfile.category;
+            const formatted = cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase();
+            setProfile(formatted);
+            localStorage.setItem('investorProfile', formatted);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to fetch profile', e);
+      }
+    };
+    fetchProfile();
 
     const fetchRecs = async () => {
       try {

@@ -1,4 +1,4 @@
-*, ::before, ::after {
+﻿*, ::before, ::after {
   --tw-border-spacing-x: 0;
   --tw-border-spacing-y: 0;
   --tw-translate-x: 0;
@@ -2632,8 +2632,6 @@ body, html {
   }
 }
 
-<<<<<<< HEAD
-=======
 
 /* Hide Google Translate Toolbar */
 .goog-te-banner-frame { display: none !important; }
@@ -2734,3 +2732,111 @@ body, html { top: 0px !important; position: static !important; margin-top: 0px !
               #F8F9FB;
 }
 
+
+/* DARK MODE OVERRIDES */
+.dark {
+  --primary: #7b78ff;
+  --primary-light: #1e1b4b;
+  --orange: #fbad41;
+  --dark: #f8fafc;
+  --background: #0f172a;
+  --foreground: #f8fafc;
+}
+
+.dark body {
+  background-color: var(--background) !important;
+  background: var(--background) !important;
+  color: var(--foreground) !important;
+}
+
+.dark .bg-white {
+  background-color: #1e293b !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: #0f172a !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: #334155 !important;
+}
+
+.dark .border-gray-50 {
+  border-color: #1e293b !important;
+}
+
+.dark .border-gray-100 {
+  border-color: #334155 !important;
+}
+
+.dark .border-gray-200 {
+  border-color: #475569 !important;
+}
+
+.dark .text-gray-900, .dark .text-gray-800, .dark .text-black {
+  color: #f8fafc !important;
+}
+
+.dark .text-gray-700, .dark .text-gray-600 {
+  color: #e2e8f0 !important;
+}
+
+.dark .text-gray-500, .dark .text-gray-400 {
+  color: #94a3b8 !important;
+}
+
+.dark .bg-depth {
+  background: radial-gradient(circle at top right, rgba(30, 27, 75, 0.8) 0%, transparent 40%), radial-gradient(circle at bottom left, rgba(30, 27, 75, 0.6) 0%, transparent 40%), #0f172a !important;
+}
+
+
+.dark .bg-blue-50 {
+  background-color: rgba(60, 57, 133, 0.2) !important;
+}
+.dark .text-\[var\(--dark\)\] {
+  color: #f8fafc !important;
+}
+
+
+
+
+.dark .card, .dark .card-premium {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+
+.dark .bg-white\/80 { background-color: rgba(30, 41, 59, 0.8) !important; }
+.dark .bg-white\/70 { background-color: rgba(30, 41, 59, 0.7) !important; }
+.dark .bg-white\/60 { background-color: rgba(30, 41, 59, 0.6) !important; }
+
+
+/* UI ENHANCEMENTS FOR DARK MODE */
+
+.dark .text-gray-500, .dark .text-gray-400 {
+  color: #cbd5e1 !important; /* Brighter gray for readability */
+}
+.dark .bg-gray-50 {
+  background-color: #334155 !important; /* Lighter than body to stand out on cards */
+}
+.dark .border-\[var\(--primary\)\] {
+  border-color: #a5a3ff !important; /* Brighter purple for borders */
+}
+.dark .text-\[var\(--primary\)\] {
+  color: #a5a3ff !important; /* Brighter purple for text */
+}
+
+
+
+
+.dark .header-back-btn {
+  color: #102A54 !important; /* Force back button to stay dark on the white header */
+}
+
+
+
+.perspective-1000 { perspective: 1000px; }
+.transform-style-3d { transform-style: preserve-3d; }
+
+
+@keyframes shine { 100% { transform: translateX(100%); } }

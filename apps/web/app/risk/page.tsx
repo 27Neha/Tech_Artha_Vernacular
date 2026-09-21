@@ -167,11 +167,9 @@ export default function RiskPage() {
     } else {
       setLoading(true);
       
-      const totalScore = newAnswers.reduce((a, b) => a + b, 0);
-
       try {
         const token = localStorage.getItem('access_token');
-        await fetch(`${API_URL}/risk/calculate`, {
+        const res = await fetch(`${API_URL}/risk/calculate`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -179,11 +177,26 @@ export default function RiskPage() {
           },
           body: JSON.stringify({ answers: newAnswers, consent: true })
         });
+        
+        if (!res.ok) {
+          throw new Error('Failed to calculate risk profile');
+        }
+        
+        const data = await res.json();
+        // data.data is the RiskProfile from backend (contains category and score)
+        const cat = data.data.category || 'MODERATE';
+        const finalScore = data.data.score || newAnswers.reduce((a, b) => a + b, 0);
+        
+        // Update localStorage optimistically so other components react immediately
+        const formattedCat = cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase();
+        localStorage.setItem('investorProfile', formattedCat);
+        
+        router.push(`/risk/result?category=${cat}&score=${finalScore}`);
       } catch (err) {
         console.error('Failed to save risk profile to backend', err);
+        alert('Failed to calculate risk profile. Please try again.');
+        setLoading(false);
       }
-      
-      router.push(`/risk/result?score=${totalScore}`);
     }
   };
 

@@ -96,10 +96,27 @@ export default function FullPortfolioPage() {
   const router = useRouter();
   const [tab, setTab] = useState<'overview' | 'holdings' | 'transactions' | 'sips' | 'statements'>('overview');
 
+  const [investorProfile, setInvestorProfile] = useState('');
   const [portfolio, setPortfolio] = useState({ totalInvested: 0, currentValue: 0, totalReturns: 0, holdings: [] });
   const [fetchingPortfolio, setFetchingPortfolio] = useState(true);
 
   useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        const res = await fetch(`${API_URL}/auth/profile`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.riskProfile?.category) {
+            const cat = data.riskProfile.category;
+            const formatted = cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase();
+            setInvestorProfile(formatted);
+          }
+        }
+      } catch (e) {}
+    };
+    fetchProfile();
+    
     const fetchPortfolio = async () => {
       const token = localStorage.getItem('access_token');
       if (!token) return;
@@ -211,8 +228,8 @@ export default function FullPortfolioPage() {
               <h3 className="font-extrabold text-[var(--dark)] mb-4">Detailed Risk</h3>
               <p className="text-xs text-gray-500 mb-4 leading-relaxed bg-gray-50 p-3 rounded-lg border border-gray-100"><strong>Note:</strong> Your "Investor Risk Profile" represents your personal capacity to take risks. A scheme's "Risk-o-Meter" shows the standalone volatility of that specific fund. A balanced portfolio may contain high-risk funds while maintaining a moderate overall portfolio risk.</p>
               
-              <div className="flex justify-between items-center py-2 border-b border-gray-50"><span className="text-xs font-bold text-gray-500">Investor Risk Profile</span><span className="text-xs font-extrabold text-[var(--dark)]">Moderately Aggressive</span></div>
-              <div className="flex justify-between items-center py-2 border-b border-gray-50"><span className="text-xs font-bold text-gray-500">Portfolio Risk</span><span className="text-xs font-extrabold text-orange-600">Moderate</span></div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-50"><span className="text-xs font-bold text-gray-500">Investor Risk Profile</span><span className="text-xs font-extrabold text-[var(--dark)]">{investorProfile}</span></div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-50"><span className="text-xs font-bold text-gray-500">Portfolio Risk</span><span className="text-xs font-extrabold text-orange-600">{investorProfile}</span></div>
               <div className="flex justify-between items-center py-2"><span className="text-xs font-bold text-gray-500">Risk Alignment</span><span className="text-xs font-extrabold text-green-600">Optimal</span></div>
             </div>
             

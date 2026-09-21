@@ -3,7 +3,8 @@ import { JwtService } from '@nestjs/jwt';
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { InteraktService } from '../../integrations/interakt/interakt.service';
-import { MockOtpProvider, InteraktOtpProvider, OtpChannel, OtpProvider } from './otp.provider';
+import { MockOtpProvider, InteraktOtpProvider, OtpChannel, OtpProvider, ChannelRoutingOtpProvider } from './otp.provider';
+import { EmailOtpProvider } from './email.provider';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
@@ -44,7 +45,10 @@ export class AuthService {
     const requests = await this.prisma.otpVerification.count({ where: { mobile: normalizedMobile, createdAt: { gte: requestedSince } } });
     if (requests >= OTP_RATE_LIMIT_COUNT) throw new HttpException('Too many OTP requests. Please wait before trying again.', HttpStatus.TOO_MANY_REQUESTS);
 
-    const code = randomInt(100000, 1000000).toString();
+    let code = randomInt(100000, 1000000).toString();
+    if (channel === 'SMS' && process.env.OTP_SMS_MODE === 'mock') {
+      code = '123456';
+    }
     await this.prisma.otpVerification.updateMany({
       where: { mobile: normalizedMobile, status: 'PENDING' },
       data: { status: 'SUPERSEDED' },
@@ -78,7 +82,7 @@ export class AuthService {
     return this.createSession(user, deviceId);
   }
 
-  private async validateOtp(normalizedMobile: string, otp: string) {
+  async validateOtp(normalizedMobile: string, otp: string) {
     if (!/^\d{6}$/.test(otp)) throw new BadRequestException('Enter the 6-digit code.');
     const record = await this.prisma.otpVerification.findFirst({
       where: { mobile: normalizedMobile, status: 'PENDING' },
@@ -212,4 +216,80 @@ export class AuthService {
     await this.prisma.auditLog.create({ data: { userId: user.id, action: 'SESSION_CREATED', details: JSON.stringify({ deviceBound: Boolean(deviceId) }) } });
     return { accessToken, access_token: accessToken, refreshToken, expiresAt, user: { id: user.id, mobile: user.mobile } };
   }
+
+  async getProfile(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true, riskProfile: true, onboardingProgress: true }
+    });
+    if (!user) throw new Error('User not found');
+    return { id: user.id, mobile: user.mobile, clientType: user.clientType, profile: user.profile, riskProfile: user.riskProfile, onboardingProgress: user.onboardingProgress };
+  }
+
+  async updateProfile(userId: string, data: { fullName?: string; dateOfBirth?: string; pan?: string; clientType?: string; referralCode?: string }) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+
+    if (data.clientType || data.referralCode) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          ...(data.clientType && { clientType: data.clientType }),
+          ...(data.referralCode && { referralCode: data.referralCode })
+        }
+      });
+    }
+
+    let parsedDate = undefined;
+    let age = undefined;
+    let investorType = undefined;
+    let majorityDate = undefined;
+
+    if (data.dateOfBirth) {
+      if (data.dateOfBirth.includes('/')) {
+        const [d, m, y] = data.dateOfBirth.split('/');
+        parsedDate = new Date(`${y}-${m}-${d}`);
+      } else {
+        parsedDate = new Date(data.dateOfBirth);
+      }
+      
+      const today = new Date();
+      age = today.getFullYear() - parsedDate.getFullYear();
+      const mDiff = today.getMonth() - parsedDate.getMonth();
+      if (mDiff < 0 || (mDiff === 0 && today.getDate() < parsedDate.getDate())) {
+        age--;
+      }
+      
+      investorType = age >= 18 ? 'ADULT' : 'MINOR';
+      majorityDate = new Date(parsedDate);
+      majorityDate.setFullYear(majorityDate.getFullYear() + 18);
+    }
+
+    const profileData: any = {
+      ...(data.fullName && { fullName: data.fullName }),
+      ...(data.pan && { pan: data.pan }),
+      ...(parsedDate && { dateOfBirth: parsedDate }),
+      ...(age !== undefined && { age }),
+      ...(investorType && { investorType }),
+      ...(majorityDate && { majorityDate })
+    };
+
+    let profile = await this.prisma.userProfile.findUnique({ where: { userId } });
+
+    if (profile) {
+      await this.prisma.userProfile.update({
+        where: { userId },
+        data: profileData
+      });
+    } else {
+      await this.prisma.userProfile.create({
+        data: {
+          userId,
+          ...profileData
+        }
+      });
+    }
+    return { success: true, investorType };
+  }
+
 }

@@ -1,7 +1,17 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from '../TranslationProvider';
+
+
+const safeFetchJson = async (res: Response) => {
+  try {
+    const text = await res.text();
+    return text ? JSON.parse(text) : {};
+  } catch (e) {
+    return { message: 'Internal Server Error. Please try again later.' };
+  }
+};
 
 export default function SignupPage() {
   const router = useRouter();
@@ -17,6 +27,8 @@ export default function SignupPage() {
   const [referralCode, setReferralCode] = useState('');
   
   const [panNumber, setPanNumber] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [dob, setDob] = useState('');
   const [panVerified, setPanVerified] = useState<'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED'>('PENDING');
   const [faceVerified, setFaceVerified] = useState<'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED'>('PENDING');
   
@@ -29,7 +41,12 @@ export default function SignupPage() {
   const isPasswordStrong = password.length >= 8 && /[A-Z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password);
 
   const [otp, setOtp] = useState('');
+  const [resendTimer, setResendTimer] = useState(0);
+  const [otpArray, setOtpArray] = useState(['', '', '', '', '', '']);
   const [otpSent, setOtpSent] = useState(false);
+  const [emailInputMode, setEmailInputMode] = useState(false);
+  const [email, setEmail] = useState('');
+  const [activeChannel, setActiveChannel] = useState<'SMS'|'WHATSAPP'|'EMAIL' | null>(null);
   const [otpHint, setOtpHint] = useState('');
   const [otpChannel, setOtpChannel] = useState<'SMS' | 'WHATSAPP'>('SMS');
 
@@ -43,25 +60,46 @@ export default function SignupPage() {
       return;
     }
     setError('');
+    setOtpSent(false);
+    setEmailInputMode(false);
     setStep(1.5);
   };
 
-  const handleSendSignupOtp = async (channel: 'SMS' | 'WHATSAPP') => {
+  useEffect(() => {
+    let interval: any;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  const handleSendSignupOtp = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL') => {
+    setActiveChannel(channel);
+    
+    if (channel === 'EMAIL' && !emailInputMode) {
+      setEmailInputMode(true);
+      return;
+    }
+
     setLoading(true);
     setError('');
     try {
+      const contact = channel === 'EMAIL' ? email : mobile;
       const res = await fetch(`${API_URL}/auth/signup/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile, channel })
+        body: JSON.stringify({ mobile: contact, channel })
       });
-      const data = await res.json();
+      const data = await safeFetchJson(res);
       if (res.status === 409) {
-        throw new Error('An account already exists with this mobile number. Please Login Instead.');
+        throw new Error('An account already exists with this ' + (channel === 'EMAIL' ? 'email address' : 'mobile number') + '. Please Login Instead.');
       }
       if (!res.ok) throw new Error(data.message || 'Failed to send OTP');
       
       setOtpSent(true);
+      setResendTimer(30);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -92,9 +130,9 @@ export default function SignupPage() {
       const res = await fetch(`${API_URL}/auth/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile, otp, type: 'signup', password }) // Also submitting password if created
+        body: JSON.stringify({ mobile: activeChannel === 'EMAIL' ? email : mobile, otp, type: 'signup', password })
       });
-      const data = await res.json();
+      const data = await safeFetchJson(res);
       if (!res.ok) throw new Error(data.message || 'Invalid OTP');
       
       localStorage.setItem('access_token', data.accessToken);
@@ -108,6 +146,43 @@ export default function SignupPage() {
       setLoading(false);
     }
   };
+
+  
+  const handleSaveProfile = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      if (!fullName || !dob || !panNumber) {
+        throw new Error('Full Name, Date of Birth, and PAN are required.');
+      }
+      if (panNumber.length !== 10) {
+        throw new Error('PAN must be exactly 10 characters.');
+      }
+
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_URL}/auth/profile`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ fullName, dateOfBirth: dob, pan: panNumber })
+      });
+      const data = await safeFetchJson(res);
+      if (!res.ok) throw new Error(data.message || 'Failed to save profile');
+      
+      if (data.investorType === 'MINOR') {
+        router.push('/onboarding/minor/welcome');
+      } else {
+        setStep(3);
+      }
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const handleSignup = async () => {
     setLoading(true);
@@ -154,20 +229,27 @@ export default function SignupPage() {
     }
   };
 
+  
   const startKycWorkflow = async () => {
     setLoading(true);
+    setError('');
     setPanVerified('IN_PROGRESS');
     try {
-      // 1. Ask backend to start KYC
+      if (!fullName || !dob || !panNumber) {
+         setStep(2); // kick them back to step 2
+         return;
+      }
+
       const token = localStorage.getItem('access_token');
       const res = await fetch(`${API_URL}/api/v1/kyc/start`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
-        }
+        },
+        body: JSON.stringify({ fullName, pan: panNumber, dob })
       });
-      const data = await res.json();
+      const data = await safeFetchJson(res);
       if (!res.ok) throw new Error(data.message || 'Failed to initialize KYC');
       
       setTransactionId(data.transactionId);
@@ -180,6 +262,7 @@ export default function SignupPage() {
       setLoading(false);
     }
   };
+
   return (
     <div className="flex flex-col flex-1 p-6 bg-white">
       <p className="text-gray-500 mb-8">Step {step} of 3</p>
@@ -197,8 +280,8 @@ export default function SignupPage() {
 
       {step === 1 && (
         <div className="flex-1">
-          <label className="label">Mobile Number</label>
-          <input type="tel" value={mobile} onChange={e => setMobile(e.target.value)} placeholder="10-digit number" className="input-field" maxLength={10} />
+          <label className="label">Mobile Number or Email</label>
+          <input type="text" value={mobile} onChange={e => setMobile(e.target.value)} placeholder="10-digit number or email" className="input-field" />
           
                     
                     <label className="label">Create Password</label>
@@ -262,109 +345,190 @@ export default function SignupPage() {
       )}
 
       {step === 1.5 && (
-        <div className="flex-1">
-          <label className="label">Enter OTP</label>
-          <p className="text-sm text-gray-500 mb-4">OTP sent to {mobile}</p>
+        <div className="flex-1 flex flex-col mt-8">
           
-          <input type="number" value={otp} onChange={e => setOtp(e.target.value)} placeholder="000000" className="input-field text-center text-2xl tracking-widest font-bold" maxLength={6} />
-          
-          <div className="flex gap-4 mt-6">
-              <button 
-                onClick={() => handleSendSignupOtp('SMS')}
-                disabled={loading}
-                className="flex-1 py-3 rounded-xl border-2 font-bold transition-all text-sm border-gray-100 text-gray-400 bg-white hover:border-gray-200"
-              >
-                Send via SMS
+          {!otpSent && !emailInputMode && (
+            <div className="flex flex-col gap-4">
+              <h2 className="text-2xl font-bold text-[var(--dark)] mb-2">Choose OTP method</h2>
+              <p className="text-sm text-gray-500 mb-8">Choose how you want to receive your OTP</p>
+              
+              <button onClick={() => handleSendSignupOtp('WHATSAPP')} disabled={loading} className="py-3 rounded-xl border-2 font-bold transition-all text-sm border-[#25D366] bg-[#dcf8c6] text-[#128C7E]">
+                WhatsApp OTP
               </button>
-              <button 
-                onClick={() => handleSendSignupOtp('WHATSAPP')}
-                disabled={loading}
-                className="flex-1 py-3 rounded-xl border-2 font-bold transition-all text-sm border-[#25D366] bg-[#dcf8c6] text-[#128C7E]"
-              >
-                Send via WhatsApp
+              <button onClick={() => handleSendSignupOtp('SMS')} disabled={loading} className="py-3 rounded-xl border-2 font-bold transition-all text-sm border-purple-200 text-purple-700 bg-purple-50 hover:border-purple-300 hover:bg-purple-100">
+                SMS OTP
               </button>
-            </div>
+              <button onClick={() => handleSendSignupOtp('EMAIL')} disabled={loading} className="py-3 rounded-xl border-2 font-bold transition-all text-sm border-blue-100 text-blue-500 bg-blue-50 hover:border-blue-200">
+                Email OTP
+              </button>
+              
 
-          <button onClick={handleVerifyOtp} disabled={otp.length < 4 || loading} className="btn-primary mt-8">
-            <span>{loading ? 'Verifying...' : 'Verify OTP'}</span><span>→</span>
-          </button>
-          <button onClick={() => setStep(1)} className="text-[var(--primary)] font-bold mt-4 w-full text-center">Change Number</button>
+            </div>
+          )}
+
+          {!otpSent && emailInputMode && (
+             <div className="flex flex-col gap-4">
+               <h2 className="text-2xl font-bold text-[var(--dark)] mb-2">Verify your email</h2>
+               <p className="text-sm text-gray-500 mb-8">Enter your email address to receive an OTP</p>
+               
+               <label className="label">Email Address</label>
+               <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Enter your email address" className="input-field" />
+               
+               <button onClick={() => handleSendSignupOtp('EMAIL')} disabled={loading || !email.includes('@')} className="btn-primary mt-4">
+                 <span>{loading ? 'Sending...' : 'Send OTP'}</span><span>→</span>
+               </button>
+               
+
+             </div>
+          )}
+
+          {otpSent && (
+            <div className="flex flex-col items-center">
+              <div className="w-16 h-16 bg-[var(--primary-light)] text-[var(--primary)] rounded-full flex items-center justify-center mb-6">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+              </div>
+              <h2 className="text-2xl font-bold text-[var(--dark)] mb-2">Verify your {activeChannel === 'EMAIL' ? 'email' : 'number'}</h2>
+              <p className="text-sm text-gray-500 mb-8 text-center max-w-xs">We sent a 6-digit OTP to <br/><span className="font-bold text-[var(--dark)]">{activeChannel === 'EMAIL' ? email : mobile}</span></p>
+              
+              <div className="flex gap-2 justify-center mb-8" dir="ltr">
+                {otpArray.map((digit, index) => (
+                  <input 
+                    key={index}
+                    id={`otp-${index}`}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    autoFocus={index === 0}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      if (val) {
+                        const newOtp = [...otpArray];
+                        newOtp[index] = val;
+                        setOtpArray(newOtp);
+                        setOtp(newOtp.join(''));
+                        if (index < 5) document.getElementById(`otp-${index + 1}`)?.focus();
+                      } else {
+                        const newOtp = [...otpArray];
+                        newOtp[index] = '';
+                        setOtpArray(newOtp);
+                        setOtp(newOtp.join(''));
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Backspace' && !digit && index > 0) {
+                        document.getElementById(`otp-${index - 1}`)?.focus();
+                      }
+                    }}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+                      if (pasted.length > 0) {
+                        const newOtp = [...otpArray];
+                        for (let i = 0; i < pasted.length; i++) {
+                          if (index + i < 6) newOtp[index + i] = pasted[i];
+                        }
+                        setOtpArray(newOtp);
+                        setOtp(newOtp.join(''));
+                        const focusIndex = Math.min(index + pasted.length, 5);
+                        document.getElementById(`otp-${focusIndex}`)?.focus();
+                      }
+                    }}
+                    className="w-12 h-14 text-center text-xl font-bold rounded-xl border border-gray-200 outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-light)] transition-all bg-gray-50 focus:bg-white" 
+                  />
+                ))}
+              </div>
+
+              <button onClick={handleVerifyOtp} disabled={otp.length < 6 || loading} className="btn-primary w-full max-w-sm">
+                <span>{loading ? 'Verifying...' : 'Verify OTP'}</span><span>→</span>
+              </button>
+              
+              <div className="flex flex-col items-center gap-3 mt-8">
+                <p className="text-sm text-gray-500">
+                  Didn't receive the code? 
+                  {resendTimer > 0 ? (
+                    <span className="font-bold text-gray-400 ml-1">Resend in {resendTimer}s</span>
+                  ) : (
+                    <button onClick={() => handleSendSignupOtp(activeChannel || 'SMS')} className="font-bold text-[var(--primary)] ml-1 hover:underline">
+                      Resend OTP
+                    </button>
+                  )}
+                </p>
+                <button 
+                  onClick={() => {
+                    setOtpSent(false);
+                    if (activeChannel !== 'EMAIL') setStep(1);
+                  }} 
+                  className="text-sm font-bold text-[var(--primary)] hover:underline mt-2"
+                >
+                  Change {activeChannel === 'EMAIL' ? 'Email' : 'Number'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
+      
       {step === 2 && (
-        <div className="flex-1">
-          <label className="label">Client Type</label>
-          <div className="flex gap-4">
-            {['retail', 'corporate', 'huf'].map(type => (
-              <button key={type} onClick={() => setClientType(type)} className={`flex-1 py-3 rounded-xl font-bold transition-all border-2 capitalize ${clientType === type ? 'border-[var(--primary)] bg-[var(--primary-light)] text-[var(--primary)]' : 'border-gray-100 bg-white'}`}>
-                {type}
-              </button>
-            ))}
-          </div>
+        <div className="flex-1 flex flex-col mt-8 animate-fade-in">
+          <h2 className="text-2xl font-bold text-[var(--dark)] mb-2">Tell us about yourself</h2>
+          <p className="text-sm text-gray-500 mb-8">We need a few details before verifying your identity.</p>
+
+          <label className="label">Full Name (As per PAN)</label>
+          <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="e.g. Neha Mahajan" className="input-field mb-4" />
           
-          <label className="label">Referral Code (Optional)</label>
-          <p className="text-xs text-gray-400 mb-2">Did a Mutual Fund Distributor refer you?</p>
-          <input type="text" value={referralCode} onChange={e => setReferralCode(e.target.value)} placeholder="e.g. MFD-12345" className="input-field uppercase" />
+          <label className="label">Date of Birth</label>
+          <input type="date" value={dob} onChange={e => setDob(e.target.value)} className="input-field mb-4" />
           
-          <button onClick={handleNext} className="btn-primary mt-8">
-            <span>Continue</span><span>→</span>
+          <label className="label">PAN Number</label>
+          <input type="text" value={panNumber} onChange={e => setPanNumber(e.target.value.toUpperCase())} placeholder="ABCDE1234F" maxLength={10} className="input-field uppercase mb-8" />
+          
+          <button onClick={handleSaveProfile} disabled={loading || !fullName || !dob || panNumber.length !== 10} className="btn-primary mt-auto">
+            <span>{loading ? 'Saving...' : 'Save & Continue'}</span><span>→</span>
           </button>
         </div>
       )}
 
       {step === 3 && (
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col animate-fade-in">
           <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 mb-6">
-            <p className="text-sm text-amber-800 font-semibold mb-1">Identity Verification Required</p>
-            <p className="text-xs text-amber-700">Your PAN and KYC details are securely verified through our regulated investment onboarding partner.</p>
+            <p className="text-sm text-amber-800 font-semibold mb-1">Identity Verification</p>
+            <p className="text-xs text-amber-700">Your PAN and KYC details are securely verified through Cybrilla.</p>
           </div>
           
           <div className="flex flex-col gap-4">
-            {/* PAN & KYC Section */}
-            <div className="border border-gray-100 rounded-xl p-5 bg-gray-50 flex items-center justify-between">
-              <div>
-                <h4 className="font-bold text-[var(--dark)]">PAN & KYC</h4>
-                <p className="text-xs text-gray-500 mt-1">
-                  {panVerified === 'PENDING' && 'Verification required'}
-                  {panVerified === 'IN_PROGRESS' && 'Verification in progress'}
-                  {panVerified === 'SUCCESS' && 'Verified successfully'}
-                  {panVerified === 'FAILED' && 'Verification failed'}
-                </p>
+            <div className="border border-gray-100 rounded-xl p-5 bg-gray-50 flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-[var(--dark)]">PAN & KYC</h4>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {panVerified === 'PENDING' && 'Verification required'}
+                    {panVerified === 'IN_PROGRESS' && 'Verification in progress'}
+                    {panVerified === 'SUCCESS' && 'Verified successfully'}
+                    {panVerified === 'FAILED' && 'Verification failed'}
+                  </p>
+                </div>
+                <div>
+                  {panVerified === 'PENDING' && (
+                    <button onClick={startKycWorkflow} disabled={loading} className="px-4 py-2 bg-[var(--primary)] text-white font-bold rounded-lg text-sm">
+                      {loading ? 'Starting...' : 'Verify Now'}
+                    </button>
+                  )}
+                  {panVerified === 'IN_PROGRESS' && <span className="text-gray-500 font-bold text-sm">⏳ Verifying...</span>}
+                  {panVerified === 'SUCCESS' && <span className="text-green-500 font-bold">✅ Verified</span>}
+                  {panVerified === 'FAILED' && <span className="text-red-500 font-bold">❌ Failed</span>}
+                </div>
               </div>
-              <div>
-                {panVerified === 'PENDING' && (
-                  <button onClick={startKycWorkflow} disabled={loading} className="px-4 py-2 bg-[var(--primary)] text-white font-bold rounded-lg text-sm">
-                    {loading ? 'Starting...' : 'Verify Now'}
-                  </button>
-                )}
-                {panVerified === 'IN_PROGRESS' && <span className="text-gray-500 font-bold text-sm">⟳ Verifying...</span>}
-                {panVerified === 'SUCCESS' && <span className="text-green-500 font-bold">✓ Verified</span>}
-                {panVerified === 'FAILED' && <span className="text-red-500 font-bold">✕ Failed</span>}
-              </div>
-            </div>
-
-            {/* Face Liveness Section */}
-            <div className={`border rounded-xl p-5 flex items-center justify-between transition-colors ${panVerified === 'SUCCESS' ? 'border-gray-100 bg-gray-50' : 'border-gray-50 bg-gray-50/50 opacity-60'}`}>
-              <div>
-                <h4 className="font-bold text-[var(--dark)]">Face Verification</h4>
-                <p className="text-xs text-gray-500 mt-1">
-                  {faceVerified === 'PENDING' && 'Live selfie required'}
-                  {faceVerified === 'IN_PROGRESS' && 'Verifying...'}
-                  {faceVerified === 'SUCCESS' && 'Verified successfully'}
-                  {faceVerified === 'FAILED' && 'Verification failed'}
-                </p>
-              </div>
-              <div>
-                {panVerified === 'SUCCESS' && faceVerified === 'PENDING' && (
-                  <button onClick={startKycWorkflow} disabled={loading} className="px-4 py-2 bg-[var(--primary)] text-white font-bold rounded-lg text-sm">
-                    Start
-                  </button>
-                )}
-                {faceVerified === 'IN_PROGRESS' && <span className="text-gray-500 font-bold text-sm">⟳ Verifying...</span>}
-                {faceVerified === 'SUCCESS' && <span className="text-green-500 font-bold">✓ Verified</span>}
-                {faceVerified === 'FAILED' && <span className="text-red-500 font-bold">✕ Failed</span>}
-              </div>
+              
+              {panVerified === 'FAILED' && (
+                <div className="bg-red-50 border border-red-100 rounded-lg p-3 mt-2">
+                   <p className="text-xs text-red-600 mb-3">{error || 'The details provided do not match your PAN records.'}</p>
+                   <button onClick={() => setStep(2)} className="w-full py-2 bg-white border border-red-200 text-red-600 font-bold rounded-md text-xs hover:bg-red-50 transition-colors">
+                     Review Details
+                   </button>
+                </div>
+              )}
             </div>
           </div>
           
@@ -377,11 +541,10 @@ export default function SignupPage() {
                 : 'bg-gray-300 cursor-not-allowed'
             }`}
           >
-            {panVerified === 'SUCCESS' ? 'Complete KYC' : 'KYC Pending'}
+            {panVerified === 'SUCCESS' ? 'Complete Onboarding' : 'KYC Pending'}
           </button>
         </div>
       )}
     </div>
   );
 }
-

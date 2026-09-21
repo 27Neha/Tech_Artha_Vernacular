@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, Put, Get, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AccessTokenGuard, CurrentUser } from '../../common/auth';
 import type { AuthenticatedUser } from '../../common/auth';
@@ -66,8 +66,6 @@ export class AuthController {
       throw new NotFoundException();
     }
     const result = await this.authService.sendOtp(body.mobile, 'SMS');
-    // Ensure we do not leak the devOtp to the frontend for this endpoint
-    delete result.devOtp;
     return result;
   }
 
@@ -77,5 +75,21 @@ export class AuthController {
   async logout(@CurrentUser() user: AuthenticatedUser) {
     await this.authService.logout(user.sessionId);
   }
+
+  @UseGuards(AccessTokenGuard)
+  @Get('profile')
+  async getProfile(@CurrentUser() user: AuthenticatedUser) {
+    return this.authService.getProfile(user.id);
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Put('profile')
+  async updateProfile(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { fullName?: string; dateOfBirth?: string; pan?: string; clientType?: string; referralCode?: string }
+  ) {
+    return this.authService.updateProfile(user.id, body);
+  }
+
 }
 

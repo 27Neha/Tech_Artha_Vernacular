@@ -27,7 +27,25 @@ export default function FundDetailsPage({ params }: { params: { id: string } }) 
   const [investorProfile, setInvestorProfile] = useState<string>('');
 
   useEffect(() => {
-    setInvestorProfile(localStorage.getItem('investorProfile') || '');
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        const res = await fetch(`${API_URL}/auth/profile`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.riskProfile?.category) {
+            const cat = data.riskProfile.category;
+            const formatted = cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase();
+            setInvestorProfile(formatted);
+          } else {
+            setInvestorProfile(localStorage.getItem('investorProfile') || '');
+          }
+        }
+      } catch (e) {
+        setInvestorProfile(localStorage.getItem('investorProfile') || '');
+      }
+    };
+    fetchProfile();
   }, []);
 
   useEffect(() => {
