@@ -23,7 +23,7 @@ export default function GoalsPage() {
       <div className="bg-[var(--primary)] text-white px-6 pt-12 pb-10">
         
         <h1 className="text-2xl font-extrabold">What's your financial goal?</h1>
-        <p className="text-white/80 text-sm mt-2">We'll recommend the best funds tailored to your goal.</p>
+        <p className="text-white/80 text-sm mt-2">We'll show you funds suited to your goal.</p>
       </div>
 
       <div className="flex-1 p-5 -mt-4">

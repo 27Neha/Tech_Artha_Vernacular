@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 const autoBalance = (funds: any[]) => {
   if (funds.length === 0) return [];
@@ -22,6 +23,8 @@ export default function CustomBucketPage() {
   
     const [funds, setFunds] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     const saved = localStorage.getItem('customBucketFunds');
@@ -54,6 +57,29 @@ export default function CustomBucketPage() {
   };
 
   const isTotalValid = total === 100;
+
+  const saveBucket = async () => {
+    setSaveError('');
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_URL}/buckets/custom`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          funds: funds.map((f) => ({ schemeCode: Number(f.id), name: f.name, category: f.category, allocation: Number(f.percentage) })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(Array.isArray(data.message) ? data.message.map((m: any) => m.message || m).join(', ') : data.message || 'Could not save this bucket.');
+      localStorage.removeItem('customBucketFunds');
+      router.push('/buckets');
+    } catch (e: any) {
+      setSaveError(e.message || 'Something went wrong.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-[#F8F9FB] pt-16">
@@ -118,15 +144,13 @@ export default function CustomBucketPage() {
       </div>
 
       <div className="mt-auto p-5 bg-white border-t border-gray-100">
-        <button 
-          disabled={!isTotalValid || funds.length === 0}
-          className={`w-full py-3.5 rounded-xl font-extrabold text-white transition-opacity ${isTotalValid && funds.length > 0 ? 'bg-[var(--primary)]' : 'bg-gray-300 cursor-not-allowed'}`}
-          onClick={() => {
-            alert('Bucket Saved successfully!');
-            router.push('/dashboard/portfolio');
-          }}
+        {saveError && <p className="text-red-500 text-xs font-bold mb-3 bg-red-50 p-2 rounded-md">{saveError}</p>}
+        <button
+          disabled={!isTotalValid || funds.length === 0 || saving}
+          className={`w-full py-3.5 rounded-xl font-extrabold text-white transition-opacity ${isTotalValid && funds.length > 0 && !saving ? 'bg-[var(--primary)]' : 'bg-gray-300 cursor-not-allowed'}`}
+          onClick={saveBucket}
         >
-          Save Custom Bucket
+          {saving ? 'Saving...' : 'Save Custom Bucket'}
         </button>
       </div>
     </div>

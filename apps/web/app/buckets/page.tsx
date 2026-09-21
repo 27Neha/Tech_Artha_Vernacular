@@ -33,7 +33,9 @@ function BucketsContent() {
   const goal = searchParams.get('goal') ?? 'wealth';
 
   const [buckets, setBuckets] = useState<any[]>([]);
+  const [investorProfile, setInvestorProfile] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [customBuckets, setCustomBuckets] = useState<any[]>([]);
 
   const [investingBucketId, setInvestingBucketId] = useState<string | null>(null);
   const [investForm, setInvestForm] = useState(emptyInvestForm);
@@ -86,6 +88,7 @@ function BucketsContent() {
         });
         const data = await res.json();
         setBuckets(data.buckets || []);
+        setInvestorProfile(data.investorProfile ?? null);
       } catch {
         console.error("Failed to fetch buckets");
       } finally {
@@ -93,6 +96,17 @@ function BucketsContent() {
       }
     };
     fetchBuckets();
+
+    const fetchCustomBuckets = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        const res = await fetch(`${API_URL}/buckets/custom`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) setCustomBuckets(await res.json());
+      } catch {
+        console.error("Failed to fetch custom buckets");
+      }
+    };
+    fetchCustomBuckets();
   }, []);
 
   return (
@@ -107,11 +121,47 @@ function BucketsContent() {
         </div>
       </div>
 
+      {customBuckets.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-lg font-extrabold text-[var(--dark)] mb-3">Your Custom Buckets</h2>
+          <div className="flex flex-col gap-3">
+            {customBuckets.map((cb) => (
+              <div key={cb.id} className="p-4 rounded-2xl border border-gray-100 bg-gray-50">
+                <p className="font-bold text-[var(--dark)] text-sm mb-2">{cb.name}</p>
+                <div className="flex flex-col gap-1.5">
+                  {(cb.funds as any[]).map((f, i) => (
+                    <div key={i} className="flex justify-between text-xs text-gray-500">
+                      <span className="truncate pr-2">{f.name}</span>
+                      <span className="font-bold shrink-0">{f.allocation}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <h1 className="text-3xl font-extrabold text-[var(--dark)] mb-2">Choose your Bucket</h1>
       <p className="text-gray-500 mb-8">Based on your profile, here are the investment buckets available for you.</p>
 
       {loading ? (
         <div className="flex justify-center mt-12"><div className="w-10 h-10 rounded-full border-4 border-[var(--primary)] border-t-transparent animate-spin" /></div>
+      ) : investorProfile === 'ASSESSMENT_REQUIRED' ? (
+        <div className="text-center py-12 px-4 bg-gray-50 rounded-2xl border border-gray-100">
+          <span className="text-4xl block mb-3">📋</span>
+          <p className="font-bold text-[var(--dark)] mb-1">Complete your risk assessment first</p>
+          <p className="text-sm text-gray-500 mb-5">We use it to work out which buckets actually suit you.</p>
+          <button onClick={() => router.push('/risk')} className="px-6 py-3 bg-[var(--primary)] text-white rounded-xl font-bold">
+            Take the Risk Assessment
+          </button>
+        </div>
+      ) : buckets.length === 0 ? (
+        <div className="text-center py-12 px-4 bg-gray-50 rounded-2xl border border-gray-100">
+          <span className="text-4xl block mb-3">🗂️</span>
+          <p className="font-bold text-[var(--dark)] mb-1">No buckets available right now</p>
+          <p className="text-sm text-gray-500">Please try again in a moment, or contact support if this persists.</p>
+        </div>
       ) : (
         <div className="flex flex-col gap-5">
           {Array.isArray(buckets) && buckets.map(b => (
@@ -123,7 +173,7 @@ function BucketsContent() {
             >
               {b.recommended && (
                 <span className="absolute -top-3 left-4 bg-[var(--orange)] text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">
-                  Recommended
+                  Matches Your Profile
                 </span>
               )}
                             <div className="flex items-center gap-2 mb-1">
@@ -137,7 +187,7 @@ function BucketsContent() {
               <p className="text-sm text-gray-500 mb-3">{b.explanation}</p>
               
               <div className="bg-gray-50 rounded-lg p-3 mb-4">
-                 <p className="text-xs font-bold text-gray-500 uppercase mb-2">Recommended Funds</p>
+                 <p className="text-xs font-bold text-gray-500 uppercase mb-2">Funds in this Bucket</p>
                  {b.recommendedFunds?.map((f: any) => (
                    <div key={f.schemeCode} className="flex justify-between items-center py-2 border-b border-gray-200 last:border-0 cursor-pointer hover:text-[var(--primary)]" onClick={() => router.push(`/funds/${f.schemeCode}`)}>
                       <div className="flex-1 pr-2 min-w-0">

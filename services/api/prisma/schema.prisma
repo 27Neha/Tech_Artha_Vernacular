@@ -32,6 +32,7 @@ model User {
   riskAssessments    RiskAssessment[]
   goals              Goal[]
   portfolio          Portfolio?
+  customBuckets      CustomBucket[]
   expenses           Expense[]
   learningProgress   LearningProgress[]
   supportTickets     SupportTicket[]
@@ -443,6 +444,18 @@ model FpPurchasePlan {
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
   account        FpMfInvestmentAccount @relation(fields: [accountId], references: [id])
+}
+
+model CustomBucket {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  name      String   @default("My Custom Bucket")
+  funds     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model FpMandate {
