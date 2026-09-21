@@ -120,7 +120,7 @@ export default function FundsPage() {
         {!query && (
           <div className="mt-4">
             <h3 className="font-extrabold text-[var(--dark)] mb-4 text-lg">
-              {riskFilter ? `${riskFilter} Funds` : 'Recommended For You'}
+              {riskFilter ? `${riskFilter} Funds` : 'For Your Risk Profile'}
             </h3>
             
             {riskFilter && !loading && filteredFunds.length > 0 && (
@@ -179,7 +179,7 @@ export default function FundsPage() {
             ) : (
               <div className="text-center mt-12 opacity-50">
                 <span className="text-4xl block mb-3">📊</span>
-                <p className="text-sm font-bold">Complete your profile to see recommendations</p>
+                <p className="text-sm font-bold">Complete your profile to see funds for your risk category</p>
               </div>
             )}
           </div>

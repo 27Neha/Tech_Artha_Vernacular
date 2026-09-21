@@ -149,7 +149,7 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-end justify-between mb-4">
           <div>
-            <h2 className="text-lg font-extrabold text-[var(--dark)]">Recommended For You</h2>
+            <h2 className="text-lg font-extrabold text-[var(--dark)]">For Your Risk Profile</h2>
             <div className="flex items-center gap-2 mt-0.5">
               <p className="text-xs text-gray-500 font-bold">Based on your {profile} profile</p>
               <button onClick={() => router.push('/risk')} className="text-[10px] text-[var(--primary)] bg-[var(--primary-light)] px-2 py-0.5 rounded-full font-bold">Retake ✎</button>
@@ -176,7 +176,7 @@ export default function DashboardPage() {
         ) : (
           <div className="bg-white p-6 rounded-2xl text-center border border-gray-100 shadow-sm">
             <span className="text-3xl mb-2 block">📊</span>
-            <p className="text-sm font-bold text-[var(--dark)]">Recommendations Loading...</p>
+            <p className="text-sm font-bold text-[var(--dark)]">Loading Funds...</p>
           </div>
         )}
       </div>

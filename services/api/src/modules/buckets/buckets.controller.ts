@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, UseGuards } from '@nestjs/common';
 import { AccessTokenGuard, CurrentUser } from '../../common/auth';
 import type { AuthenticatedUser } from '../../common/auth';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -27,15 +27,13 @@ export class BucketsController {
     return this.buckets.invest(user.id, bucketId, dto);
   }
 
-  @Post('custom')
-  async createCustomBucket(@Body() dto: CustomBucketDto) {
-    const totalAllocation = dto.funds.reduce((sum, fund) => sum + fund.allocation, 0);
-    
-    if (totalAllocation !== 100) {
-      throw new BadRequestException('Total allocation must equal exactly 100');
-    }
+  @Get('custom')
+  async listCustomBuckets(@CurrentUser() user: AuthenticatedUser) {
+    return this.buckets.listCustomBuckets(user.id);
+  }
 
-    // In a real scenario, this would save the custom bucket to the database.
-    return { message: 'Custom bucket created successfully' };
+  @Post('custom')
+  async createCustomBucket(@CurrentUser() user: AuthenticatedUser, @Body() dto: CustomBucketDto) {
+    return this.buckets.createCustomBucket(user.id, dto);
   }
 }

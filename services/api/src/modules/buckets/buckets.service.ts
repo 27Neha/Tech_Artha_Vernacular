@@ -1,11 +1,25 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { RecommendationEngine } from '../recommendations/recommendation.engine';
 import { FundsService } from '../funds/funds.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CybrillaService } from '../cybrilla/cybrilla.service';
 import { InvestInBucketDto } from './invest-in-bucket.dto';
+import { CustomBucketDto } from './custom-bucket.dto';
 
 export type Bucket = { id: string; name: string; eligibleFor: string[]; allocation: { equity: number; debt: number; liquid: number }; horizon: string; explanation: string };
+
+// MFAPI's dataset includes funds that stopped reporting NAVs years ago. Treat anything not
+// updated in the last 45 days as dead/stale rather than a real, investable recommendation.
+function isNavRecent(navDate: string | null, maxAgeDays = 45): boolean {
+  if (!navDate) return false;
+  const [day, month, year] = navDate.split('-').map(Number);
+  if (!day || !month || !year) return false;
+  const parsed = new Date(year, month - 1, day);
+  if (Number.isNaN(parsed.getTime())) return false;
+  const ageDays = (Date.now() - parsed.getTime()) / (1000 * 60 * 60 * 24);
+  return ageDays <= maxAgeDays;
+}
 
 const BUCKETS: Bucket[] = [
   { id: 'stable', name: 'Stable foundation', eligibleFor: ['CONSERVATIVE', 'MODERATE'], allocation: { equity: 20, debt: 55, liquid: 25 }, horizon: '1–3 years', explanation: 'Designed to prioritise stability and access. It can still move in value.' },
@@ -57,7 +71,7 @@ export class BucketsService {
         horizon: bucket.horizon,
       });
 
-      const funds = await Promise.all(schemeCodes.map(async (code) => {
+      const candidates = await Promise.all(schemeCodes.map(async (code) => {
         try {
           const details = await this.fundsService.getFundDetails(code);
           const nav = await this.fundsService.getLatestNAV(code);
@@ -69,9 +83,14 @@ export class BucketsService {
             navDate: nav?.date || null,
           };
         } catch (e) {
-          return { schemeCode: code, error: 'Could not fetch details' };
+          return { schemeCode: code, name: undefined, category: undefined, nav: null, navDate: null };
         }
       }));
+
+      // Filter out stale/dead entries (zero NAV, or a NAV that hasn't updated in a long time -
+      // MFAPI's dataset includes funds that stopped reporting years ago) before taking the top 4.
+      const fresh = candidates.filter((f) => f.nav && parseFloat(f.nav) > 0 && isNavRecent(f.navDate));
+      const funds = (fresh.length ? fresh : candidates).slice(0, 4);
 
             let bucketRiskLevel = 'Moderate';
       if (bucket.id === 'stable') bucketRiskLevel = 'Conservative';
@@ -302,5 +321,27 @@ export class BucketsService {
         createdAt: o.createdAt,
       })),
     };
+  }
+
+  async createCustomBucket(userId: string, dto: CustomBucketDto) {
+    const totalAllocation = dto.funds.reduce((sum, fund) => sum + fund.allocation, 0);
+    if (totalAllocation !== 100) {
+      throw new BadRequestException('Total allocation must equal exactly 100');
+    }
+
+    const bucket = await this.prisma.customBucket.create({
+      data: {
+        userId,
+        name: dto.name?.trim() || 'My Custom Bucket',
+        funds: dto.funds as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    return { id: bucket.id, name: bucket.name, funds: bucket.funds, createdAt: bucket.createdAt };
+  }
+
+  async listCustomBuckets(userId: string) {
+    const buckets = await this.prisma.customBucket.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } });
+    return buckets.map((b) => ({ id: b.id, name: b.name, funds: b.funds, createdAt: b.createdAt }));
   }
 }
