@@ -87,10 +87,13 @@ export class BucketsService {
         }
       }));
 
-      // Filter out stale/dead entries (zero NAV, or a NAV that hasn't updated in a long time -
-      // MFAPI's dataset includes funds that stopped reporting years ago) before taking the top 4.
-      const fresh = candidates.filter((f) => f.nav && parseFloat(f.nav) > 0 && isNavRecent(f.navDate));
-      const funds = (fresh.length ? fresh : candidates).slice(0, 4);
+      // Tiered fallback: prefer funds updated in the last 45 days; if MFAPI's search doesn't
+      // surface any (a real gap for some categories, e.g. debt-fund search terms), fall back to
+      // any fund with a real, non-zero NAV regardless of age. A literal 0.00000 NAV means the
+      // fund stopped reporting entirely and must never be shown, even as a last resort.
+      const nonZero = candidates.filter((f) => f.nav && parseFloat(f.nav) > 0);
+      const fresh = nonZero.filter((f) => isNavRecent(f.navDate));
+      const funds = (fresh.length ? fresh : nonZero).slice(0, 4);
 
             let bucketRiskLevel = 'Moderate';
       if (bucket.id === 'stable') bucketRiskLevel = 'Conservative';
