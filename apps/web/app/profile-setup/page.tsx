@@ -1,11 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useTranslation } from '../TranslationProvider';
+import { useTranslation } from 'react-i18next';
 
 export default function ProfileSetupPage() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t } = useTranslation('common');
   
   const [name, setName] = useState<string>('');
   const [dob, setDob] = useState<string>('');
@@ -69,15 +69,15 @@ export default function ProfileSetupPage() {
         
       </div>
 
-      <h1 className="text-3xl font-extrabold text-[var(--dark)] mb-2">Personal Information</h1>
+      <h1 className="text-3xl font-extrabold text-[var(--dark)] mb-2">{t('profSetup.title')}</h1>
       <p className="text-gray-500 mb-8">{t('profile.desc')}</p>
 
       {/* Name Input */}
-      <h3 className="font-bold text-[var(--dark)] mb-2">Full Name</h3>
+      <h3 className="font-bold text-[var(--dark)] mb-2">{t('profSetup.fullName')}</h3>
       <div className="mb-6">
         <input
           type="text"
-          placeholder="Enter your full name"
+          placeholder={t('profSetup.namePlaceholder')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           className="w-full p-4 rounded-xl border-2 border-gray-100 focus:border-[var(--primary)] outline-none text-[var(--dark)] font-bold text-lg"
@@ -87,7 +87,7 @@ export default function ProfileSetupPage() {
       {/* Gender Selection */}
       <h3 className="font-bold text-[var(--dark)] mb-2">{t('profile.gender')}</h3>
       <div className="flex gap-4 mb-6">
-        {['Female', 'Male', 'Other'].map((g) => (
+        {[t('profSetup.female'), t('profSetup.male'), t('profSetup.other')].map((g) => (
           <button
             key={g}
             onClick={() => setGender(g)}
@@ -105,7 +105,7 @@ export default function ProfileSetupPage() {
       {/* DOB and Age Input (Side by side) */}
       <div className="flex gap-4 mb-8">
         <div className="flex-1">
-          <h3 className="font-bold text-[var(--dark)] mb-2">Date of Birth</h3>
+          <h3 className="font-bold text-[var(--dark)] mb-2">{t('profSetup.dob')}</h3>
           <input
             type="date"
             value={dob}
@@ -114,7 +114,7 @@ export default function ProfileSetupPage() {
           />
         </div>
         <div className="w-24">
-          <h3 className="font-bold text-[var(--dark)] mb-2">Age</h3>
+          <h3 className="font-bold text-[var(--dark)] mb-2">{t('profSetup.age')}</h3>
           <input
             type="number"
             value={age}

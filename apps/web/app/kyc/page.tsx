@@ -1,10 +1,12 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export default function KycPage() {
+  const { t } = useTranslation('common');
   const router = useRouter();
   const [name, setName] = useState('');
   const [pan, setPan] = useState('');
@@ -87,17 +89,17 @@ export default function KycPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-white">
         
-        <span className="font-extrabold text-[var(--dark)]">Identity Verification</span>
+        <span className="font-extrabold text-[var(--dark)]">{t('kyc.headerTitle')}</span>
         <span className="text-[var(--orange)] text-sm font-bold">English</span>
       </div>
 
       <div className="flex-1 p-6 overflow-y-auto">
-        <h1 className="page-title">Verify your identity</h1>
-        <p className="page-desc">We need a few details to complete your KYC as required by SEBI regulations.</p>
+        <h1 className="page-title">{t('kyc.verifyTitle')}</h1>
+        <p className="page-desc">{t('kyc.desc')}</p>
 
         {/* Steps */}
         <div className="flex gap-4 mt-6 mb-8">
-          {['Personal Info', 'PAN Card', 'Consent'].map((step, i) => (
+          {[t('kyc.stepPersonalInfo'), t('kyc.stepPanCard'), t('kyc.stepConsent')].map((step, i) => (
             <div key={i} className="flex-1 text-center">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center mx-auto mb-1 text-sm font-bold ${i < 3 ? 'bg-[var(--orange)] text-white' : 'bg-gray-200 text-gray-400'}`}>
                 {i + 1}
@@ -107,36 +109,36 @@ export default function KycPage() {
           ))}
         </div>
 
-        <label className="label">Full name (as per PAN)</label>
+        <label className="label">{t('kyc.nameLabel')}</label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Priya Sharma"
+          placeholder={t('kyc.namePlaceholder')}
           className="input-field"
         />
 
-        <label className="label mt-4">Date of Birth</label>
+        <label className="label mt-4">{t('kyc.dobLabel')}</label>
         <input
           type="date"
           value={dob}
           onChange={(e) => setDob(e.target.value)}
           className="input-field font-bold"
         />
-        <label className="label mt-4">PAN Number</label>
+        <label className="label mt-4">{t('kyc.panLabel')}</label>
         <input
           type="text"
           value={pan}
           onChange={(e) => setPan(e.target.value.toUpperCase().slice(0, 10))}
-          placeholder="e.g. ABCDE1234F"
+          placeholder={t('kyc.panPlaceholder')}
           className="input-field tracking-widest font-bold"
         />
-        <p className="text-xs text-gray-400 mt-1">Your PAN is encrypted and never shared with third parties.</p>
+        <p className="text-xs text-gray-400 mt-1">{t('kyc.panHelper')}</p>
 
         <div className="mt-6 bg-[var(--primary-light)] rounded-2xl p-4 border border-[var(--primary)]/20">
-          <p className="text-[var(--primary)] font-bold text-sm mb-2">🔒 Why we need this</p>
+          <p className="text-[var(--primary)] font-bold text-sm mb-2"> {t('kyc.whyTitle')}</p>
           <p className="text-gray-600 text-sm leading-relaxed">
-            SEBI mandates KYC for all mutual fund investments. Your data is secured with bank-grade encryption.
+            {t('kyc.whyDesc')}
           </p>
         </div>
 
@@ -149,7 +151,7 @@ export default function KycPage() {
             {consent && <span className="text-white text-xs font-bold">✓</span>}
           </div>
           <p className="text-sm text-gray-600 leading-relaxed">
-            I consent to the verification of my identity and agree to the processing of my personal data for KYC compliance as per SEBI guidelines.
+            {t('kyc.consentText')}
           </p>
         </button>
 
@@ -164,7 +166,7 @@ export default function KycPage() {
           disabled={loading}
           className="btn-primary mt-8"
         >
-          <span>{loading ? 'Verifying...' : 'Verify & Continue'}</span>
+          <span>{loading ? t('kyc.verifying') : t('kyc.verify')}</span>
           <span>→</span>
         </button>
 

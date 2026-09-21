@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useRouter } from 'next/navigation';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -20,6 +21,7 @@ const autoBalance = (funds: any[]) => {
 };
 
 export default function FundDetailsPage({ params }: { params: { id: string } }) {
+  const { t } = useTranslation('common');
   const router = useRouter();
   const [details, setDetails] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -50,7 +52,7 @@ export default function FundDetailsPage({ params }: { params: { id: string } }) 
     return (
       <div className="flex flex-col min-h-screen p-6 justify-center items-center bg-white">
         <div className="w-10 h-10 rounded-full border-4 border-[var(--primary)] border-t-transparent animate-spin" />
-        <p className="mt-4 text-gray-500 font-bold">Loading fund details...</p>
+        <p className="mt-4 text-gray-500 font-bold">{t('fundDetail.loading')}</p>
       </div>
     );
   }
@@ -60,7 +62,7 @@ export default function FundDetailsPage({ params }: { params: { id: string } }) 
       <div className="flex flex-col min-h-screen p-6 justify-center items-center bg-white text-center">
         <span className="text-5xl">⚠️</span>
         <p className="mt-4 text-red-500 font-bold">{error || 'Fund not found.'}</p>
-        <button onClick={() => router.back()} className="mt-6 btn-outline w-auto px-6 py-2">Go Back</button>
+        <button onClick={() => router.back()} className="mt-6 btn-outline w-auto px-6 py-2">{t('fundDetail.goBack')}</button>
       </div>
     );
   }
@@ -79,9 +81,9 @@ export default function FundDetailsPage({ params }: { params: { id: string } }) 
         <div className="bg-amber-100 border-l-4 border-amber-500 p-4 m-4 rounded-r-md">
           <div className="flex items-center">
             <span className="text-amber-500 text-xl mr-3">⚠</span>
-            <p className="text-amber-800 font-bold text-sm">Higher Risk Selection</p>
+            <p className="text-amber-800 font-bold text-sm">{t('fundDetail.higherRisk')}</p>
           </div>
-          <p className="text-amber-700 text-xs mt-1">This fund's category is higher risk than your 'Moderate' profile suggests.</p>
+          <p className="text-amber-700 text-xs mt-1">{t('fundDetail.higherRiskDesc')}</p>
         </div>
       )}
 
@@ -93,17 +95,17 @@ export default function FundDetailsPage({ params }: { params: { id: string } }) 
 
       <div className="p-6">
         <div className="card bg-[var(--primary-light)] border-none mb-6">
-          <p className="text-xs font-bold text-[var(--primary)] uppercase tracking-wide">Latest NAV</p>
+          <p className="text-xs font-bold text-[var(--primary)] uppercase tracking-wide">{t('fundDetail.latestNav')}</p>
           <div className="flex items-end gap-3 mt-1">
             <span className="text-4xl font-extrabold text-[var(--dark)]">₹{latestNav.nav}</span>
           </div>
           <p className="text-xs text-gray-500 mt-2 font-semibold">As of: {latestNav.date}</p>
         </div>
 
-        <h3 className="font-bold text-[var(--dark)] mb-4">Historical NAV</h3>
+        <h3 className="font-bold text-[var(--dark)] mb-4">{t('fundDetail.historicalNav')}</h3>
         {navHistory.length < 5 ? (
           <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
-            <p className="text-sm text-amber-800 font-semibold">Insufficient historical data to render chart.</p>
+            <p className="text-sm text-amber-800 font-semibold">{t('fundDetail.noChartData')}</p>
           </div>
         ) : (
           <div className="h-48 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center mb-6 relative overflow-hidden">
@@ -118,7 +120,7 @@ export default function FundDetailsPage({ params }: { params: { id: string } }) 
         )}
 
         <div className="mt-8 p-4 bg-gray-50 rounded-xl border border-gray-200">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Important Financial Disclaimer</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{t('fundDetail.disclaimerTitle')}</p>
           <p className="text-xs text-gray-500 leading-relaxed">
             Mutual fund investments are subject to market risks. Read all scheme related documents carefully. Past performance is not indicative of future returns. For informational/suitability review only.
           </p>

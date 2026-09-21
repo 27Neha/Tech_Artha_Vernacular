@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 
 const HOLDINGS: any[] = []; // REAL DATA REQUIREMENT: Fetch from backend
 
@@ -8,7 +9,7 @@ const TRANSACTIONS: any[] = []; // REAL DATA REQUIREMENT: Fetch from backend
 
 const SIPS: any[] = []; // REAL DATA REQUIREMENT: Fetch from backend
 
-const downloadRealPDF = async (title: string) => {
+const downloadRealPDF = async (title: string, t: any) => {
   try {
     const { jsPDF } = await import('jspdf');
     const autoTable = (await import('jspdf-autotable')).default;
@@ -18,26 +19,26 @@ const downloadRealPDF = async (title: string) => {
     // Header
     doc.setFontSize(18);
     doc.setTextColor(28, 26, 24);
-    doc.text("TechArtha Financial Services", 14, 22);
+    doc.text(t('port.casTitle'), 14, 22);
     
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
     doc.text("CONSOLIDATED ACCOUNT STATEMENT (CAS)", 14, 30);
-    doc.text(`Statement Type: ${title}`, 14, 35);
-    doc.text(`Date Generated: ${new Date().toLocaleDateString()}`, 14, 40);
+    doc.text(`${t('port.statementType')} ${title}`, 14, 35);
+    doc.text(`${t('port.dateGen')} ${new Date().toLocaleDateString()}`, 14, 40);
     
     // Investor Details
     doc.setFontSize(12);
     doc.setTextColor(28, 26, 24);
-    doc.text("Investor Details", 14, 55);
+    doc.text(t('port.investorDetails'), 14, 55);
     
     autoTable(doc, {
       startY: 60,
       theme: 'plain',
       styles: { fontSize: 9, cellPadding: 1 },
       body: [
-        ['Name', 'TEST USER', 'PAN', 'ABCDE1234F'],
-        ['Email', 'test@techartha.com', 'Mobile', '+91 9876543210'],
+        [t('port.name'), 'TEST USER', t('port.pan'), 'ABCDE1234F'],
+        [t('port.email'), 'test@techartha.com', 'Mobile', '+91 9876543210'],
         ['Address', '123 Tech Park, Mumbai, 400001', 'KYC Status', 'Verified']
       ]
     });
@@ -46,13 +47,13 @@ const downloadRealPDF = async (title: string) => {
 
     // Holdings Summary
     doc.setFontSize(12);
-    doc.text("Portfolio Summary", 14, nextY);
+    doc.text(t('port.portfolioSummary'), 14, nextY);
     
     autoTable(doc, {
       startY: nextY + 5,
       theme: 'striped',
       headStyles: { fillColor: [28, 26, 24] },
-      head: [['Scheme Name', 'Folio', 'Units', 'NAV (Rs)', 'Current Value (Rs)']],
+      head: [[t('port.schemeName'), 'Folio', 'Units', 'NAV (Rs)', 'Current Value (Rs)']],
       body: [
         ['Stable Income Fund', '10982312', '25.500', '169.41', '4,320.00'],
         ['Multi-Cap Growth Fund', '88273611', '15.300', '257.51', '3,940.00'],
@@ -73,7 +74,7 @@ const downloadRealPDF = async (title: string) => {
         startY: nextY + 5,
         theme: 'striped',
         headStyles: { fillColor: [109, 40, 217] }, // Primary purple
-        head: [['Date', 'Scheme', 'Transaction Type', 'Amount (Rs)', 'NAV (Rs)', 'Units']],
+        head: [[t('port.date'), 'Scheme', 'Transaction Type', 'Amount (Rs)', 'NAV (Rs)', 'Units']],
         body: [
           ['10-Aug-2026', 'Multi-Cap Growth Fund', 'SIP Purchase', '1,000.00', '257.51', '+3.883'],
           ['10-Aug-2026', 'Stable Income Fund', 'SIP Purchase', '1,000.00', '169.41', '+5.903'],
@@ -93,6 +94,7 @@ const downloadRealPDF = async (title: string) => {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 export default function FullPortfolioPage() {
+  const { t } = useTranslation('common');
   const router = useRouter();
   const [tab, setTab] = useState<'overview' | 'holdings' | 'transactions' | 'sips' | 'statements'>('overview');
 
@@ -137,7 +139,7 @@ export default function FullPortfolioPage() {
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/5 rounded-full blur-3xl"></div>
         
         <div className="flex items-center gap-3 mb-8 relative z-10">
-          <h1 className="text-3xl font-extrabold text-white">My Portfolio</h1>
+          <h1 className="text-3xl font-extrabold text-white">{t('port.title')}</h1>
         </div>
         
         <div className="flex items-center justify-between mb-2 relative z-10">
@@ -153,15 +155,15 @@ export default function FullPortfolioPage() {
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-black/10 rounded-full m-4 backdrop-blur-sm border border-white/10">
               <span className="font-extrabold text-lg">{fetchingPortfolio ? "..." : `₹${portfolio.currentValue > 1000 ? (portfolio.currentValue/1000).toFixed(1) + "K" : portfolio.currentValue}`}</span>
-              <span className="text-[10px] text-white/80 font-bold tracking-wider uppercase">Current</span>
+              <span className="text-[10px] text-white/80 font-bold tracking-wider uppercase">{t('port.current')}</span>
             </div>
           </div>
 
           <div className="flex-1 pl-6">
-            <p className="text-white/70 text-[10px] uppercase font-bold mb-1 tracking-wider">Amount Invested</p>
+            <p className="text-white/70 text-[10px] uppercase font-bold mb-1 tracking-wider">{t('port.invested')}</p>
             <p className="text-white font-extrabold text-2xl mb-5">{fetchingPortfolio ? "₹..." : `₹${portfolio.totalInvested.toLocaleString("en-IN")}`}</p>
             
-            <p className="text-white/70 text-[10px] uppercase font-bold mb-1 tracking-wider">Total Returns</p>
+            <p className="text-white/70 text-[10px] uppercase font-bold mb-1 tracking-wider">{t('port.totalReturns')}</p>
             <p className="text-green-300 font-extrabold text-sm bg-green-900/30 inline-block px-3 py-1.5 rounded-lg border border-green-400/20">{fetchingPortfolio ? "..." : `₹${portfolio.totalReturns.toLocaleString("en-IN")} (0%)`}</p>
           </div>
         </div>
@@ -189,48 +191,48 @@ export default function FullPortfolioPage() {
             {/* Real Data Requirement: Wait for actual portfolio calculations */}
             <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 flex flex-col items-center text-center">
               <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-2xl mb-4">📊</div>
-              <h3 className="font-extrabold text-[var(--dark)] mb-2">No Portfolio History</h3>
-              <p className="text-gray-400 text-xs max-w-[250px]">Your portfolio overview will appear here once you make your first investment and the provider confirms it.</p>
-              <button onClick={() => router.push('/buckets')} className="mt-6 text-xs font-bold text-white bg-[var(--primary)] px-6 py-3 rounded-xl shadow-md cursor-pointer hover:opacity-90">Explore Funds</button>
+              <h3 className="font-extrabold text-[var(--dark)] mb-2">{t('port.noPortfolio')}</h3>
+              <p className="text-gray-400 text-xs max-w-[250px]"> {t('port.noPortfolioDesc')} </p>
+              <button onClick={() => router.push('/buckets')} className="mt-6 text-xs font-bold text-white bg-[var(--primary)] px-6 py-3 rounded-xl shadow-md cursor-pointer hover:opacity-90">{t('port.exploreFunds')}</button>
             </div>
             
             <div className="hidden">
-              <h3 className="font-extrabold text-[var(--dark)] mb-4">Detailed Allocation</h3>
-              <div className="flex justify-between text-xs font-bold text-gray-500 border-b pb-2 mb-2"><span className="w-1/2">Asset Class</span><span>Amount</span><span>%</span></div>
-              <div className="flex justify-between text-xs font-bold text-[var(--dark)] py-1.5"><span className="w-1/2">Equity</span><span>₹6,784</span><span className="text-[var(--primary)]">65%</span></div>
-              <div className="flex justify-between text-xs font-bold text-[var(--dark)] py-1.5"><span className="w-1/2">Debt</span><span>₹2,609</span><span className="text-[var(--primary)]">25%</span></div>
-              <div className="flex justify-between text-xs font-bold text-[var(--dark)] py-1.5"><span className="w-1/2">Hybrid</span><span>₹1,044</span><span className="text-[var(--primary)]">10%</span></div>
+              <h3 className="font-extrabold text-[var(--dark)] mb-4">{t('port.detailedAllocation')}</h3>
+              <div className="flex justify-between text-xs font-bold text-gray-500 border-b pb-2 mb-2"><span className="w-1/2">{t('port.assetClass')}</span><span>{t('port.amount')}</span><span>%</span></div>
+              <div className="flex justify-between text-xs font-bold text-[var(--dark)] py-1.5"><span className="w-1/2">{t('port.equity')}</span><span>₹6,784</span><span className="text-[var(--primary)]">65%</span></div>
+              <div className="flex justify-between text-xs font-bold text-[var(--dark)] py-1.5"><span className="w-1/2">{t('port.debt')}</span><span>₹2,609</span><span className="text-[var(--primary)]">25%</span></div>
+              <div className="flex justify-between text-xs font-bold text-[var(--dark)] py-1.5"><span className="w-1/2">{t('port.hybrid')}</span><span>₹1,044</span><span className="text-[var(--primary)]">10%</span></div>
               
-              <div className="flex justify-between text-xs font-bold text-gray-500 border-b pb-2 mb-2 mt-4"><span className="w-1/2">Equity Category</span><span>Amount</span><span>%</span></div>
-              <div className="flex justify-between text-xs font-bold text-[var(--dark)] py-1.5"><span className="w-1/2">Large Cap</span><span>₹3,500</span><span className="text-[var(--primary)]">51%</span></div>
-              <div className="flex justify-between text-xs font-bold text-[var(--dark)] py-1.5"><span className="w-1/2">Mid Cap</span><span>₹2,000</span><span className="text-[var(--primary)]">30%</span></div>
-              <div className="flex justify-between text-xs font-bold text-[var(--dark)] py-1.5"><span className="w-1/2">Small Cap</span><span>₹1,284</span><span className="text-[var(--primary)]">19%</span></div>
+              <div className="flex justify-between text-xs font-bold text-gray-500 border-b pb-2 mb-2 mt-4"><span className="w-1/2">{t('port.equityCategory')}</span><span>{t('port.amount')}</span><span>%</span></div>
+              <div className="flex justify-between text-xs font-bold text-[var(--dark)] py-1.5"><span className="w-1/2">{t('port.largeCap')}</span><span>₹3,500</span><span className="text-[var(--primary)]">51%</span></div>
+              <div className="flex justify-between text-xs font-bold text-[var(--dark)] py-1.5"><span className="w-1/2">{t('port.midCap')}</span><span>₹2,000</span><span className="text-[var(--primary)]">30%</span></div>
+              <div className="flex justify-between text-xs font-bold text-[var(--dark)] py-1.5"><span className="w-1/2">{t('port.smallCap')}</span><span>₹1,284</span><span className="text-[var(--primary)]">19%</span></div>
             </div>
 
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-              <h3 className="font-extrabold text-[var(--dark)] mb-4">Detailed Risk</h3>
-              <p className="text-xs text-gray-500 mb-4 leading-relaxed bg-gray-50 p-3 rounded-lg border border-gray-100"><strong>Note:</strong> Your "Investor Risk Profile" represents your personal capacity to take risks. A scheme's "Risk-o-Meter" shows the standalone volatility of that specific fund. A balanced portfolio may contain high-risk funds while maintaining a moderate overall portfolio risk.</p>
+              <h3 className="font-extrabold text-[var(--dark)] mb-4">{t('port.detailedRisk')}</h3>
+              <p className="text-xs text-gray-500 mb-4 leading-relaxed bg-gray-50 p-3 rounded-lg border border-gray-100">{t('port.riskNote')}</p>
               
-              <div className="flex justify-between items-center py-2 border-b border-gray-50"><span className="text-xs font-bold text-gray-500">Investor Risk Profile</span><span className="text-xs font-extrabold text-[var(--dark)]">Moderately Aggressive</span></div>
-              <div className="flex justify-between items-center py-2 border-b border-gray-50"><span className="text-xs font-bold text-gray-500">Portfolio Risk</span><span className="text-xs font-extrabold text-orange-600">Moderate</span></div>
-              <div className="flex justify-between items-center py-2"><span className="text-xs font-bold text-gray-500">Risk Alignment</span><span className="text-xs font-extrabold text-green-600">Optimal</span></div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-50"><span className="text-xs font-bold text-gray-500">{t('port.investorRiskProfile')}</span><span className="text-xs font-extrabold text-[var(--dark)]">{t('port.modAggressive')}</span></div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-50"><span className="text-xs font-bold text-gray-500">{t('port.portfolioRisk')}</span><span className="text-xs font-extrabold text-orange-600">{t('port.moderate')}</span></div>
+              <div className="flex justify-between items-center py-2"><span className="text-xs font-bold text-gray-500">{t('port.riskAlignment')}</span><span className="text-xs font-extrabold text-green-600">{t('port.optimal')}</span></div>
             </div>
             
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-              <h3 className="font-extrabold text-[var(--dark)] mb-4">Detailed Portfolio Health</h3>
+              <h3 className="font-extrabold text-[var(--dark)] mb-4">{t('port.detailedHealth')}</h3>
               {portfolio.totalInvested === 0 ? (
-                <p className="text-sm text-gray-500">Health analytics will be generated automatically once your first investment is verified.</p>
+                <p className="text-sm text-gray-500">{t('port.healthNote')}</p>
               ) : (
-                <p className="text-sm text-gray-500">Calculating your portfolio health metrics from live Cybrilla data...</p>
+                <p className="text-sm text-gray-500">{t('port.calcHealth')}</p>
               )}
             </div>
 
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-              <h3 className="font-extrabold text-[var(--dark)] mb-4">Goal Linking</h3>
+              <h3 className="font-extrabold text-[var(--dark)] mb-4">{t('port.goalLinking')}</h3>
               {portfolio.totalInvested === 0 ? (
-                <p className="text-sm text-gray-500">No active SIPs to link to goals yet.</p>
+                <p className="text-sm text-gray-500">{t('port.noSipsGoals')}</p>
               ) : (
-                <p className="text-sm text-gray-500">Fetching goal linkages...</p>
+                <p className="text-sm text-gray-500">{t('port.fetchingGoals')}</p>
               )}
             </div>
           </div>
@@ -242,9 +244,9 @@ export default function FullPortfolioPage() {
             {HOLDINGS.length === 0 ? (
               <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 flex flex-col items-center text-center">
                 <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-2xl mb-4">💼</div>
-                <h3 className="font-extrabold text-[var(--dark)] mb-2">No Holdings Yet</h3>
-                <p className="text-gray-400 text-xs max-w-[250px]">Your active investments will appear here.</p>
-                <button onClick={() => router.push('/buckets')} className="mt-6 text-xs font-bold text-white bg-[var(--primary)] px-6 py-3 rounded-xl shadow-md cursor-pointer">Explore Funds</button>
+                <h3 className="font-extrabold text-[var(--dark)] mb-2">{t('port.noHoldings')}</h3>
+                <p className="text-gray-400 text-xs max-w-[250px]">{t('port.activeInvestmentsHere')}</p>
+                <button onClick={() => router.push('/buckets')} className="mt-6 text-xs font-bold text-white bg-[var(--primary)] px-6 py-3 rounded-xl shadow-md cursor-pointer">{t('port.exploreFunds')}</button>
               </div>
             ) : HOLDINGS.map((h) => (
               <div key={h.name} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
@@ -260,23 +262,23 @@ export default function FullPortfolioPage() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs mb-4">
-                  <div><span className="text-gray-400 block text-[10px]">Invested Amount</span><span className="font-bold text-[var(--dark)]">{h.invested}</span></div>
-                  <div><span className="text-gray-400 block text-[10px]">Gain/Loss</span><span className="font-bold text-green-500">+₹{parseInt(h.current.replace(/\D/g, '')) - parseInt(h.invested.replace(/\D/g, ''))}</span></div>
-                  <div><span className="text-gray-400 block text-[10px]">XIRR</span><span className="font-bold text-green-600">{h.xirr}</span></div>
-                  <div><span className="text-gray-400 block text-[10px]">Category</span><span className="font-bold text-[var(--dark)]">{h.category}</span></div>
-                  <div><span className="text-gray-400 block text-[10px]">Folio Number</span><span className="font-bold text-[var(--dark)]">{h.folio}</span></div>
-                  <div><span className="text-gray-400 block text-[10px]">Units</span><span className="font-bold text-[var(--dark)]">{h.units}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.investedAmount')}</span><span className="font-bold text-[var(--dark)]">{h.invested}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.gainLoss')}</span><span className="font-bold text-green-500">+₹{parseInt(h.current.replace(/\D/g, '')) - parseInt(h.invested.replace(/\D/g, ''))}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.xirr')}</span><span className="font-bold text-green-600">{h.xirr}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.category')}</span><span className="font-bold text-[var(--dark)]">{h.category}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.folioNumber')}</span><span className="font-bold text-[var(--dark)]">{h.folio}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.units')}</span><span className="font-bold text-[var(--dark)]">{h.units}</span></div>
                   <div><span className="text-gray-400 block text-[10px]">NAV <span className="font-normal">({h.navDate})</span></span><span className="font-bold text-[var(--dark)]">{h.nav}</span></div>
-                  <div><span className="text-gray-400 block text-[10px]">Next SIP Date</span><span className="font-bold text-[var(--dark)]">{h.nextSip}</span></div>
-                  <div><span className="text-gray-400 block text-[10px]">Plan</span><span className="font-bold text-[var(--dark)]">{h.plan}</span></div>
-                  <div><span className="text-gray-400 block text-[10px]">Risk-o-Meter</span><span className="font-bold text-[var(--dark)]">{h.risk}</span></div>
-                  <div><span className="text-gray-400 block text-[10px]">Linked Goal</span><span className="font-bold text-[var(--dark)]">{h.goal}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.nextSipDate')}</span><span className="font-bold text-[var(--dark)]">{h.nextSip}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.plan')}</span><span className="font-bold text-[var(--dark)]">{h.plan}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.riskOMeter')}</span><span className="font-bold text-[var(--dark)]">{h.risk}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.linkedGoal')}</span><span className="font-bold text-[var(--dark)]">{h.goal}</span></div>
                 </div>
 
                 <div className="flex gap-2 border-t border-gray-50 pt-3">
                   <button className="flex-1 bg-gray-50 hover:bg-gray-100 text-[var(--dark)] text-[10px] font-bold py-2 rounded-xl transition-all">View Details</button>
-                  <button className="flex-1 bg-gray-50 hover:bg-gray-100 text-[var(--dark)] text-[10px] font-bold py-2 rounded-xl transition-all">Transactions</button>
-                  <button className="flex-1 bg-gray-50 hover:bg-gray-100 text-[var(--dark)] text-[10px] font-bold py-2 rounded-xl transition-all">Statement</button>
+                  <button className="flex-1 bg-gray-50 hover:bg-gray-100 text-[var(--dark)] text-[10px] font-bold py-2 rounded-xl transition-all">{t('port.transactions')}</button>
+                  <button className="flex-1 bg-gray-50 hover:bg-gray-100 text-[var(--dark)] text-[10px] font-bold py-2 rounded-xl transition-all">{t('port.statement')}</button>
                 </div>
               </div>
             ))}
@@ -317,20 +319,20 @@ export default function FullPortfolioPage() {
                 </div>
                 
                 <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs mb-5">
-                  <div><span className="text-gray-400 block text-[10px]">Folio Number</span><span className="font-bold text-[var(--dark)]">{sip.folio}</span></div>
-                  <div><span className="text-gray-400 block text-[10px]">AutoPay Bank</span><span className="font-bold text-[var(--dark)]">{sip.bank}</span></div>
-                  <div><span className="text-gray-400 block text-[10px]">SIP Amount</span><span className="font-bold text-[var(--dark)]">{sip.amount}</span></div>
-                  <div><span className="text-gray-400 block text-[10px]">Frequency</span><span className="font-bold text-[var(--dark)]">{sip.freq}</span></div>
-                  <div><span className="text-gray-400 block text-[10px]">Next Date</span><span className="font-bold text-[var(--dark)]">{sip.nextDate}</span></div>
-                  <div><span className="text-gray-400 block text-[10px]">Start Date</span><span className="font-bold text-[var(--dark)]">{sip.startDate}</span></div>
-                  <div><span className="text-gray-400 block text-[10px]">Completed</span><span className="font-bold text-[var(--dark)]">{sip.completed} Installments</span></div>
-                  <div><span className="text-gray-400 block text-[10px]">Goal</span><span className="font-bold text-[var(--dark)]">{sip.goal}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.folioNumber')}</span><span className="font-bold text-[var(--dark)]">{sip.folio}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.autoPayBank')}</span><span className="font-bold text-[var(--dark)]">{sip.bank}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.sipAmount')}</span><span className="font-bold text-[var(--dark)]">{sip.amount}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.frequency')}</span><span className="font-bold text-[var(--dark)]">{sip.freq}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.nextDate')}</span><span className="font-bold text-[var(--dark)]">{sip.nextDate}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.startDate')}</span><span className="font-bold text-[var(--dark)]">{sip.startDate}</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.completed')}</span><span className="font-bold text-[var(--dark)]">{sip.completed} Installments</span></div>
+                  <div><span className="text-gray-400 block text-[10px]">{t('port.goal')}</span><span className="font-bold text-[var(--dark)]">{sip.goal}</span></div>
                 </div>
 
                 <div className="flex gap-2 border-t border-gray-50 pt-3">
-                  <button onClick={() => handleSipAction('Modify', sip.fund)} className="flex-1 border border-[var(--primary)] text-[var(--primary)] text-[10px] font-bold py-2 rounded-xl">Modify SIP</button>
-                  <button onClick={() => handleSipAction('Pause', sip.fund)} className="flex-1 border border-amber-500 text-amber-600 text-[10px] font-bold py-2 rounded-xl">Pause SIP</button>
-                  <button onClick={() => handleSipAction('Cancel', sip.fund)} className="flex-1 border border-red-500 text-red-600 text-[10px] font-bold py-2 rounded-xl">Cancel SIP</button>
+                  <button onClick={() => handleSipAction('Modify', sip.fund)} className="flex-1 border border-[var(--primary)] text-[var(--primary)] text-[10px] font-bold py-2 rounded-xl">{t('port.modifySip')}</button>
+                  <button onClick={() => handleSipAction('Pause', sip.fund)} className="flex-1 border border-amber-500 text-amber-600 text-[10px] font-bold py-2 rounded-xl">{t('port.pauseSip')}</button>
+                  <button onClick={() => handleSipAction('Cancel', sip.fund)} className="flex-1 border border-red-500 text-red-600 text-[10px] font-bold py-2 rounded-xl">{t('port.cancelSip')}</button>
                 </div>
               </div>
             ))}
@@ -354,7 +356,7 @@ export default function FullPortfolioPage() {
                 <button 
                   onClick={async (e) => {
                     e.stopPropagation();
-                    await downloadRealPDF(st.title);
+                    await downloadRealPDF(st.title, t);
                   }}
                   className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 border border-gray-200 hover:text-white hover:bg-[var(--primary)] hover:border-[var(--primary)] transition-all shadow-sm"
                 >
@@ -428,7 +430,7 @@ export default function FullPortfolioPage() {
                         <tr>
                           <th className="p-2 font-bold border-r border-white/20">Date</th>
                           <th className="p-2 font-bold border-r border-white/20">Type</th>
-                          <th className="p-2 font-bold text-right">Amount</th>
+                          <th className="p-2 font-bold text-right">{t('port.amount')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200 border-x border-b border-gray-200">
@@ -443,7 +445,7 @@ export default function FullPortfolioPage() {
             </div>
             <div className="p-4 border-t border-gray-100 bg-white flex gap-3">
               <button onClick={() => setViewingStatement(null)} className="flex-1 py-3 font-bold text-sm text-gray-500 border border-gray-200 rounded-xl">Close</button>
-              <button onClick={() => downloadRealPDF(viewingStatement)} className="flex-1 py-3 font-bold text-sm bg-[var(--primary)] text-white rounded-xl shadow-md">Download PDF</button>
+              <button onClick={() => downloadRealPDF(viewingStatement, t)} className="flex-1 py-3 font-bold text-sm bg-[var(--primary)] text-white rounded-xl shadow-md">{t('port.downloadPdf')}</button>
             </div>
           </div>
         </div>

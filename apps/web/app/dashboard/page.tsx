@@ -1,5 +1,6 @@
 'use client';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 
 const LEARN_CARDS = [
@@ -12,6 +13,7 @@ const LEARN_CARDS = [
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export default function DashboardPage() {
+  const { t } = useTranslation('common');
   const router = useRouter();
   const [profile, setProfile] = useState('Moderate');
   const [recommendedFunds, setRecommendedFunds] = useState<any[]>([]);
@@ -86,20 +88,20 @@ export default function DashboardPage() {
     <div className="p-5 bg-[#F8F9FB] min-h-screen">
       <div className="flex justify-between items-center mt-2 mb-6">
         <div>
-          <p className="text-gray-500 text-sm font-bold uppercase tracking-wider">Welcome Back</p>
-          <h1 className="text-2xl font-extrabold text-[var(--dark)] mt-1">Start Wealth Creation</h1>
+          <p className="text-gray-500 text-sm font-bold uppercase tracking-wider">{t('dash.welcome')}</p>
+          <h1 className="text-2xl font-extrabold text-[var(--dark)] mt-1">{t('dash.startWealth')}</h1>
         </div>
         
       </div>
 
       {/* Balance Card */}
       <div className="bg-[var(--primary)] rounded-3xl p-6 mb-6 text-white shadow-xl shadow-indigo-900/10">
-        <p className="text-[#EBEAF8] text-xs font-bold tracking-widest uppercase">TOTAL INVESTED</p>
+        <p className="text-[#EBEAF8] text-xs font-bold tracking-widest uppercase">{t('dash.totalInvested')}</p>
         <p className="text-5xl font-extrabold mt-2">
             {fetchingPortfolio ? '₹...' : `₹${portfolio.totalInvested.toLocaleString('en-IN')}`}
           </p>
         <p className="text-[#EBEAF8] text-sm mt-1">
-            {portfolio.totalInvested === 0 ? "You haven't made any investments yet." : "Verified via Cybrilla/ONDC"}
+            {portfolio.totalInvested === 0 ? t('dash.noInvestments') : t('dash.verifiedVia')}
           </p>
         <div className="flex gap-3 mt-4">
           <button
@@ -120,13 +122,13 @@ export default function DashboardPage() {
       {/* Active orders / SIPs from bucket investments */}
       {!fetchingSips && sipPlans.length > 0 && (
         <div className="mb-6">
-          <h2 className="text-lg font-extrabold text-[var(--dark)] mb-3">Your Orders</h2>
+          <h2 className="text-lg font-extrabold text-[var(--dark)] mb-3">{t('dash.orders')}</h2>
           <div className="flex flex-col gap-3">
             {sipPlans.map((p) => {
               const badge =
-                p.statusLabel === 'Order fulfilled'
+                p.statusLabel === t('dash.orderFulfilled')
                   ? 'bg-green-50 text-green-700'
-                  : p.statusLabel === 'Order failed'
+                  : p.statusLabel === t('dash.orderFailed')
                   ? 'bg-red-50 text-red-600'
                   : 'bg-amber-50 text-amber-700';
               return (
@@ -149,13 +151,13 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-end justify-between mb-4">
           <div>
-            <h2 className="text-lg font-extrabold text-[var(--dark)]">Recommended For You</h2>
+            <h2 className="text-lg font-extrabold text-[var(--dark)]">{t('dash.recommended')}</h2>
             <div className="flex items-center gap-2 mt-0.5">
-              <p className="text-xs text-gray-500 font-bold">Based on your {profile} profile</p>
-              <button onClick={() => router.push('/risk')} className="text-[10px] text-[var(--primary)] bg-[var(--primary-light)] px-2 py-0.5 rounded-full font-bold">Retake ✎</button>
+              <p className="text-xs text-gray-500 font-bold">{t('dash.basedOnProfile', { profile })}</p>
+              <button onClick={() => router.push('/risk')} className="text-[10px] text-[var(--primary)] bg-[var(--primary-light)] px-2 py-0.5 rounded-full font-bold">{t('dash.retake')} ✎</button>
             </div>
           </div>
-          <button onClick={() => router.push('/buckets')} className="text-[var(--primary)] text-xs font-bold mb-0.5">See Buckets</button>
+          <button onClick={() => router.push('/buckets')} className="text-[var(--primary)] text-xs font-bold mb-0.5">{t('dash.seeBuckets')}</button>
         </div>
         
         {recommendedFunds.length > 0 ? (
@@ -176,7 +178,7 @@ export default function DashboardPage() {
         ) : (
           <div className="bg-white p-6 rounded-2xl text-center border border-gray-100 shadow-sm">
             <span className="text-3xl mb-2 block">📊</span>
-            <p className="text-sm font-bold text-[var(--dark)]">Recommendations Loading...</p>
+            <p className="text-sm font-bold text-[var(--dark)]">{t('dash.loadingRecs')}</p>
           </div>
         )}
       </div>
@@ -184,9 +186,7 @@ export default function DashboardPage() {
       {/* Safety Banner */}
       <div className="bg-[var(--primary-light)] rounded-2xl p-4 mt-6">
         <p className="text-[var(--primary)] font-bold text-sm">🛡️ Bank-grade Security</p>
-        <p className="text-[var(--primary)]/70 text-[10px] mt-1 leading-relaxed font-semibold">
-          Your investments are safe. All funds are held in your name directly with the AMC.
-        </p>
+        <p className="text-[var(--primary)]/70 text-[10px] mt-1 leading-relaxed font-semibold"> {t('dash.securityDesc')} </p>
       </div>
 
       
@@ -194,7 +194,7 @@ export default function DashboardPage() {
 
       {/* Learn Section */}
 
-      <h2 className="text-lg font-extrabold text-[var(--dark)] mt-8 mb-4">Learn & Grow</h2>
+      <h2 className="text-lg font-extrabold text-[var(--dark)] mt-8 mb-4">{t('dash.learnGrow')}</h2>
       <div className="flex flex-col gap-3 pb-8">
         {LEARN_CARDS.map((c) => (
           <div 

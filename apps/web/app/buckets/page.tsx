@@ -1,5 +1,6 @@
 'use client';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 import { Suspense, useState, useEffect } from 'react';
 
 const BUCKETS = [
@@ -28,6 +29,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 const emptyInvestForm = { amount: '', gender: 'male', email: '', bankAccountHolderName: '', bankAccountNumber: '', ifscCode: '', addressLine1: '', postalCode: '' };
 
 function BucketsContent() {
+  const { t } = useTranslation('common');
   const router = useRouter();
   const searchParams = useSearchParams();
   const goal = searchParams.get('goal') ?? 'wealth';
@@ -114,13 +116,13 @@ function BucketsContent() {
         </button>
       </div>
 
-      <h1 className="text-3xl font-extrabold text-[var(--dark)] mb-2">Recommended for You</h1>
-      <p className="text-gray-500 mb-6">Based on your answers, we fetched the best real-time mutual funds for your profile.</p>
+      <h1 className="text-3xl font-extrabold text-[var(--dark)] mb-2">{t('buckets.recommended')}</h1>
+      <p className="text-gray-500 mb-6">{t('buckets.basedOnAnswers')}</p>
 
       {investorProfile && (
         <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-6 flex justify-between items-center shadow-sm">
           <div>
-            <p className="text-xs text-indigo-400 font-bold uppercase tracking-wider mb-1">Your Risk Profile</p>
+            <p className="text-xs text-indigo-400 font-bold uppercase tracking-wider mb-1">{t('buckets.yourRisk')}</p>
             <p className="text-lg font-extrabold text-indigo-700 capitalize">{investorProfile.toLowerCase()}</p>
           </div>
           <button 
@@ -159,7 +161,7 @@ function BucketsContent() {
               <p className="text-sm text-gray-500 mb-5 leading-relaxed">{b.explanation}</p>
               
               <div className="bg-gray-50 rounded-2xl p-4 mb-5 border border-gray-100">
-                 <p className="text-xs font-extrabold text-gray-400 uppercase tracking-widest mb-3">Included Funds</p>
+                 <p className="text-xs font-extrabold text-gray-400 uppercase tracking-widest mb-3">{t('buckets.includedFunds')}</p>
                  {b.recommendedFunds?.map((f: any) => (
                    <div key={f.schemeCode} className="flex justify-between items-center py-2.5 border-b border-gray-200 last:border-0 cursor-pointer hover:opacity-70 transition-opacity" onClick={() => router.push(`/funds/${f.schemeCode}`)}>
                       <div className="flex-1 pr-3 min-w-0">
@@ -192,7 +194,7 @@ function BucketsContent() {
                   Customize
                 </button>
                 <button onClick={() => router.push(`/plan?goal=${goal}&bucket=${b.id}&amount=${amount}&period=${period}`)} className="flex-[2] py-3.5 bg-[var(--primary)] hover:opacity-90 text-white rounded-xl font-extrabold shadow-md shadow-[var(--primary-light)] transition-all flex items-center justify-center gap-2">
-                  <span>Invest Now</span>
+                  <span>{t('buckets.investNow')}</span>
                   <span>→</span>
                 </button>
               </div>
@@ -210,7 +212,7 @@ function BucketsContent() {
             {investSuccess ? (
               <div className="text-center py-4">
                 <span className="text-4xl block mb-3">✅</span>
-                <h3 className="font-extrabold text-lg text-[var(--dark)] mb-2">Order Placed</h3>
+                <h3 className="font-extrabold text-lg text-[var(--dark)] mb-2">{t('buckets.orderPlaced')}</h3>
                 <p className="text-sm text-gray-500 mb-1">{investSuccess.fundName}</p>
                 <p className="text-sm text-gray-500 mb-4">₹{investSuccess.amount} one-time investment</p>
                 <div className="bg-amber-50 text-amber-700 text-xs font-bold rounded-xl p-3 mb-4">{investSuccess.statusLabel}: {investSuccess.message}</div>
@@ -221,16 +223,16 @@ function BucketsContent() {
             ) : (
               <>
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-extrabold text-lg text-[var(--dark)]">Invest Now (One-time)</h3>
+                  <h3 className="font-extrabold text-lg text-[var(--dark)]">{t('buckets.investNowOneTime')}</h3>
                   <button onClick={() => setInvestingBucketId(null)} className="text-gray-400 text-xl leading-none">✕</button>
                 </div>
-                <p className="text-xs text-gray-400 -mt-2 mb-2">Recurring SIP auto-debit is coming soon. This places a single one-time order.</p>
+                <p className="text-xs text-gray-400 -mt-2 mb-2">{t('buckets.sipNotice')}</p>
 
                 {investError && <div className="bg-red-50 text-red-500 text-xs font-bold rounded-xl p-3 mb-4">{investError}</div>}
 
                 <div className="flex flex-col gap-3">
                   <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">Amount (₹)</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t('buckets.amount')}</label>
                     <input type="number" min={100} value={investForm.amount} onChange={(e) => setInvestForm({ ...investForm, amount: e.target.value })} className="input-field w-full mt-1" placeholder="5000" />
                   </div>
                   <div>
@@ -245,26 +247,26 @@ function BucketsContent() {
                     <label className="text-xs font-bold text-gray-500 uppercase">Email</label>
                     <input type="email" value={investForm.email} onChange={(e) => setInvestForm({ ...investForm, email: e.target.value })} className="input-field w-full mt-1" placeholder="you@example.com" />
                   </div>
-                  <p className="text-xs font-bold text-gray-500 uppercase mt-2">Bank Account (for auto-debit)</p>
+                  <p className="text-xs font-bold text-gray-500 uppercase mt-2">{t('buckets.bankAccount')}</p>
                   <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">Account Holder Name</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t('buckets.accHolder')}</label>
                     <input value={investForm.bankAccountHolderName} onChange={(e) => setInvestForm({ ...investForm, bankAccountHolderName: e.target.value })} className="input-field w-full mt-1" />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">Account Number</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t('buckets.accNumber')}</label>
                     <input value={investForm.bankAccountNumber} onChange={(e) => setInvestForm({ ...investForm, bankAccountNumber: e.target.value })} className="input-field w-full mt-1" />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">IFSC Code</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t('buckets.ifsc')}</label>
                     <input value={investForm.ifscCode} onChange={(e) => setInvestForm({ ...investForm, ifscCode: e.target.value.toUpperCase() })} className="input-field w-full mt-1" placeholder="HDFC0000001" />
                   </div>
-                  <p className="text-xs font-bold text-gray-500 uppercase mt-2">Communication Address</p>
+                  <p className="text-xs font-bold text-gray-500 uppercase mt-2">{t('buckets.commAddress')}</p>
                   <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">Address Line 1</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t('buckets.addrLine1')}</label>
                     <input value={investForm.addressLine1} onChange={(e) => setInvestForm({ ...investForm, addressLine1: e.target.value })} className="input-field w-full mt-1" />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">Postal Code</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t('buckets.postal')}</label>
                     <input value={investForm.postalCode} onChange={(e) => setInvestForm({ ...investForm, postalCode: e.target.value })} className="input-field w-full mt-1" placeholder="400001" />
                   </div>
 
@@ -295,6 +297,7 @@ function BucketsContent() {
 }
 
 export default function BucketsPage() {
+  const { t } = useTranslation('common');
   return (
     <Suspense>
       <BucketsContent />

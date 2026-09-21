@@ -1,6 +1,7 @@
 'use client';
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 const SIP_DATES = [1, 5, 10, 15, 20, 25];
@@ -18,6 +19,7 @@ const GOAL_NAMES: Record<string, string> = {
 };
 
 function PlanContent() {
+  const { t } = useTranslation('common');
   const router = useRouter();
   const searchParams = useSearchParams();
   const goal = searchParams.get('goal') ?? 'wealth';
@@ -72,7 +74,7 @@ function PlanContent() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-white">
         <button onClick={() => router.back()} className="text-gray-400 hover:text-[var(--dark)]">←</button>
-        <span className="font-extrabold text-[var(--dark)]">Your Investment Plan</span>
+        <span className="font-extrabold text-[var(--dark)]">{t('plan.title')}</span>
         <span className="w-6" />
       </div>
 
@@ -95,7 +97,7 @@ function PlanContent() {
           ))}
           <div className="h-px bg-gray-100" />
           <div className="flex justify-between items-center py-3">
-            <span className="text-gray-500 text-sm">Monthly SIP</span>
+            <span className="text-gray-500 text-sm">{t('plan.monthlySip')}</span>
             <span className="text-[var(--primary)] font-extrabold text-xl">₹{monthlySIP.toLocaleString('en-IN')} / mo</span>
           </div>
         </div>
@@ -103,7 +105,7 @@ function PlanContent() {
         {/* SIP Date */}
         <div className="flex items-center justify-between mb-3 relative">
           <div className="flex items-center gap-3">
-            <h3 className="font-bold text-[var(--dark)]">Choose SIP Date</h3>
+            <h3 className="font-bold text-[var(--dark)]">{t('plan.chooseDate')}</h3>
             <div 
               onClick={() => setIsCalendarOpen(!isCalendarOpen)}
               className="rounded-full hover:bg-gray-100 p-1 transition-all cursor-pointer relative"
@@ -111,7 +113,7 @@ function PlanContent() {
               <span className="text-2xl text-[var(--primary)] select-none">📅</span>
             </div>
           </div>
-          <span className="bg-indigo-50 text-[var(--primary)] text-xs font-bold px-2 py-1 rounded-md">Every Month</span>
+          <span className="bg-indigo-50 text-[var(--primary)] text-xs font-bold px-2 py-1 rounded-md">{t('plan.everyMonth')}</span>
 
           {/* Custom Calendar Popup */}
           {isCalendarOpen && (
@@ -149,7 +151,7 @@ function PlanContent() {
         </p>
 
         <div className="bg-[var(--primary-light)] border border-[var(--primary)]/20 rounded-2xl p-5 mb-8 text-center shadow-sm">
-          <p className="text-gray-600 text-sm mb-1">Monthly deduction date selected:</p>
+          <p className="text-gray-600 text-sm mb-1">{t('plan.dateSelected')}</p>
           <p className="text-[var(--primary)] font-extrabold text-2xl">
             {sipDate}{[1, 21, 31].includes(sipDate) ? 'st' : [2, 22].includes(sipDate) ? 'nd' : [3, 23].includes(sipDate) ? 'rd' : 'th'} of every month
           </p>
@@ -190,5 +192,6 @@ function PlanContent() {
 }
 
 export default function PlanPage() {
+  const { t } = useTranslation('common');
   return <Suspense><PlanContent /></Suspense>;
 }

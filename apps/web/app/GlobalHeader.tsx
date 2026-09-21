@@ -1,6 +1,7 @@
 'use client';
 import { usePathname, useRouter } from 'next/navigation';
-import { useTranslation, SUPPORTED_LANGUAGES } from './TranslationProvider';
+import { useTranslation as useLegacyTranslation, SUPPORTED_LANGUAGES } from './TranslationProvider';
+import { useTranslation } from 'react-i18next';
 import { useState, useRef, useEffect } from 'react';
 
 export default function GlobalHeader() {
@@ -9,7 +10,8 @@ export default function GlobalHeader() {
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
   const [kycStatus, setKycStatus] = useState('Pending');
-  const { lang, setLang } = useTranslation();
+  const { lang, setLang } = useLegacyTranslation();
+  const { t } = useTranslation('common');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -116,7 +118,7 @@ export default function GlobalHeader() {
                   <div className="p-3 border-b border-gray-100 bg-gray-50">
                     <input
                       type="text"
-                      placeholder="Search language..."
+                      placeholder={t('header.searchLanguage')}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold outline-none focus:border-[var(--primary)]"
@@ -134,7 +136,7 @@ export default function GlobalHeader() {
                         <span className="text-gray-400 text-xs font-normal">{l.nativeName}</span>
                       </button>
                     )) : (
-                      <div className="p-4 text-center text-sm text-gray-500 font-bold">No language found.</div>
+                      <div className="p-4 text-center text-sm text-gray-500 font-bold">{t('header.noLanguage')}</div>
                     )}
                   </div>
                 </div>
@@ -161,9 +163,9 @@ export default function GlobalHeader() {
                       <p className="font-extrabold text-[var(--dark)] text-sm leading-tight">{name || 'User'}</p>
                       <p className="text-[10px] font-bold text-gray-500 mt-0.5">{mobile}</p>
                       {kycStatus === 'VERIFIED' ? (
-                        <span className="inline-block px-2 py-0.5 bg-green-50 text-green-600 text-[9px] font-bold rounded-md mt-1 border border-green-100 uppercase tracking-wider">KYC Verified</span>
+                        <span className="inline-block px-2 py-0.5 bg-green-50 text-green-600 text-[9px] font-bold rounded-md mt-1 border border-green-100 uppercase tracking-wider">{t('header.kycVerified')}</span>
                       ) : (
-                        <span className="inline-block px-2 py-0.5 bg-amber-50 text-amber-600 text-[9px] font-bold rounded-md mt-1 border border-amber-100 uppercase tracking-wider">KYC {kycStatus}</span>
+                        <span className="inline-block px-2 py-0.5 bg-amber-50 text-amber-600 text-[9px] font-bold rounded-md mt-1 border border-amber-100 uppercase tracking-wider">{t('header.kycStatus', { status: kycStatus })}</span>
                       )}
                     </div>
                   </div>
@@ -176,7 +178,7 @@ export default function GlobalHeader() {
                       }}
                       className="text-left px-3 py-2.5 rounded-xl text-sm font-bold text-[var(--dark)] hover:bg-[var(--primary-light)] hover:text-[var(--primary)] transition-all flex items-center justify-between"
                     >
-                      View Profile <span className="text-[var(--primary)]">→</span>
+                      {t('header.viewProfile')} <span className="text-[var(--primary)]">→</span>
                     </button>
                     <button
                       onClick={() => {
@@ -184,18 +186,14 @@ export default function GlobalHeader() {
                         router.push('/dashboard/settings');
                       }}
                       className="text-left px-3 py-2.5 rounded-xl text-sm font-bold text-[var(--dark)] hover:bg-[var(--primary-light)] hover:text-[var(--primary)] transition-all flex items-center justify-between"
-                    >
-                      Settings
-                    </button>
+                    >{t('header.settings')}</button>
                     <button
                       onClick={() => {
                         setProfileDropdownOpen(false);
                         router.push('/');
                       }}
                       className="text-left px-3 py-2.5 rounded-xl text-sm font-bold text-red-500 hover:bg-red-50 transition-all mt-1 border-t border-gray-50 pt-3"
-                    >
-                      Log Out
-                    </button>
+                    >{t('header.logOut')}</button>
                   </div>
                 </div>
               )}

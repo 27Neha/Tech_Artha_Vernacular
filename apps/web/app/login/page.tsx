@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useTranslation } from '../TranslationProvider';
+import { useTranslation } from 'react-i18next';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -126,10 +126,10 @@ export default function LoginPage() {
       <div className="flex-1 p-6">
         {!otpSent ? (
           <>
-            <h1 className="page-title">{'Welcome Back'}</h1>
-            <p className="page-desc">{'Login to continue your investment journey'}</p>
+            <h1 className="page-title">{t('login.welcomeBack')}</h1>
+            <p className="page-desc">{t('login.journeyDesc')}</p>
 
-            <label className="label">Mobile number</label>
+            <label className="label">{t('login.mobileLabel')}</label>
             <div className="flex items-center border border-gray-200 rounded-2xl bg-white overflow-hidden shadow-sm mb-4">
               <span className="px-4 py-4 text-[var(--dark)] font-bold border-r border-gray-200">+91</span>
               <input
@@ -159,12 +159,12 @@ export default function LoginPage() {
 
             {loginMethod === 'password' && (
               <>
-                <label className="label">Password</label>
+                <label className="label">{t('login.passwordLabel')}</label>
                 <input
                   type="password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  placeholder="Enter your password"
+                  placeholder={t('login.passwordPlaceholder')}
                   className="input-field mb-4"
                 />
               </>
@@ -180,16 +180,16 @@ export default function LoginPage() {
               disabled={loading}
               className="btn-primary mt-6"
             >
-              <span>{loading ? 'Verifying...' : 'Continue securely'}</span>
+              <span>{loading ? t('login.verifying') : t('login.continue')}</span>
               <span>→</span>
             </button>
           </>
         ) : (
           <>
-            <h1 className="page-title">Verify your number</h1>
+            <h1 className="page-title">{t('login.verifyNumber')}</h1>
             <p className="page-desc">Enter the OTP sent to <strong>+91 {phone}</strong></p>
 
-            <label className="label">One-Time Password (OTP)</label>
+            <label className="label">{t('login.otpLabel')}</label>
             
             <input
               type="number"
@@ -208,7 +208,7 @@ export default function LoginPage() {
                 }
               }}
               readOnly={!otpChannel}
-              placeholder="Enter OTP"
+              placeholder={t('login.otpPlaceholder')}
               className={`input-field text-center text-2xl font-bold tracking-widest ${!otpChannel ? 'bg-gray-50 opacity-70 cursor-not-allowed' : ''}`}
             />
 
@@ -218,16 +218,16 @@ export default function LoginPage() {
                 disabled={loading || smsTimer > 0}
                 className={`flex-1 py-3 flex flex-col items-center justify-center rounded-xl border-2 font-bold transition-all ${otpChannel === 'SMS' ? 'border-[var(--primary)] text-[var(--dark)] bg-[var(--primary-light)]' : 'border-gray-100 text-gray-400 bg-white hover:border-gray-200'} ${smsTimer > 0 ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
-                <span className="text-sm">Send via SMS</span>
-                {smsTimer > 0 && <span className="text-[10px] mt-0.5 opacity-80">Resend in {Math.floor(smsTimer / 60)}:{(smsTimer % 60).toString().padStart(2, '0')}</span>}
+                <span className="text-sm">{t('login.sendSms')}</span>
+                {smsTimer > 0 && <span className="text-[10px] mt-0.5 opacity-80">{t('login.resendIn', { time: `${Math.floor(smsTimer / 60)}:${(smsTimer % 60).toString().padStart(2, '0')}` })}</span>}
               </button>
               <button 
                 onClick={() => handleSendOtp('WHATSAPP')}
                 disabled={loading || waTimer > 0}
                 className={`flex-1 py-3 flex flex-col items-center justify-center rounded-xl border-2 font-bold transition-all ${otpChannel === 'WHATSAPP' ? 'border-[#25D366] text-[#128C7E] bg-[#dcf8c6]' : 'border-gray-100 text-gray-400 bg-white hover:border-gray-200'} ${waTimer > 0 ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
-                <span className="text-sm">Send via WhatsApp</span>
-                {waTimer > 0 && <span className="text-[10px] mt-0.5 opacity-80">Resend in {Math.floor(waTimer / 60)}:{(waTimer % 60).toString().padStart(2, '0')}</span>}
+                <span className="text-sm">{t('login.sendWa')}</span>
+                {waTimer > 0 && <span className="text-[10px] mt-0.5 opacity-80">{t('login.resendIn', { time: `${Math.floor(waTimer / 60)}:${(waTimer % 60).toString().padStart(2, '0')}` })}</span>}
               </button>
             </div>
 
@@ -238,23 +238,22 @@ export default function LoginPage() {
               disabled={loading}
               className="btn-primary mt-6"
             >
-              <span>{loading ? 'Verifying...' : 'Verify OTP'}</span>
+              <span>{loading ? t('login.verifying') : t('login.verifyOtp')}</span>
               <span>→</span>
             </button>
 
             <button onClick={() => setOtpSent(false)} className="w-full text-center text-[var(--primary)] font-semibold mt-4 py-2">
-              ← {'Change Number'}
+              ← {t('login.changeNumber')}
             </button>
           </>
         )}
 
-        <p className="text-xs text-gray-400 text-center mt-6">
-          By continuing, you agree to our <span className="underline">Terms</span> and <span className="underline">Privacy Policy</span>.
+        <p className="text-xs text-gray-400 text-center mt-6"> {t('login.terms')} <span className="underline">{t('login.termsLink')}</span> {t('login.and')} <span className="underline">{t('login.privacyLink')}</span>.
         </p>
 
         <p className="text-sm text-center mt-6">
-          <span className="text-gray-500">Not have an account? </span>
-          <button onClick={() => router.push('/signup')} className="font-bold text-[var(--primary)] hover:underline">Sign up</button>
+          <span className="text-gray-500"> {t('login.noAccount')} </span>
+          <button onClick={() => router.push('/signup')} className="font-bold text-[var(--primary)] hover:underline">{t('login.signUp')}</button>
         </p>
       </div>
     </div>

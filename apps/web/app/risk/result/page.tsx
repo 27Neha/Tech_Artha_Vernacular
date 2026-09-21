@@ -1,8 +1,10 @@
 'use client';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 import { Suspense } from 'react';
 
 function ResultContent() {
+  const { t } = useTranslation('common');
   const router = useRouter();
   const searchParams = useSearchParams();
   const scoreParam = searchParams.get('score');
@@ -43,7 +45,7 @@ function ResultContent() {
   return (
     <div className="flex flex-col min-h-screen bg-white">
       <div className="bg-[var(--primary)] text-white px-6 pt-12 pb-24">
-        <h1 className="text-2xl font-extrabold text-center mb-2">Your Risk Profile</h1>
+        <h1 className="text-2xl font-extrabold text-center mb-2">{t('riskResult.title')}</h1>
         <p className="text-center opacity-80 text-sm">Score: {score}</p>
       </div>
 
@@ -84,7 +86,7 @@ function ResultContent() {
 
         <div className="mt-8">
           <button onClick={() => router.push('/goals')} className="btn-primary mb-4 w-full">
-            <span>Continue</span><span>→</span>
+            <span>{t('riskResult.continue')}</span><span>→</span>
           </button>
 
           <button onClick={() => router.push('/risk')} className="btn-outline w-full mb-8">
@@ -97,6 +99,7 @@ function ResultContent() {
 }
 
 export default function RiskResultPage() {
+  const { t } = useTranslation('common');
   return (
     <Suspense fallback={<div className="min-h-screen bg-white"></div>}>
       <ResultContent />

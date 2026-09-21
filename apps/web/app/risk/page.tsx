@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 
 const QUESTIONS = [
   {
@@ -138,6 +139,7 @@ const QUESTIONS = [
 ];
 
 export default function RiskPage() {
+  const { t } = useTranslation('common');
   const router = useRouter();
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<number[]>([]);
@@ -202,7 +204,7 @@ export default function RiskPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4 bg-white">
         <div className="w-16 h-16 rounded-full border-4 border-[var(--primary)] border-t-transparent animate-spin" />
-        <p className="text-[var(--primary)] font-bold text-lg">Calculating your risk profile...</p>
+        <p className="text-[var(--primary)] font-bold text-lg">{t('risk.calc')}</p>
       </div>
     );
   }
@@ -213,8 +215,8 @@ export default function RiskPage() {
       <div className="bg-[var(--primary)] text-white px-6 pt-12 pb-8">
         <div className="flex items-center gap-4 mb-4">
           <div className="flex-1 flex justify-between items-center">
-            <h1 className="text-lg font-bold">Risk Assessment</h1>
-            <span className="text-sm opacity-80">Q{current + 1} of {QUESTIONS.length}</span>
+            <h1 className="text-lg font-bold">{t('risk.title')}</h1>
+            <span className="text-sm opacity-80">{t('risk.qOf', { current: current + 1, total: QUESTIONS.length })}</span>
           </div>
         </div>
         {/* Progress bar */}
@@ -228,8 +230,8 @@ export default function RiskPage() {
 
       <div className="flex-1 p-6">
         <div className="inline-block bg-[var(--primary-light)] text-[var(--primary)] text-sm font-bold px-4 py-2 rounded-full mb-4">
-          Question {current + 1}
-        </div>
+            {t('risk.questionPrefix', { current: current + 1 })}
+          </div>
         <h2 className="text-2xl font-extrabold text-[var(--dark)] leading-tight mb-8">
           {q.question}
         </h2>
@@ -293,7 +295,7 @@ export default function RiskPage() {
                 : 'bg-gray-200 text-gray-400 cursor-not-allowed'
             }`}
           >
-            {current === QUESTIONS.length - 1 ? 'Finish & Save' : 'Next'}
+            {current === QUESTIONS.length - 1 ? t('risk.finish') : t('risk.next')}
           </button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 
 const TABS = [
   { id: 'home', label: 'Home', icon: '🏠', href: '/dashboard' },
@@ -12,6 +13,7 @@ const TABS = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const { t } = useTranslation('common');
   const pathname = usePathname();
 
   const activeTab = TABS.find((t) =>
@@ -37,7 +39,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           >
             <span className="text-xl mb-0.5">{tab.icon}</span>
             <span className={`text-xs font-bold ${activeTab === tab.id ? 'text-[var(--primary)]' : 'text-gray-400'}`}>
-              {tab.label}
+              {t(`nav.${tab.id}`)}
             </span>
             {activeTab === tab.id && (
               <div className="w-1 h-1 bg-[var(--primary)] rounded-full mt-1" />

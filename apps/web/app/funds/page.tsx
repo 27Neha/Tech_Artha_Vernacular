@@ -1,10 +1,12 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export default function FundsPage() {
+  const { t } = useTranslation('common');
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [riskFilter, setRiskFilter] = useState('');
@@ -83,7 +85,7 @@ export default function FundsPage() {
     <div className="flex flex-col min-h-screen bg-[#F8F9FB]">
       {/* Search Header - Made extremely visible to ensure it's not hidden */}
       <div className="p-4 bg-[var(--primary)] shadow-md z-10 relative">
-        <h2 className="text-white font-extrabold text-lg mb-3">Fund Discovery</h2>
+        <h2 className="text-white font-extrabold text-lg mb-3">{t('funds.discovery')}</h2>
         <div className="flex items-center gap-2 bg-white rounded-xl px-4 py-3 shadow-inner">
           <span className="text-gray-400 text-lg">🔍</span>
           <input
@@ -145,7 +147,7 @@ export default function FundsPage() {
             {!riskFilter && recommended.length > 0 ? (
               <div className="flex flex-col gap-3">
                                 <div className="flex flex-col gap-2 mb-4">
-                  <p className="text-xs text-gray-500">Based on your current profile and goals:</p>
+                  <p className="text-xs text-gray-500">{t('funds.basedOn')}</p>
                   <div className="flex gap-2">
                     <button 
                       onClick={() => router.push('/risk')} 
@@ -179,7 +181,7 @@ export default function FundsPage() {
             ) : (
               <div className="text-center mt-12 opacity-50">
                 <span className="text-4xl block mb-3">📊</span>
-                <p className="text-sm font-bold">Complete your profile to see recommendations</p>
+                <p className="text-sm font-bold">{t('funds.completeProfile')}</p>
               </div>
             )}
           </div>
@@ -193,7 +195,7 @@ export default function FundsPage() {
 
         {!loading && query && funds.length > 0 && (
           <div className="flex flex-col gap-3 mt-4">
-            <h3 className="font-extrabold text-[var(--dark)] mb-2 text-sm text-gray-500 uppercase">Search Results</h3>
+            <h3 className="font-extrabold text-[var(--dark)] mb-2 text-sm text-gray-500 uppercase">{t('funds.searchResults')}</h3>
             {funds.map((f: any, i: number) => (
               <div key={i} className="card bg-white hover:border-[var(--primary)] cursor-pointer transition-all shadow-sm border border-gray-100 p-4 rounded-xl" onClick={() => router.push(`/funds/${f.schemeCode}`)}>
                 <div className="flex items-start justify-between">
@@ -213,8 +215,8 @@ export default function FundsPage() {
         {!loading && query && funds.length === 0 && (
           <div className="text-center mt-16">
             <span className="text-5xl">😕</span>
-            <p className="text-[var(--dark)] font-bold mt-4">No funds found</p>
-            <p className="text-gray-400 text-sm mt-1">Try a different search term via MFAPI</p>
+            <p className="text-[var(--dark)] font-bold mt-4">{t('funds.noFunds')}</p>
+            <p className="text-gray-400 text-sm mt-1">{t('funds.tryDifferent')}</p>
           </div>
         )}
       </div>

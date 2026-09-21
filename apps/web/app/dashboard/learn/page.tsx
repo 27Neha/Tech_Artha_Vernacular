@@ -1,5 +1,6 @@
 'use client';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 
 const ARTICLES = [
   { slug: 'what-is-mutual-fund', icon: '📈', title: 'What is a Mutual Fund?', desc: 'Learn how pooled investments work.', time: '5 min', tag: 'Beginner' },
@@ -18,20 +19,21 @@ const TAG_COLORS: Record<string, string> = {
 };
 
 export default function LearnPage() {
+  const { t } = useTranslation('common');
   const router = useRouter();
 
   return (
     <div className="p-5">
-      <h1 className="text-2xl font-extrabold text-[var(--dark)] mt-2">Learn</h1>
-      <p className="text-gray-500 text-sm mt-1">Master personal finance at your own pace.</p>
+      <h1 className="text-2xl font-extrabold text-[var(--dark)] mt-2">{t('learn.title')}</h1>
+      <p className="text-gray-500 text-sm mt-1">{t('learn.desc')}</p>
 
       <div className="bg-gradient-to-r from-[#3C3985] to-[#5B58A8] rounded-2xl p-5 mt-5 text-white">
-        <p className="text-xs opacity-80 font-bold uppercase tracking-wider">Today's Tip</p>
-        <p className="font-extrabold text-lg mt-1">Start a SIP as low as ₹500/month</p>
-        <p className="text-sm opacity-80 mt-1">Small consistent investments beat large irregular ones every time.</p>
+        <p className="text-xs opacity-80 font-bold uppercase tracking-wider">{t('learn.tipLabel')}</p>
+        <p className="font-extrabold text-lg mt-1">{t('learn.tipTitle')}</p>
+        <p className="text-sm opacity-80 mt-1">{t('learn.tipDesc')}</p>
       </div>
 
-      <h2 className="text-lg font-extrabold text-[var(--dark)] mt-6 mb-4">All Articles</h2>
+      <h2 className="text-lg font-extrabold text-[var(--dark)] mt-6 mb-4">{t('learn.allArticles')}</h2>
       <div className="flex flex-col gap-3">
         {ARTICLES.map((a) => (
           <div 
@@ -46,7 +48,7 @@ export default function LearnPage() {
               </div>
               <p className="font-bold text-[var(--dark)] text-sm">{a.title}</p>
               <p className="text-gray-400 text-xs mt-0.5">{a.desc}</p>
-              <p className="text-[var(--orange)] text-xs font-bold mt-1">{a.time} read</p>
+              <p className="text-[var(--orange)] text-xs font-bold mt-1">{a.time} {t('learn.read')}</p>
             </div>
             <span className="text-[var(--orange)] text-2xl">›</span>
           </div>

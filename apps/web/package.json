@@ -9,11 +9,13 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "i18next": "^26.4.2",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "next": "^14.2.35",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "react-i18next": "^17.0.14"
   },
   "devDependencies": {
     "@types/node": "^20",

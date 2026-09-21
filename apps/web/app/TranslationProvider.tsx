@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import '../i18n/i18n';
 
 // All languages shown in the language selector.
 // Translations exist for en/hi/mr; others fall back to English strings automatically.

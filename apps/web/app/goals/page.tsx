@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 
 const GOALS = [
   { id: 'education', icon: '🎓', name: 'Child Education' },
@@ -16,6 +17,7 @@ const GOALS = [
 ];
 
 export default function GoalsPage() {
+  const { t } = useTranslation('common');
   const router = useRouter();
   const [step, setStep] = useState<1 | 2>(1);
   const [selected, setSelected] = useState<string | null>(null);
@@ -77,7 +79,7 @@ export default function GoalsPage() {
           <div className="bg-white rounded-[2rem] p-6 shadow-xl border border-gray-100 animate-in slide-in-from-right-4 duration-300">
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-bold text-[var(--dark)] mb-2">Target Amount (₹)</label>
+                <label className="block text-sm font-bold text-[var(--dark)] mb-2">{t('goals.target')}</label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">₹</span>
                   <input 
@@ -92,7 +94,7 @@ export default function GoalsPage() {
               
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <label className="block text-sm font-bold text-[var(--dark)]">Time Period</label>
+                  <label className="block text-sm font-bold text-[var(--dark)]">{t('goals.time')}</label>
                   <span className="text-[var(--primary)] font-bold bg-[var(--primary-light)] px-3 py-1 rounded-full text-xs">
                     {timePeriod} Years
                   </span>
@@ -106,9 +108,9 @@ export default function GoalsPage() {
                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[var(--primary)]"
                 />
                 <div className="flex justify-between text-xs text-gray-400 font-bold mt-2 px-1">
-                  <span>1 yr</span>
-                  <span>15 yrs</span>
-                  <span>30 yrs</span>
+                  <span>{t('goals.1yr')}</span>
+                  <span>{t('goals.15yrs')}</span>
+                  <span>{t('goals.30yrs')}</span>
                 </div>
               </div>
             </div>
@@ -123,10 +125,10 @@ export default function GoalsPage() {
           className="w-full bg-[var(--primary)] text-white font-extrabold py-4 rounded-2xl disabled:opacity-50 disabled:bg-gray-300 transition-all shadow-lg shadow-[var(--primary-light)] flex items-center justify-center gap-2"
         >
           {step === 1 ? (
-            <span>Continue</span>
+            <span>{t('goals.continue')}</span>
           ) : (
             <>
-              <span>Start Investing Right Now</span>
+              <span>{t('goals.startInvesting')}</span>
               <span className="text-xl">🚀</span>
             </>
           )}

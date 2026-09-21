@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 
 import { useState, useEffect } from 'react';
 
@@ -11,6 +12,7 @@ import { useState, useEffect } from 'react';
 
 
 export default function ProfilePage() {
+  const { t } = useTranslation('common');
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -232,7 +234,7 @@ export default function ProfilePage() {
           <p className="text-gray-400 text-sm mb-1">{mobile}</p>
 
           {kycStatus === 'VERIFIED' ? (
-            <span className="bg-green-50 border border-green-100 text-green-600 text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">KYC Verified</span>
+            <span className="bg-green-50 border border-green-100 text-green-600 text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">{t('profile.kycVerified')}</span>
           ) : (
             <span className="bg-amber-50 border border-amber-100 text-amber-600 text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">KYC {kycStatus}</span>
           )}
@@ -270,8 +272,8 @@ export default function ProfilePage() {
           <button onClick={() => toggleExpand('My Goals')} className="w-full p-4 flex items-center gap-4 text-left">
             <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-xl shrink-0">🎯</div>
             <div className="flex-1">
-              <p className="font-bold text-[var(--dark)] text-sm">My Goals</p>
-              <p className="text-gray-400 text-xs mt-0.5">View and manage your financial goals</p>
+              <p className="font-bold text-[var(--dark)] text-sm">{t('prof.goals')}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t('prof.goalsDesc')}</p>
             </div>
             <span className={`text-gray-300 text-xl transition-transform ${expanded === 'My Goals' ? 'rotate-90' : ''}`}>›</span>
           </button>
@@ -279,8 +281,8 @@ export default function ProfilePage() {
             <div className="px-4 pb-4 pt-2 border-t border-gray-50">
               {goals.length === 0 ? (
                 <div className="text-center py-6">
-                  <p className="text-gray-400 text-sm font-bold mb-2">No active goals found.</p>
-                  <button onClick={() => router.push('/goals')} className="text-xs font-bold text-white bg-[var(--primary)] px-4 py-2 rounded-lg">Create a Goal</button>
+                  <p className="text-gray-400 text-sm font-bold mb-2">{t('prof.noGoals')}</p>
+                  <button onClick={() => router.push('/goals')} className="text-xs font-bold text-white bg-[var(--primary)] px-4 py-2 rounded-lg">{t('prof.createGoal')}</button>
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
@@ -310,9 +312,9 @@ export default function ProfilePage() {
 
             <div className="flex-1">
 
-              <p className="font-bold text-[var(--dark)] text-sm">Bank Accounts</p>
+              <p className="font-bold text-[var(--dark)] text-sm">{t('prof.bank')}</p>
 
-              <p className="text-gray-400 text-xs mt-0.5">Primary bank for SIPs and withdrawals</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t('profile.primaryBank')}</p>
 
             </div>
 
@@ -324,8 +326,8 @@ export default function ProfilePage() {
             <div className="px-4 pb-4 pt-2 border-t border-gray-50">
               {bankAccounts.length === 0 ? (
                 <div className="text-center py-6">
-                  <p className="text-gray-400 text-sm font-bold mb-2">No bank account added yet.</p>
-                  <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsBankModalOpen(true); }} className="text-xs font-bold text-[var(--primary)] border border-dashed border-[var(--primary)] bg-[var(--primary-light)] px-4 py-2 rounded-lg">+ Add Bank Account</button>
+                  <p className="text-gray-400 text-sm font-bold mb-2">{t('prof.noBank')}</p>
+                  <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsBankModalOpen(true); }} className="text-xs font-bold text-[var(--primary)] border border-dashed border-[var(--primary)] bg-[var(--primary-light)] px-4 py-2 rounded-lg">{t('prof.addBank')}</button>
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
@@ -333,7 +335,7 @@ export default function ProfilePage() {
                     <div key={b.id} className="border border-gray-200 rounded-xl p-4 bg-gray-50 shadow-sm relative">
                       <p className="text-sm font-extrabold text-[var(--dark)]">{b.bank_name}</p>
                       <p className="text-xs text-gray-500 mt-1">{b.account_number} • {b.type}</p>
-                      <span className="absolute top-4 right-4 bg-green-50 text-green-600 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border border-green-100">Verified</span>
+                      <span className="absolute top-4 right-4 bg-green-50 text-green-600 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border border-green-100">{t('prof.verified')}</span>
                     </div>
                   ))}
                   <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsBankModalOpen(true); }} className="w-full py-2.5 border-2 border-[var(--primary)] text-[var(--primary)] font-bold rounded-xl text-xs hover:bg-[var(--primary-light)] transition-colors">
@@ -353,16 +355,16 @@ export default function ProfilePage() {
           <button onClick={() => toggleExpand('UPI & Autopay')} className="w-full p-4 flex items-center gap-4 text-left">
             <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-xl shrink-0">💸</div>
             <div className="flex-1">
-              <p className="font-bold text-[var(--dark)] text-sm">UPI & Autopay</p>
-              <p className="text-gray-400 text-xs mt-0.5">Active NACH/Biller SIP mandates</p>
+              <p className="font-bold text-[var(--dark)] text-sm">{t('prof.upi')}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t('prof.upiDesc')}</p>
             </div>
             <span className={`text-gray-300 text-xl transition-transform ${expanded === 'UPI & Autopay' ? 'rotate-90' : ''}`}>›</span>
           </button>
           {expanded === 'UPI & Autopay' && (
             <div className="px-4 pb-4 pt-2 border-t border-gray-50">
               <div className="bg-orange-50 border border-orange-100 p-4 rounded-xl text-center">
-                <p className="text-sm font-bold text-orange-800">Bank Account Required</p>
-                <p className="text-xs text-orange-600 mt-1">You must link a verified bank account before setting up UPI or Autopay.</p>
+                <p className="text-sm font-bold text-orange-800">{t('prof.bankReq')}</p>
+                <p className="text-xs text-orange-600 mt-1">{t('prof.bankReqDesc')}</p>
               </div>
             </div>
           )}
@@ -373,8 +375,8 @@ export default function ProfilePage() {
           <button onClick={() => toggleExpand('Nominee Details')} className="w-full p-4 flex items-center gap-4 text-left">
             <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center text-xl shrink-0">👥</div>
             <div className="flex-1">
-              <p className="font-bold text-[var(--dark)] text-sm">Nominee Details</p>
-              <p className="text-gray-400 text-xs mt-0.5">SEBI regulatory requirement</p>
+              <p className="font-bold text-[var(--dark)] text-sm">{t('prof.nominee')}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t('prof.nomineeDesc')}</p>
             </div>
             <span className={`text-gray-300 text-xl transition-transform ${expanded === 'Nominee Details' ? 'rotate-90' : ''}`}>›</span>
           </button>
@@ -382,8 +384,8 @@ export default function ProfilePage() {
             <div className="px-4 pb-4 pt-2 border-t border-gray-50">
               {nominees.length === 0 ? (
                 <div className="text-center py-6">
-                  <p className="text-gray-400 text-sm font-bold mb-2">No nominee added yet.</p>
-                  <button onClick={() => setIsNomineeModalOpen(true)} className="text-xs font-bold text-white bg-[var(--primary)] px-4 py-2 rounded-lg">+ Add Nominee</button>
+                  <p className="text-gray-400 text-sm font-bold mb-2">{t('prof.noNominee')}</p>
+                  <button onClick={() => setIsNomineeModalOpen(true)} className="text-xs font-bold text-white bg-[var(--primary)] px-4 py-2 rounded-lg">{t('prof.addNominee')}</button>
                 </div>
               ) : (
                 <div className="flex flex-col gap-4 mt-2">
@@ -413,9 +415,9 @@ export default function ProfilePage() {
 
             <div className="flex-1">
 
-              <p className="font-bold text-[var(--dark)] text-sm">Statements & Tax</p>
+              <p className="font-bold text-[var(--dark)] text-sm">{t('profile.statementsTax')}</p>
 
-              <p className="text-gray-400 text-xs mt-0.5">CAS, Capital Gains, Tax proofs</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t('profile.casDesc')}</p>
 
             </div>
 
@@ -433,23 +435,9 @@ export default function ProfilePage() {
 
                     <div>
 
-                      <p className="text-sm font-bold text-[var(--dark)] text-left">Consolidated Account Statement</p>
+                      <p className="text-sm font-bold text-[var(--dark)] text-left">{t('profile.casFull')}</p>
 
-                      <p className="text-[10px] text-gray-500 text-left mt-0.5">Detailed holdings and folios (CAS)</p>
-
-                    </div>
-
-                    <span className="text-gray-300">›</span>
-
-                 </button>
-
-                 <button onClick={() => alert('Statement generation will be connected to the Cybrilla/ONDC provider soon.')} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl hover:border-[var(--primary)] transition-all">
-
-                    <div>
-
-                      <p className="text-sm font-bold text-[var(--dark)] text-left">Capital Gains Statement</p>
-
-                      <p className="text-[10px] text-gray-500 text-left mt-0.5">For Income Tax (ITR) filing</p>
+                      <p className="text-[10px] text-gray-500 text-left mt-0.5">{t('profile.casDetails')}</p>
 
                     </div>
 
@@ -461,9 +449,23 @@ export default function ProfilePage() {
 
                     <div>
 
-                      <p className="text-sm font-bold text-[var(--dark)] text-left">ELSS Tax Proof (80C)</p>
+                      <p className="text-sm font-bold text-[var(--dark)] text-left">{t('profile.capitalGains')}</p>
 
-                      <p className="text-[10px] text-gray-500 text-left mt-0.5">Investment proof for tax deductions</p>
+                      <p className="text-[10px] text-gray-500 text-left mt-0.5">{t('profile.itrDesc')}</p>
+
+                    </div>
+
+                    <span className="text-gray-300">›</span>
+
+                 </button>
+
+                 <button onClick={() => alert('Statement generation will be connected to the Cybrilla/ONDC provider soon.')} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl hover:border-[var(--primary)] transition-all">
+
+                    <div>
+
+                      <p className="text-sm font-bold text-[var(--dark)] text-left">{t('profile.elss')}</p>
+
+                      <p className="text-[10px] text-gray-500 text-left mt-0.5">{t('profile.elssDesc')}</p>
 
                     </div>
 
@@ -483,7 +485,7 @@ export default function ProfilePage() {
 
       
 
-      <p className="text-xs text-gray-300 text-center mt-6">TechArtha v1.0.0 · SEBI Registered MFD</p>
+      <p className="text-xs text-gray-300 text-center mt-6">{t('profile.footer')}</p>
 
     
       {/* NOMINEE MODAL */}
@@ -491,35 +493,35 @@ export default function ProfilePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
             <div className="bg-[var(--primary)] p-5 text-white flex justify-between items-center">
-              <h2 className="font-extrabold text-lg">Add Nominee</h2>
+              <h2 className="font-extrabold text-lg">{t('profile.addNominee')}</h2>
               <button onClick={() => setIsNomineeModalOpen(false)} className="w-8 h-8 flex items-center justify-center bg-white/20 rounded-full hover:bg-white/30 transition-colors">✕</button>
             </div>
             <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
               <div>
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Nominee Name *</label>
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">{t('profile.nomineeName')}</label>
                 <input type="text" value={nomineeData.name} onChange={e => setNomineeData({...nomineeData, name: e.target.value})} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-[var(--dark)] font-bold focus:border-[var(--primary)] outline-none" placeholder="Full Name" />
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Relationship *</label>
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">{t('profile.relationship')}</label>
                 <select value={nomineeData.relationship} onChange={e => setNomineeData({...nomineeData, relationship: e.target.value})} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-[var(--dark)] font-bold focus:border-[var(--primary)] outline-none">
-                  <option value="Spouse">Spouse</option>
-                  <option value="Child">Child</option>
-                  <option value="Parent">Parent</option>
-                  <option value="Sibling">Sibling</option>
-                  <option value="Other">Other</option>
+                  <option value="Spouse">{t('profile.spouse')}</option>
+                  <option value="Child">{t('profile.child')}</option>
+                  <option value="Parent">{t('profile.parent')}</option>
+                  <option value="Sibling">{t('profile.sibling')}</option>
+                  <option value="Other">{t('profile.other')}</option>
                 </select>
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Date of Birth *</label>
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">{t('profile.dob')}</label>
                 <input type="date" value={nomineeData.dateOfBirth} onChange={e => setNomineeData({...nomineeData, dateOfBirth: e.target.value})} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-[var(--dark)] font-bold focus:border-[var(--primary)] outline-none" />
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Allocation % *</label>
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">{t('profile.alloc')}</label>
                 <input type="number" min="1" max="100" value={nomineeData.percentage} onChange={e => setNomineeData({...nomineeData, percentage: Number(e.target.value)})} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-[var(--dark)] font-bold focus:border-[var(--primary)] outline-none" />
               </div>
               {nomineeData.dateOfBirth && (new Date().getFullYear() - new Date(nomineeData.dateOfBirth).getFullYear() < 18) && (
                 <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl space-y-3">
-                  <p className="text-xs font-bold text-orange-800">Minor Nominee Details</p>
+                  <p className="text-xs font-bold text-orange-800">{t('profile.minorDetails')}</p>
                   <input type="text" placeholder="Guardian Name" value={nomineeData.guardianName} onChange={e => setNomineeData({...nomineeData, guardianName: e.target.value})} className="w-full bg-white border border-orange-200 rounded-lg px-3 py-2 text-sm outline-none" />
                   <input type="text" placeholder="Guardian PAN" value={nomineeData.guardianPan} onChange={e => setNomineeData({...nomineeData, guardianPan: e.target.value})} className="w-full bg-white border border-orange-200 rounded-lg px-3 py-2 text-sm outline-none" />
                 </div>
@@ -540,7 +542,7 @@ export default function ProfilePage() {
             
             <div className="bg-[var(--primary)] p-5 text-white flex justify-between items-center relative overflow-hidden">
               <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
-              <h2 className="font-extrabold text-lg relative z-10">Link Bank Account</h2>
+              <h2 className="font-extrabold text-lg relative z-10">{t('profile.linkBank')}</h2>
               <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); resetBankModal(); }} className="w-8 h-8 flex items-center justify-center bg-white/20 rounded-full hover:bg-white/30 transition-colors relative z-10">✕</button>
             </div>
 
@@ -555,7 +557,7 @@ export default function ProfilePage() {
               {bankStep === 1 && !bankResult?.success && (
                 <div className="space-y-4 animate-in slide-in-from-left-4 duration-300">
                   <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Account Number</label>
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">{t('profile.accNumber')}</label>
                     <div className="relative">
                       <input 
                         type={bankData.showAccount ? 'text' : 'password'}
@@ -574,7 +576,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Confirm Account Number</label>
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">{t('profile.confirmAcc')}</label>
                     <input 
                       type="text" 
                       value={bankData.confirm_account_number}
@@ -584,7 +586,7 @@ export default function ProfilePage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">IFSC Code</label>
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">{t('profile.ifsc')}</label>
                     <input 
                       type="text" 
                       value={bankData.ifsc_code}
@@ -610,20 +612,20 @@ export default function ProfilePage() {
               {bankStep === 2 && !bankResult?.success && (
                 <div className="space-y-4 animate-in slide-in-from-right-4 duration-300">
                   <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Account Type</label>
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">{t('profile.accType')}</label>
                     <div className="grid grid-cols-2 gap-3">
                       <button 
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBankData(prev => ({...prev, type: 'savings'})); }}
                         className={`py-3 rounded-xl font-bold border-2 transition-all ${bankData.type === 'savings' ? 'border-[var(--primary)] bg-[var(--primary-light)] text-[var(--primary)]' : 'border-gray-100 text-gray-400 hover:border-gray-200'}`}
-                      >Savings</button>
+                      >{t('profile.savings')}</button>
                       <button 
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBankData(prev => ({...prev, type: 'current'})); }}
                         className={`py-3 rounded-xl font-bold border-2 transition-all ${bankData.type === 'current' ? 'border-[var(--primary)] bg-[var(--primary-light)] text-[var(--primary)]' : 'border-gray-100 text-gray-400 hover:border-gray-200'}`}
-                      >Current</button>
+                      >{t('profile.current')}</button>
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Account Holder Name</label>
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">{t('profile.accHolder')}</label>
                     <input 
                       type="text" 
                       value={bankData.primary_account_holder_name}
@@ -631,13 +633,13 @@ export default function ProfilePage() {
                       className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-[var(--dark)] font-bold focus:border-[var(--primary)] outline-none"
                       placeholder="As per bank records"
                     />
-                    <p className="text-[10px] text-gray-400 mt-1.5 ml-1">Must exactly match your KYC name</p>
+                    <p className="text-[10px] text-gray-400 mt-1.5 ml-1">{t('profile.accHolderMatch')}</p>
                   </div>
 
                   {bankResult?.error && <p className="text-red-500 text-xs font-bold text-center bg-red-50 py-2 rounded-lg">{bankResult.error}</p>}
 
                   <div className="flex gap-3 mt-2">
-                    <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBankStep(1); }} className="px-6 py-4 bg-gray-100 text-gray-600 font-bold rounded-2xl">Back</button>
+                    <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBankStep(1); }} className="px-6 py-4 bg-gray-100 text-gray-600 font-bold rounded-2xl">{t('common.back')}</button>
                     <button 
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleLinkBank(); }} 
                       disabled={bankLoading || !bankData.primary_account_holder_name}
@@ -652,9 +654,9 @@ export default function ProfilePage() {
               {bankResult?.success && (
                 <div className="text-center py-4 animate-in zoom-in-95 duration-500">
                   <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 border-4 border-white shadow-lg">✓</div>
-                  <h3 className="font-extrabold text-[var(--dark)] text-lg mb-1">Bank Linked Successfully</h3>
+                  <h3 className="font-extrabold text-[var(--dark)] text-lg mb-1">{t('profile.bankLinked')}</h3>
                   <p className="text-sm text-gray-500 mb-6">{bankResult.message}</p>
-                  <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); resetBankModal(); }} className="w-full bg-[var(--primary)] text-white font-bold py-4 rounded-2xl transition-all">Done</button>
+                  <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); resetBankModal(); }} className="w-full bg-[var(--primary)] text-white font-bold py-4 rounded-2xl transition-all">{t('profile.done')}</button>
                 </div>
               )}
             </div>

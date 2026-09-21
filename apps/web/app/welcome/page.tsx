@@ -1,6 +1,6 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useTranslation } from '../TranslationProvider';
+import { useTranslation } from 'react-i18next';
 import AnimatedHeroVisual from '../../components/AnimatedHeroVisual';
 
 export default function WelcomePage() {

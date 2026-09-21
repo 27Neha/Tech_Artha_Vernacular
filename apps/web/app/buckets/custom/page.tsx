@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useRouter } from 'next/navigation';
 
 
@@ -18,6 +19,7 @@ const autoBalance = (funds: any[]) => {
 };
 
 export default function CustomBucketPage() {
+  const { t } = useTranslation('common');
   const router = useRouter();
   
     const [funds, setFunds] = useState<any[]>([]);
@@ -59,15 +61,15 @@ export default function CustomBucketPage() {
     <div className="flex flex-col min-h-screen bg-[#F8F9FB] pt-16">
       <div className="p-4 bg-[var(--primary)] shadow-md z-10 relative flex items-center gap-3">
         
-        <h2 className="text-white font-extrabold text-lg">Custom Bucket Builder</h2>
+        <h2 className="text-white font-extrabold text-lg">{t('customBucket.title')}</h2>
       </div>
 
       <div className="flex-1 p-5">
-        <p className="text-sm text-gray-500 mb-4 font-semibold">Adjust your allocations. The total must equal 100%.</p>
+        <p className="text-sm text-gray-500 mb-4 font-semibold">{t('customBucket.desc')}</p>
         
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
           <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-100">
-            <span className="font-bold text-[var(--dark)]">Total Allocation</span>
+            <span className="font-bold text-[var(--dark)]">{t('customBucket.total')}</span>
             <span className={`text-lg font-extrabold ${isTotalValid ? 'text-green-500' : 'text-red-500'}`}>
               {total}%
             </span>
@@ -104,7 +106,7 @@ export default function CustomBucketPage() {
 
           {funds.length === 0 && (
             <div className="text-center py-6">
-              <p className="text-gray-400 text-sm font-bold">No funds added yet</p>
+              <p className="text-gray-400 text-sm font-bold">{t('customBucket.noFunds')}</p>
             </div>
           )}
           
