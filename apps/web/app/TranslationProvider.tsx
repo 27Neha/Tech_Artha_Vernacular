@@ -17,7 +17,8 @@ export const SUPPORTED_LANGUAGES = [
   { code: 'ml', name: 'Malayalam', nativeName: 'മലയാളം' },
   { code: 'pa', name: 'Punjabi',   nativeName: 'ਪੰਜਾਬੀ' },
   { code: 'or', name: 'Odia',      nativeName: 'ଓଡ଼ିଆ' },
-  { code: 'ur', name: 'Urdu',      nativeName: 'اردو' },
+  // EXCLUDED: Urdu ('ur') is permanently excluded from this list per requirements.
+  // Do not re-add Urdu here.
   { code: 'as', name: 'Assamese',  nativeName: 'অসমীয়া' },
 ] as const;
 

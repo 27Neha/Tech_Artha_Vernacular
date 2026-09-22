@@ -22,7 +22,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        
+        <script dangerouslySetInnerHTML={{ __html: `
+          try {
+            window.updateTheme = function() {
+              var theme = localStorage.getItem('appTheme') || 'system';
+              if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+              } else {
+                document.documentElement.classList.remove('dark');
+              }
+            }
+            window.updateTheme();
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+              if ((localStorage.getItem('appTheme') || 'system') === 'system') {
+                window.updateTheme();
+              }
+            });
+          } catch (e) {}
+        `}} />
       </head>
       <body className="min-h-screen bg-[#F8F9FB]">
         <TranslationProvider>

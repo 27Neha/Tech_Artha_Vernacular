@@ -89,8 +89,9 @@ export default function GlobalHeader() {
                 else if (pathname === '/risk') router.push('/dashboard');
                 else if (pathname.startsWith('/funds/')) router.push('/funds');
                 else router.back();
-              }}
-              className="text-4xl text-[var(--dark)] leading-none -ml-2 w-10 h-10 flex items-center justify-center"
+              }} 
+              className="header-back-btn text-4xl text-[var(--dark)] leading-none -ml-2 w-10 h-10 flex items-center justify-center"
+
             >
               ‹
             </button>

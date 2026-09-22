@@ -15,7 +15,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 export default function DashboardPage() {
   const { t } = useTranslation('common');
   const router = useRouter();
-  const [profile, setProfile] = useState('Moderate');
+  const [profile, setProfile] = useState('');
   const [recommendedFunds, setRecommendedFunds] = useState<any[]>([]);
   const [portfolio, setPortfolio] = useState({ totalInvested: 0, currentValue: 0, holdings: [] });
   const [fetchingPortfolio, setFetchingPortfolio] = useState(true);
@@ -65,8 +65,24 @@ export default function DashboardPage() {
     };
     fetchPortfolio();
 
-    const saved = localStorage.getItem('investorProfile');
-    if (saved) setProfile(saved);
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        const res = await fetch(`${API_URL}/auth/profile`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.riskProfile?.category) {
+            const cat = data.riskProfile.category;
+            const formatted = cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase();
+            setProfile(formatted);
+            localStorage.setItem('investorProfile', formatted);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to fetch profile', e);
+      }
+    };
+    fetchProfile();
 
     const fetchRecs = async () => {
       try {
@@ -88,8 +104,8 @@ export default function DashboardPage() {
     <div className="p-5 bg-[#F8F9FB] min-h-screen">
       <div className="flex justify-between items-center mt-2 mb-6">
         <div>
-          <p className="text-gray-500 text-sm font-bold uppercase tracking-wider">{t('dash.welcome')}</p>
-          <h1 className="text-2xl font-extrabold text-[var(--dark)] mt-1">{t('dash.startWealth')}</h1>
+          <p className="text-gray-500 text-sm font-bold uppercase tracking-wider">{t('dash.welcomeBack')}</p>
+          <h1 className="text-2xl font-extrabold text-[var(--dark)] mt-1">{t('dash.startWealthCreation')}</h1>
         </div>
         
       </div>
@@ -101,7 +117,7 @@ export default function DashboardPage() {
             {fetchingPortfolio ? '₹...' : `₹${portfolio.totalInvested.toLocaleString('en-IN')}`}
           </p>
         <p className="text-[#EBEAF8] text-sm mt-1">
-            {portfolio.totalInvested === 0 ? t('dash.noInvestments') : t('dash.verifiedVia')}
+            {portfolio.totalInvested === 0 ? "You haven't made any investments yet." : "Verified via Cybrilla/ONDC"}
           </p>
         <div className="flex gap-3 mt-4">
           <button
@@ -122,13 +138,13 @@ export default function DashboardPage() {
       {/* Active orders / SIPs from bucket investments */}
       {!fetchingSips && sipPlans.length > 0 && (
         <div className="mb-6">
-          <h2 className="text-lg font-extrabold text-[var(--dark)] mb-3">{t('dash.orders')}</h2>
+          <h2 className="text-lg font-extrabold text-[var(--dark)] mb-3">{t('dash.yourOrders')}</h2>
           <div className="flex flex-col gap-3">
             {sipPlans.map((p) => {
               const badge =
-                p.statusLabel === t('dash.orderFulfilled')
+                p.statusLabel === 'Order fulfilled'
                   ? 'bg-green-50 text-green-700'
-                  : p.statusLabel === t('dash.orderFailed')
+                  : p.statusLabel === 'Order failed'
                   ? 'bg-red-50 text-red-600'
                   : 'bg-amber-50 text-amber-700';
               return (
@@ -151,9 +167,9 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-end justify-between mb-4">
           <div>
-            <h2 className="text-lg font-extrabold text-[var(--dark)]">{t('dash.recommended')}</h2>
+            <h2 className="text-lg font-extrabold text-[var(--dark)]">{t('dash.forYourRiskProfile')}</h2>
             <div className="flex items-center gap-2 mt-0.5">
-              <p className="text-xs text-gray-500 font-bold">{t('dash.basedOnProfile', { profile })}</p>
+              <p className="text-xs text-gray-500 font-bold">{t('dash.basedOnProfile')} {profile}</p>
               <button onClick={() => router.push('/risk')} className="text-[10px] text-[var(--primary)] bg-[var(--primary-light)] px-2 py-0.5 rounded-full font-bold">{t('dash.retake')} ✎</button>
             </div>
           </div>
@@ -178,7 +194,7 @@ export default function DashboardPage() {
         ) : (
           <div className="bg-white p-6 rounded-2xl text-center border border-gray-100 shadow-sm">
             <span className="text-3xl mb-2 block">📊</span>
-            <p className="text-sm font-bold text-[var(--dark)]">{t('dash.loadingRecs')}</p>
+            <p className="text-sm font-bold text-[var(--dark)]">{t('dash.loadingFunds')}</p>
           </div>
         )}
       </div>
@@ -186,7 +202,9 @@ export default function DashboardPage() {
       {/* Safety Banner */}
       <div className="bg-[var(--primary-light)] rounded-2xl p-4 mt-6">
         <p className="text-[var(--primary)] font-bold text-sm">🛡️ Bank-grade Security</p>
-        <p className="text-[var(--primary)]/70 text-[10px] mt-1 leading-relaxed font-semibold"> {t('dash.securityDesc')} </p>
+        <p className="text-[var(--primary)]/70 text-[10px] mt-1 leading-relaxed font-semibold">
+          Your investments are safe. All funds are held in your name directly with the AMC.
+        </p>
       </div>
 
       
@@ -194,7 +212,7 @@ export default function DashboardPage() {
 
       {/* Learn Section */}
 
-      <h2 className="text-lg font-extrabold text-[var(--dark)] mt-8 mb-4">{t('dash.learnGrow')}</h2>
+      <h2 className="text-lg font-extrabold text-[var(--dark)] mt-8 mb-4">{t('dash.learnAndGrow')}</h2>
       <div className="flex flex-col gap-3 pb-8">
         {LEARN_CARDS.map((c) => (
           <div 

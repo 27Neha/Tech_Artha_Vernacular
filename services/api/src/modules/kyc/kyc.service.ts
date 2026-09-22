@@ -12,8 +12,21 @@ export class KycService {
   ) {}
 
   async startKyc(userId: string, fullName: string, pan: string, dob: string) {
-    if (!fullName || !pan || !dob) {
-      throw new BadRequestException('fullName, pan, and dob are required to start KYC.');
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { profile: true, guardian: true } });
+    const isMinor = user?.profile?.investorType === 'MINOR';
+
+    let targetPan = pan;
+    let targetDob = dob;
+
+    if (isMinor) {
+      if (!user?.guardian || !user.guardian.pan) {
+        throw new BadRequestException('Guardian PAN is required for minor KYC verification.');
+      }
+      targetPan = user.guardian.pan;
+    } else {
+      if (!fullName || !pan || !dob) {
+        throw new BadRequestException('fullName, pan, and dob are required to start KYC.');
+      }
     }
 
     let application = await this.prisma.kYCApplication.findUnique({ where: { userId } });
@@ -23,7 +36,20 @@ export class KycService {
       });
     }
 
-    const result = await this.cybrilla.verifyPan(pan, fullName, dob);
+    let result: any;
+    try {
+      result = await this.cybrilla.verifyPan(targetPan, fullName, targetDob);
+    } catch (e: any) {
+      // If it's our structured KYC_PROVIDER_ERROR, just update the status safely and bubble it up
+      if (e.response?.code === 'KYC_PROVIDER_ERROR' || e.message?.includes('temporarily unavailable')) {
+        await this.prisma.kYCApplication.update({
+          where: { id: application.id },
+          data: { status: 'FAILED', failureReason: 'Provider unavailable' },
+        });
+      }
+      throw e;
+    }
+
     const evaluated = this.evaluateVerification(result);
 
     application = await this.prisma.kYCApplication.update({
@@ -64,7 +90,6 @@ export class KycService {
           });
         }
       } catch (error) {
-        // Cybrilla being unreachable shouldn't break the status read - just return the last known state.
         this.logger.warn(`Could not poll pre-verification status for user ${userId}: ${(error as Error).message}`);
       }
     }

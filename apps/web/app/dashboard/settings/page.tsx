@@ -25,6 +25,7 @@ export default function SettingsPage() {
   const handleThemeChange = (newTheme: string) => {
     setTheme(newTheme);
     localStorage.setItem('appTheme', newTheme);
+    if (typeof (window as any).updateTheme === 'function') { (window as any).updateTheme(); }
   };
 
   const handleLangSelect = (newLang: string) => {

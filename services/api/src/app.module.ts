@@ -20,6 +20,7 @@ import { WhatsappModule } from './integrations/whatsapp/whatsapp.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
 import { InteraktModule } from './integrations/interakt/interakt.module';
 import { CybrillaModule } from './modules/cybrilla/cybrilla.module';
+import { MinorModule } from './modules/minor/minor.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { CybrillaModule } from './modules/cybrilla/cybrilla.module';
     RecommendationsModule,
     InteraktModule,
     CybrillaModule,
+    MinorModule,
   ],
   controllers: [AppController],
   providers: [AppService],

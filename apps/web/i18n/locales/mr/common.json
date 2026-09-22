@@ -449,5 +449,9 @@
   "signup.resendOtp": "OTP पुन्हा पाठवा",
   "signup.resendIn": "मध्ये पुन्हा पाठवा",
   "signup.didntReceive": "कोड मिळाला नाही का?",
-  "signup.verifyNumber": "तुमचा नंबर पडताळून पहा"
+  "signup.verifyNumber": "तुमचा नंबर पडताळून पहा",
+  "login.emailAddress": "ईमेल पत्ता",
+  "login.verifyEmail": "तुमचा ईमेल सत्यापित करा",
+  "login.sendOtp": "OTP पाठवा",
+  "login.changeEmail": "ईमेल बदला"
 }

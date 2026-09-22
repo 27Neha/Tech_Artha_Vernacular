@@ -34,12 +34,10 @@ function BucketsContent() {
   const searchParams = useSearchParams();
   const goal = searchParams.get('goal') ?? 'wealth';
 
-  const amount = searchParams.get('amount') ?? '1500000';
-  const period = searchParams.get('period') ?? '8';
-  
   const [buckets, setBuckets] = useState<any[]>([]);
   const [investorProfile, setInvestorProfile] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [customBuckets, setCustomBuckets] = useState<any[]>([]);
 
   const [investingBucketId, setInvestingBucketId] = useState<string | null>(null);
   const [investForm, setInvestForm] = useState(emptyInvestForm);
@@ -91,14 +89,8 @@ function BucketsContent() {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await res.json();
-        
-        if (data.investorProfile === 'ASSESSMENT_REQUIRED') {
-          router.push('/risk');
-          return;
-        }
-
-        setInvestorProfile(data.investorProfile);
         setBuckets(data.buckets || []);
+        setInvestorProfile(data.investorProfile ?? null);
       } catch {
         console.error("Failed to fetch buckets");
       } finally {
@@ -106,77 +98,113 @@ function BucketsContent() {
       }
     };
     fetchBuckets();
-  }, [router]);
+
+    const fetchCustomBuckets = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        const res = await fetch(`${API_URL}/buckets/custom`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) setCustomBuckets(await res.json());
+      } catch {
+        console.error("Failed to fetch custom buckets");
+      }
+    };
+    fetchCustomBuckets();
+  }, []);
 
   return (
-    <div className="flex flex-col min-h-screen p-6 bg-gray-50">
-      <div className="flex items-center justify-between py-2 mb-4">
-        <button onClick={() => router.back()} className="w-10 h-10 flex items-center justify-center bg-white border border-gray-200 hover:bg-gray-50 rounded-full transition-colors shadow-sm">
-          <span className="text-xl">←</span>
-        </button>
+    <div className="flex flex-col min-h-screen p-6 bg-white">
+                  <div className="flex items-center justify-between py-5 mb-4">
+        <div 
+          onClick={() => router.push('/funds')}
+          className="w-full flex items-center gap-2 bg-gray-100 rounded-xl px-4 py-3 cursor-pointer hover:bg-gray-200 transition-all shadow-inner"
+        >
+          <span className="text-gray-400 text-lg">🔍</span>
+          <span className="text-gray-400 font-bold">Search for specific mutual funds...</span>
+        </div>
       </div>
 
-      <h1 className="text-3xl font-extrabold text-[var(--dark)] mb-2">{t('buckets.recommended')}</h1>
-      <p className="text-gray-500 mb-6">{t('buckets.basedOnAnswers')}</p>
-
-      {investorProfile && (
-        <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-6 flex justify-between items-center shadow-sm">
-          <div>
-            <p className="text-xs text-indigo-400 font-bold uppercase tracking-wider mb-1">{t('buckets.yourRisk')}</p>
-            <p className="text-lg font-extrabold text-indigo-700 capitalize">{investorProfile.toLowerCase()}</p>
+      {customBuckets.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-lg font-extrabold text-[var(--dark)] mb-3">{t('buckets.yourCustomBuckets')}</h2>
+          <div className="flex flex-col gap-3">
+            {customBuckets.map((cb) => (
+              <div key={cb.id} className="p-4 rounded-2xl border border-gray-100 bg-gray-50">
+                <p className="font-bold text-[var(--dark)] text-sm mb-2">{cb.name}</p>
+                <div className="flex flex-col gap-1.5">
+                  {(cb.funds as any[]).map((f, i) => (
+                    <div key={i} className="flex justify-between text-xs text-gray-500">
+                      <span className="truncate pr-2">{f.name}</span>
+                      <span className="font-bold shrink-0">{f.allocation}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
-          <button 
-            onClick={() => router.push('/risk')}
-            className="text-xs font-bold text-indigo-600 bg-white border border-indigo-200 px-3 py-2 rounded-xl hover:bg-indigo-50 transition-colors shadow-sm"
-          >
-            Retake Assessment
-          </button>
         </div>
       )}
 
+      <h1 className="text-3xl font-extrabold text-[var(--dark)] mb-2">{t('buckets.chooseBucket')}</h1>
+      <p className="text-gray-500 mb-8">{t('buckets.availableForYou')}</p>
+
       {loading ? (
         <div className="flex justify-center mt-12"><div className="w-10 h-10 rounded-full border-4 border-[var(--primary)] border-t-transparent animate-spin" /></div>
+      ) : investorProfile === 'ASSESSMENT_REQUIRED' ? (
+        <div className="text-center py-12 px-4 bg-gray-50 rounded-2xl border border-gray-100">
+          <span className="text-4xl block mb-3">📋</span>
+          <p className="font-bold text-[var(--dark)] mb-1">{t('buckets.completeRiskAssessment')}</p>
+          <p className="text-sm text-gray-500 mb-5">{t('buckets.weUseIt')}</p>
+          <button onClick={() => router.push('/risk')} className="px-6 py-3 bg-[var(--primary)] text-white rounded-xl font-bold">
+            Take the Risk Assessment
+          </button>
+        </div>
+      ) : buckets.length === 0 ? (
+        <div className="text-center py-12 px-4 bg-gray-50 rounded-2xl border border-gray-100">
+          <span className="text-4xl block mb-3">🗂️</span>
+          <p className="font-bold text-[var(--dark)] mb-1">{t('buckets.noBucketsAvailable')}</p>
+          <p className="text-sm text-gray-500">{t('buckets.tryAgain')}</p>
+        </div>
       ) : (
-        <div className="flex flex-col gap-5 pb-10">
+        <div className="flex flex-col gap-5">
           {Array.isArray(buckets) && buckets.map(b => (
             <div
               key={b.id}
-              className={`p-5 rounded-3xl border-2 transition-all text-left relative bg-white ${
-                b.recommended ? 'border-[var(--primary)] shadow-lg shadow-[var(--primary-light)]/50' : 'border-gray-100 shadow-sm'
+              className={`p-5 rounded-2xl border-2 transition-all text-left relative ${
+                b.recommended ? 'border-[var(--primary)] shadow-md' : 'border-gray-100 hover:border-[var(--primary-light)]'
               }`}
             >
               {b.recommended && (
-                <span className="absolute -top-3 left-5 bg-[var(--orange)] text-white text-xs font-extrabold px-3 py-1 rounded-full shadow-sm">
-                  ★ Best Match
+                <span className="absolute -top-3 left-4 bg-[var(--orange)] text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">
+                  Matches Your Profile
                 </span>
               )}
-              <div className="flex items-center justify-between mb-2 mt-1">
-                <h3 className="font-bold text-xl text-[var(--dark)]">{b.name}</h3>
+                            <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-bold text-lg text-[var(--dark)]">{b.name}</h3>
                 {b.bucketRiskLevel && (
-                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider ${b.bucketRiskLevel === 'Conservative' ? 'bg-green-50 text-green-700' : b.bucketRiskLevel === 'Aggressive' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
-                    {b.bucketRiskLevel} Risk
+                  <span className="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                    {b.bucketRiskLevel}
                   </span>
                 )}
               </div>
-              <p className="text-sm text-gray-500 mb-5 leading-relaxed">{b.explanation}</p>
+              <p className="text-sm text-gray-500 mb-3">{b.explanation}</p>
               
-              <div className="bg-gray-50 rounded-2xl p-4 mb-5 border border-gray-100">
-                 <p className="text-xs font-extrabold text-gray-400 uppercase tracking-widest mb-3">{t('buckets.includedFunds')}</p>
+              <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                 <p className="text-xs font-bold text-gray-500 uppercase mb-2">{t('buckets.fundsInThisBucket')}</p>
                  {b.recommendedFunds?.map((f: any) => (
-                   <div key={f.schemeCode} className="flex justify-between items-center py-2.5 border-b border-gray-200 last:border-0 cursor-pointer hover:opacity-70 transition-opacity" onClick={() => router.push(`/funds/${f.schemeCode}`)}>
-                      <div className="flex-1 pr-3 min-w-0">
-                        <p className="text-sm font-bold text-[var(--dark)] truncate">{f.name}</p>
-                        <p className="text-[10px] font-semibold text-gray-400 truncate mt-0.5">{f.category}</p>
+                   <div key={f.schemeCode} className="flex justify-between items-center py-2 border-b border-gray-200 last:border-0 cursor-pointer hover:text-[var(--primary)]" onClick={() => router.push(`/funds/${f.schemeCode}`)}>
+                      <div className="flex-1 pr-2 min-w-0">
+                        <p className="text-sm font-bold truncate">{f.name}</p>
+                        <p className="text-xs text-gray-400 truncate">{f.category}</p>
                       </div>
-                      <div className="text-right flex-shrink-0 pl-2 bg-white px-3 py-1.5 rounded-xl border border-gray-100 shadow-sm">
-                        <p className="text-xs font-bold text-[var(--primary)]">₹{f.nav ? parseFloat(f.nav).toFixed(2) : 'N/A'}</p>
-                        <p className="text-[9px] text-gray-400 font-medium">{f.navDate}</p>
+                      <div className="text-right flex-shrink-0 pl-2">
+                        <p className="text-sm font-bold text-[var(--primary)]">₹{f.nav ? parseFloat(f.nav).toFixed(2) : 'N/A'}</p>
+                        <p className="text-[10px] text-gray-400">{f.navDate}</p>
                       </div>
                    </div>
                  ))}
               </div>
 
-              <div className="flex gap-3 mt-2">
+              <div className="flex gap-3">
                 <button 
                   onClick={() => {
                     let customFunds = (b.recommendedFunds || []).map((f: any) => ({
@@ -189,13 +217,12 @@ function BucketsContent() {
                     localStorage.setItem('customBucketFunds', JSON.stringify(customFunds));
                     router.push('/buckets/custom');
                   }} 
-                  className="flex-1 py-3.5 bg-white border-2 border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50 rounded-xl font-bold transition-all text-sm"
+                  className="flex-1 py-3 bg-white border-2 border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--primary-light)] rounded-xl font-bold"
                 >
-                  Customize
+                  Edit Bucket
                 </button>
-                <button onClick={() => router.push(`/plan?goal=${goal}&bucket=${b.id}&amount=${amount}&period=${period}`)} className="flex-[2] py-3.5 bg-[var(--primary)] hover:opacity-90 text-white rounded-xl font-extrabold shadow-md shadow-[var(--primary-light)] transition-all flex items-center justify-center gap-2">
-                  <span>{t('buckets.investNow')}</span>
-                  <span>→</span>
+                <button onClick={() => router.push(`/plan?goal=${goal}&bucket=${b.id}`)} className="flex-1 py-3 bg-[var(--primary)] hover:opacity-90 text-white rounded-xl font-bold">
+                  Select
                 </button>
               </div>
               <button onClick={() => openInvestForm(b.id)} className="w-full mt-3 py-3 bg-[var(--dark)] hover:opacity-90 text-white rounded-xl font-bold">
@@ -226,7 +253,7 @@ function BucketsContent() {
                   <h3 className="font-extrabold text-lg text-[var(--dark)]">{t('buckets.investNowOneTime')}</h3>
                   <button onClick={() => setInvestingBucketId(null)} className="text-gray-400 text-xl leading-none">✕</button>
                 </div>
-                <p className="text-xs text-gray-400 -mt-2 mb-2">{t('buckets.sipNotice')}</p>
+                <p className="text-xs text-gray-400 -mt-2 mb-2">Recurring SIP auto-debit is coming soon. This places a single one-time order.</p>
 
                 {investError && <div className="bg-red-50 text-red-500 text-xs font-bold rounded-xl p-3 mb-4">{investError}</div>}
 
@@ -236,15 +263,15 @@ function BucketsContent() {
                     <input type="number" min={100} value={investForm.amount} onChange={(e) => setInvestForm({ ...investForm, amount: e.target.value })} className="input-field w-full mt-1" placeholder="5000" />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">Gender</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t('buckets.gender')}</label>
                     <select value={investForm.gender} onChange={(e) => setInvestForm({ ...investForm, gender: e.target.value })} className="input-field w-full mt-1">
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="transgender">Transgender</option>
+                      <option value="male">{t('buckets.male')}</option>
+                      <option value="female">{t('buckets.female')}</option>
+                      <option value="transgender">{t('buckets.transgender')}</option>
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">Email</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase">{t('buckets.email')}</label>
                     <input type="email" value={investForm.email} onChange={(e) => setInvestForm({ ...investForm, email: e.target.value })} className="input-field w-full mt-1" placeholder="you@example.com" />
                   </div>
                   <p className="text-xs font-bold text-gray-500 uppercase mt-2">{t('buckets.bankAccount')}</p>

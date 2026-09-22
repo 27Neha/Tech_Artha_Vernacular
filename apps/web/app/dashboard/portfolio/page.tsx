@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
+import { useRouter } from 'next/navigation';
 
 const HOLDINGS: any[] = []; // REAL DATA REQUIREMENT: Fetch from backend
 
@@ -98,10 +98,27 @@ export default function FullPortfolioPage() {
   const router = useRouter();
   const [tab, setTab] = useState<'overview' | 'holdings' | 'transactions' | 'sips' | 'statements'>('overview');
 
+  const [investorProfile, setInvestorProfile] = useState('');
   const [portfolio, setPortfolio] = useState({ totalInvested: 0, currentValue: 0, totalReturns: 0, holdings: [] });
   const [fetchingPortfolio, setFetchingPortfolio] = useState(true);
 
   useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        const res = await fetch(`${API_URL}/auth/profile`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.riskProfile?.category) {
+            const cat = data.riskProfile.category;
+            const formatted = cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase();
+            setInvestorProfile(formatted);
+          }
+        }
+      } catch (e) {}
+    };
+    fetchProfile();
+    
     const fetchPortfolio = async () => {
       const token = localStorage.getItem('access_token');
       if (!token) return;
@@ -139,7 +156,7 @@ export default function FullPortfolioPage() {
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/5 rounded-full blur-3xl"></div>
         
         <div className="flex items-center gap-3 mb-8 relative z-10">
-          <h1 className="text-3xl font-extrabold text-white">{t('port.title')}</h1>
+          <h1 className="text-3xl font-extrabold text-white">{t('port.myPortfolio')}</h1>
         </div>
         
         <div className="flex items-center justify-between mb-2 relative z-10">
@@ -160,7 +177,7 @@ export default function FullPortfolioPage() {
           </div>
 
           <div className="flex-1 pl-6">
-            <p className="text-white/70 text-[10px] uppercase font-bold mb-1 tracking-wider">{t('port.invested')}</p>
+            <p className="text-white/70 text-[10px] uppercase font-bold mb-1 tracking-wider">{t('port.amountInvested')}</p>
             <p className="text-white font-extrabold text-2xl mb-5">{fetchingPortfolio ? "₹..." : `₹${portfolio.totalInvested.toLocaleString("en-IN")}`}</p>
             
             <p className="text-white/70 text-[10px] uppercase font-bold mb-1 tracking-wider">{t('port.totalReturns')}</p>
@@ -191,8 +208,8 @@ export default function FullPortfolioPage() {
             {/* Real Data Requirement: Wait for actual portfolio calculations */}
             <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 flex flex-col items-center text-center">
               <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-2xl mb-4">📊</div>
-              <h3 className="font-extrabold text-[var(--dark)] mb-2">{t('port.noPortfolio')}</h3>
-              <p className="text-gray-400 text-xs max-w-[250px]"> {t('port.noPortfolioDesc')} </p>
+              <h3 className="font-extrabold text-[var(--dark)] mb-2">{t('port.noPortfolioHistory')}</h3>
+              <p className="text-gray-400 text-xs max-w-[250px]">Your portfolio overview will appear here once you make your first investment and the provider confirms it.</p>
               <button onClick={() => router.push('/buckets')} className="mt-6 text-xs font-bold text-white bg-[var(--primary)] px-6 py-3 rounded-xl shadow-md cursor-pointer hover:opacity-90">{t('port.exploreFunds')}</button>
             </div>
             
@@ -213,8 +230,8 @@ export default function FullPortfolioPage() {
               <h3 className="font-extrabold text-[var(--dark)] mb-4">{t('port.detailedRisk')}</h3>
               <p className="text-xs text-gray-500 mb-4 leading-relaxed bg-gray-50 p-3 rounded-lg border border-gray-100">{t('port.riskNote')}</p>
               
-              <div className="flex justify-between items-center py-2 border-b border-gray-50"><span className="text-xs font-bold text-gray-500">{t('port.investorRiskProfile')}</span><span className="text-xs font-extrabold text-[var(--dark)]">{t('port.modAggressive')}</span></div>
-              <div className="flex justify-between items-center py-2 border-b border-gray-50"><span className="text-xs font-bold text-gray-500">{t('port.portfolioRisk')}</span><span className="text-xs font-extrabold text-orange-600">{t('port.moderate')}</span></div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-50"><span className="text-xs font-bold text-gray-500">{t('port.investorRiskProfile')}</span><span className="text-xs font-extrabold text-[var(--dark)]">{investorProfile}</span></div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-50"><span className="text-xs font-bold text-gray-500">{t('port.portfolioRisk')}</span><span className="text-xs font-extrabold text-orange-600">{investorProfile}</span></div>
               <div className="flex justify-between items-center py-2"><span className="text-xs font-bold text-gray-500">{t('port.riskAlignment')}</span><span className="text-xs font-extrabold text-green-600">{t('port.optimal')}</span></div>
             </div>
             

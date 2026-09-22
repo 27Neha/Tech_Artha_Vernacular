@@ -2632,8 +2632,6 @@ body, html {
   }
 }
 
-<<<<<<< HEAD
-=======
 
 /* Hide Google Translate Toolbar */
 .goog-te-banner-frame { display: none !important; }
@@ -2734,3 +2732,205 @@ body, html { top: 0px !important; position: static !important; margin-top: 0px !
               #F8F9FB;
 }
 
+
+/* DARK MODE OVERRIDES */
+.dark {
+  --primary: #7b78ff;
+  --primary-light: #1e1b4b;
+  --orange: #fbad41;
+  --dark: #f8fafc;
+  --background: #0f172a;
+  --foreground: #f8fafc;
+}
+
+.dark body {
+  background-color: var(--background) !important;
+  background: var(--background) !important;
+  color: var(--foreground) !important;
+}
+
+.dark .bg-white {
+  background-color: #1e293b !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: #0f172a !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: #334155 !important;
+}
+
+.dark .border-gray-50 {
+  border-color: #1e293b !important;
+}
+
+.dark .border-gray-100 {
+  border-color: #334155 !important;
+}
+
+.dark .border-gray-200 {
+  border-color: #475569 !important;
+}
+
+.dark .text-gray-900, .dark .text-gray-800, .dark .text-black {
+  color: #f8fafc !important;
+}
+
+.dark .text-gray-700, .dark .text-gray-600 {
+  color: #e2e8f0 !important;
+}
+
+.dark .text-gray-500, .dark .text-gray-400 {
+  color: #94a3b8 !important;
+}
+
+.dark .bg-depth {
+  background: radial-gradient(circle at top right, rgba(30, 27, 75, 0.8) 0%, transparent 40%), radial-gradient(circle at bottom left, rgba(30, 27, 75, 0.6) 0%, transparent 40%), #0f172a !important;
+}
+
+
+.dark .bg-blue-50 {
+  background-color: rgba(60, 57, 133, 0.2) !important;
+}
+.dark .text-\[var\(--dark\)\] {
+  color: #f8fafc !important;
+}
+
+
+
+
+.dark .card, .dark .card-premium {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+
+.dark .bg-white\/80 { background-color: rgba(30, 41, 59, 0.8) !important; }
+.dark .bg-white\/70 { background-color: rgba(30, 41, 59, 0.7) !important; }
+.dark .bg-white\/60 { background-color: rgba(30, 41, 59, 0.6) !important; }
+
+
+/* UI ENHANCEMENTS FOR DARK MODE */
+
+.dark .text-gray-500, .dark .text-gray-400 {
+  color: #cbd5e1 !important; /* Brighter gray for readability */
+}
+.dark .bg-gray-50 {
+  background-color: #334155 !important; /* Lighter than body to stand out on cards */
+}
+.dark .border-\[var\(--primary\)\] {
+  border-color: #a5a3ff !important; /* Brighter purple for borders */
+}
+.dark .text-\[var\(--primary\)\] {
+  color: #a5a3ff !important; /* Brighter purple for text */
+}
+
+
+
+
+.dark .header-back-btn {
+  color: #102A54 !important; /* Force back button to stay dark on the white header */
+}
+
+
+
+.perspective-1000 { perspective: 1000px; }
+.transform-style-3d { transform-style: preserve-3d; }
+
+
+@keyframes shine { 100% { transform: translateX(100%); } }
+
+/* GLOBAL DARK MODE OVERRIDES */
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #121212 !important;
+  color: #E5E7EB !important;
+}
+
+html.dark .bg-white,
+html.dark .bg-gray-50,
+html.dark .bg-gray-100,
+html.dark .bg-gray-200 {
+  background-color: #1E1E1E !important;
+  color: #E5E7EB !important;
+}
+
+/* Escaping the special bracket tailwind class properly: */
+html.dark .bg-\[\#F8F9FB\] {
+  background-color: #1E1E1E !important;
+}
+
+html.dark .text-\[var\(--dark\)\],
+html.dark .text-gray-900,
+html.dark .text-gray-800,
+html.dark .text-gray-700,
+html.dark .text-black {
+  color: #F3F4F6 !important;
+}
+
+html.dark .text-gray-600,
+html.dark .text-gray-500,
+html.dark .text-gray-400 {
+  color: #9CA3AF !important;
+}
+
+html.dark .border,
+html.dark .border-b,
+html.dark .border-t,
+html.dark .border-gray-100,
+html.dark .border-gray-200,
+html.dark .border-gray-300 {
+  border-color: #374151 !important;
+}
+
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: #2D2D2D !important;
+  color: #F3F4F6 !important;
+  border-color: #4B5563 !important;
+}
+html.dark input::placeholder {
+  color: #6B7280 !important;
+}
+
+html.dark button.bg-gray-50,
+html.dark button.bg-white {
+  background-color: #374151 !important;
+  color: #F3F4F6 !important;
+}
+
+html.dark [role="dialog"],
+html.dark .fixed > .bg-white {
+  background-color: #1E1E1E !important;
+}
+
+html.dark img[alt*="Logo"],
+html.dark img[src*="logo"] {
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.7)) drop-shadow(0 0 10px rgba(255, 255, 255, 0.4)) !important;
+}
+
+html.dark .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+html.dark .text-blue-500 {
+  color: #60A5FA !important;
+}
+
+
+/* Hide native password reveal icons globally */
+input[type='password']::-ms-reveal,
+input[type='password']::-ms-clear {
+  display: none !important;
+}
+input[type='password']::-webkit-credentials-auto-fill-button {
+  display: none !important;
+  visibility: hidden;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+}

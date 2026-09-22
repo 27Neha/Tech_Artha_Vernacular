@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
+import { useRouter } from 'next/navigation';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -85,7 +85,7 @@ export default function FundsPage() {
     <div className="flex flex-col min-h-screen bg-[#F8F9FB]">
       {/* Search Header - Made extremely visible to ensure it's not hidden */}
       <div className="p-4 bg-[var(--primary)] shadow-md z-10 relative">
-        <h2 className="text-white font-extrabold text-lg mb-3">{t('funds.discovery')}</h2>
+        <h2 className="text-white font-extrabold text-lg mb-3">{t('funds.fundDiscovery')}</h2>
         <div className="flex items-center gap-2 bg-white rounded-xl px-4 py-3 shadow-inner">
           <span className="text-gray-400 text-lg">🔍</span>
           <input
@@ -122,12 +122,12 @@ export default function FundsPage() {
         {!query && (
           <div className="mt-4">
             <h3 className="font-extrabold text-[var(--dark)] mb-4 text-lg">
-              {riskFilter ? `${riskFilter} Funds` : 'Recommended For You'}
+              {riskFilter ? `${riskFilter} Funds` : 'For Your Risk Profile'}
             </h3>
             
             {riskFilter && !loading && filteredFunds.length > 0 && (
               <div className="flex flex-col gap-3 mt-2">
-                <p className="text-xs text-gray-500 mb-2">Showing top {riskFilter.toLowerCase()} funds from MFAPI:</p>
+                <p className="text-xs text-gray-500 mb-2">{t('funds.showingTopFunds')} {riskFilter.toLowerCase()} MFAPI:</p>
                 {filteredFunds.map((f: any, i: number) => (
                   <div key={i} className="card bg-white hover:border-[var(--primary)] cursor-pointer transition-all shadow-sm border border-gray-100 p-4 rounded-xl" onClick={() => router.push(`/funds/${f.schemeCode}`)}>
                     <div className="flex items-start justify-between">
@@ -147,7 +147,7 @@ export default function FundsPage() {
             {!riskFilter && recommended.length > 0 ? (
               <div className="flex flex-col gap-3">
                                 <div className="flex flex-col gap-2 mb-4">
-                  <p className="text-xs text-gray-500">{t('funds.basedOn')}</p>
+                  <p className="text-xs text-gray-500">{t('funds.basedOnProfile')}</p>
                   <div className="flex gap-2">
                     <button 
                       onClick={() => router.push('/risk')} 
@@ -181,7 +181,7 @@ export default function FundsPage() {
             ) : (
               <div className="text-center mt-12 opacity-50">
                 <span className="text-4xl block mb-3">📊</span>
-                <p className="text-sm font-bold">{t('funds.completeProfile')}</p>
+                <p className="text-sm font-bold">{t('funds.completeProfileRisk')}</p>
               </div>
             )}
           </div>

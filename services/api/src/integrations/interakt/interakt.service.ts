@@ -7,10 +7,11 @@ export class InteraktService {
   private readonly apiUrl = 'https://api.interakt.ai/v1/public/message/';
 
   async sendAuthenticationOtp(mobile: string, otpCode: string): Promise<void> {
-    const isEnabled = process.env.INTERAKT_OTP_ENABLED === 'true';
+    const rawEnabled = String(process.env.INTERAKT_OTP_ENABLED).trim().toLowerCase();
+    const isEnabled = rawEnabled === 'true';
 
     if (!isEnabled) {
-      this.logger.log(`Interakt OTP delivery is disabled (INTERAKT_OTP_ENABLED is false). Skipping actual API request for ${mobile}`);
+      this.logger.log(`Interakt OTP delivery is disabled (Value: '${rawEnabled}'). Skipping actual API request for ${mobile}`);
       return;
     }
 
@@ -41,8 +42,8 @@ export class InteraktService {
         phoneNumber,
         type: 'Template',
         template: {
-          name: 'techartha_signup_otp',
-          languageCode: 'en',
+          name: process.env.INTERAKT_OTP_TEMPLATE_NAME || 'techartha_signup_otp',
+          languageCode: process.env.INTERAKT_OTP_LANGUAGE || 'en',
           bodyValues: [otpCode],
           buttonValues: {
             '0': [otpCode],

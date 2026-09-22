@@ -449,5 +449,9 @@
   "signup.resendOtp": "Resend OTP",
   "signup.resendIn": "Resend in",
   "signup.didntReceive": "Didn't receive the code?",
-  "signup.verifyNumber": "Verify your number"
+  "signup.verifyNumber": "Verify your number",
+  "login.emailAddress": "Email Address",
+  "login.verifyEmail": "Verify your email",
+  "login.sendOtp": "Send OTP",
+  "login.changeEmail": "Change Email"
 }
