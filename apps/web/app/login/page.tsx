@@ -18,7 +18,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
 
   const [loginMethod, setLoginMethod] = useState<'otp' | 'password'>('otp');
-  const [otpChannel, setOtpChannel] = useState<'SMS' | 'WHATSAPP' | null>(null);
+  const [otpChannel, setOtpChannel] = useState<'SMS' | 'WHATSAPP' | 'EMAIL' | null>(null);
   const [password, setPassword] = useState('');
 
   const [smsTimer, setSmsTimer] = useState(0);
@@ -35,7 +35,7 @@ export default function LoginPage() {
     return () => clearInterval(interval);
   }, [smsTimer, waTimer]);
 
-  const handleSendOtp = async (channel: 'SMS' | 'WHATSAPP') => {
+  const handleSendOtp = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL') => {
     setOtpChannel(channel);
     setError('');
     setOtpHint('');
@@ -48,7 +48,7 @@ export default function LoginPage() {
       const res = await fetch(`${API_URL}/auth/login/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: phone, channel }),
+        body: JSON.stringify({ mobile: channel === 'EMAIL' ? undefined : phone, email: channel === 'EMAIL' ? phone : undefined, channel }),
       });
       const data = await res.json();
       if (res.status === 404) {
@@ -103,7 +103,7 @@ export default function LoginPage() {
       const res = await fetch(`${API_URL}/auth/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: phone, otp, type: 'login' }),
+        body: JSON.stringify({ mobile: otpChannel === 'EMAIL' ? undefined : phone, email: otpChannel === 'EMAIL' ? phone : undefined, otp, type: 'login' }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Invalid OTP');

@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Post, Get, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, Get, Put, UseGuards, BadRequestException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AccessTokenGuard, CurrentUser } from '../../common/auth';
 import type { AuthenticatedUser } from '../../common/auth';
@@ -21,19 +21,33 @@ export class AuthController {
   }
 
   @Post('signup/start')
-  async signupStart(@Body() body: { mobile: string; channel?: 'SMS' | 'WHATSAPP' | 'EMAIL' }) {
+  async signupStart(@Body() body: { mobile?: string; email?: string; channel?: 'SMS' | 'WHATSAPP' | 'EMAIL' }) {
+    if (body.channel === 'EMAIL') {
+      const email = body.email || (body.mobile?.includes(String.fromCharCode(64)) ? body.mobile : undefined); if (!email) throw new BadRequestException('Email is required for EMAIL channel'); body.email = email;
+      return this.authService.signupStartEmail(body.email);
+    }
+    if (!body.mobile) throw new BadRequestException('Mobile is required for SMS/WHATSAPP channel');
     return this.authService.signupStart(body.mobile, body.channel);
   }
 
   @Post('login/start')
-  async loginStart(@Body() body: { mobile: string; channel?: 'SMS' | 'WHATSAPP' | 'EMAIL' }) {
+  async loginStart(@Body() body: { mobile?: string; email?: string; channel?: 'SMS' | 'WHATSAPP' | 'EMAIL' }) {
+    if (body.channel === 'EMAIL') {
+      const email = body.email || (body.mobile?.includes(String.fromCharCode(64)) ? body.mobile : undefined); if (!email) throw new BadRequestException('Email is required for EMAIL channel'); body.email = email;
+      return this.authService.loginStartEmail(body.email);
+    }
+    if (!body.mobile) throw new BadRequestException('Mobile is required for SMS/WHATSAPP channel');
     return this.authService.loginStart(body.mobile, body.channel);
   }
 
   @Post('otp/verify')
   async dualFlowVerifyOtp(
-    @Body() body: { mobile: string; otp: string; type: 'login' | 'signup'; password?: string },
+    @Body() body: { mobile?: string; email?: string; otp: string; type: 'login' | 'signup'; password?: string },
   ) {
+    const email = body.email || (body.mobile?.includes(String.fromCharCode(64)) ? body.mobile : undefined); if (email) { body.email = email;
+      return this.authService.dualFlowVerifyOtpEmail(body.email, body.otp, body.type, body.password);
+    }
+    if (!body.mobile) throw new BadRequestException('Mobile is required');
     return this.authService.dualFlowVerifyOtp(body.mobile, body.otp, body.type, body.password);
   }
 
@@ -66,8 +80,6 @@ export class AuthController {
       throw new NotFoundException();
     }
     const result = await this.authService.sendOtp(body.mobile, 'SMS');
-    // Ensure we do not leak the devOtp to the frontend for this endpoint
-    delete result.devOtp;
     return result;
   }
 
@@ -89,5 +101,22 @@ export class AuthController {
   async updateMe(@CurrentUser() user: AuthenticatedUser, @Body() body: any) {
     return this.authService.updateProfile(user.id, body);
   }
+
+  @UseGuards(AccessTokenGuard)
+  @Get('profile')
+  async getProfile(@CurrentUser() user: AuthenticatedUser) {
+    return this.authService.getProfile(user.id);
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Put('profile')
+  async updateProfile(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { fullName?: string; dateOfBirth?: string; pan?: string; clientType?: string; referralCode?: string }
+  ) {
+    return this.authService.updateProfile(user.id, body);
+  }
+
+
 }
 

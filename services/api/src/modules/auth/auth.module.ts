@@ -5,6 +5,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
 import { AccessTokenGuard } from '../../common/auth';
 import { InteraktModule } from '../../integrations/interakt/interakt.module';
+import { EmailOtpProvider } from './email.provider';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { InteraktModule } from '../../integrations/interakt/interakt.module';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AccessTokenGuard],
+  providers: [AuthService, AccessTokenGuard, EmailOtpProvider],
   exports: [AuthService, AccessTokenGuard],
 })
 export class AuthModule {}

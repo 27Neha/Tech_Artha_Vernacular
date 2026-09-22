@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import '../i18n/i18n';
+import i18n from '../i18n/i18n';
 
 // All languages shown in the language selector.
 // Translations exist for en/hi/mr; others fall back to English strings automatically.
@@ -126,27 +126,27 @@ export function TranslationProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Language>('en');
 
   useEffect(() => {
-    // Force English ('en') on every browser refresh
-    const resolvedLang: Language = 'en';
+    const savedLang = localStorage.getItem('language');
+    const resolvedLang: Language = ALL_KNOWN_CODES.includes(savedLang as string) ? (savedLang as Language) : 'en';
 
     // 1. Unconditionally clear the googtrans cookie to prevent Google Translate from auto-translating
     const cookieDomain = window.location.hostname;
     document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
     document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=${cookieDomain}; path=/;`;
 
-    // 2. Unconditionally clear localStorage saved language to prevent state syncing issues
-    localStorage.setItem('language', 'en');
+    // 2. Save resolved language to localStorage
+    localStorage.setItem('language', resolvedLang);
 
-    // 3. Apply English state
+    // 3. Apply resolved language state
     setLang(resolvedLang);
+    i18n.changeLanguage(resolvedLang);
   }, []);
 
   const changeLang = (l: Language) => {
+    i18n.changeLanguage(l);
     setLang(l);
     localStorage.setItem('language', l);
-    if (typeof (window as any).changeGoogleTranslate === 'function') {
-      (window as any).changeGoogleTranslate(l);
-    }
+    /* if (typeof (window as any).changeGoogleTranslate === 'function') { (window as any).changeGoogleTranslate(l); } */
   };
 
   // t() always returns a string: uses the language's own translations if available,
