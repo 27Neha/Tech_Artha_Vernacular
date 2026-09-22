@@ -2,7 +2,7 @@
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 const SIP_DATES = [1, 5, 10, 15, 20, 25];
 
 const BUCKET_NAMES: Record<string, string> = {

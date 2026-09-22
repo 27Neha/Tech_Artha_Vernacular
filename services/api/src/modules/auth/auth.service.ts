@@ -217,6 +217,17 @@ export class AuthService {
     return { accessToken, access_token: accessToken, refreshToken, expiresAt, user: { id: user.id, mobile: user.mobile } };
   }
 
+  async createSessionForUser(user: any, deviceId?: string) {
+    const sessionId = crypto.randomUUID();
+    const refreshToken = crypto.randomUUID() + crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const accessToken = await this.jwtService.signAsync({ sub: user.id, mobile: user.mobile, sid: sessionId });
+    await this.prisma.session.create({
+      data: { id: sessionId, userId: user.id, token: this.hash(accessToken), refreshToken: this.hash(refreshToken), expiresAt, deviceId },
+    });
+    return { accessToken, refreshToken, expiresAt, user: { id: user.id, mobile: user.mobile } };
+  }
+
   async getProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

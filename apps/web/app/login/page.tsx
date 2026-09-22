@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslation } from '../TranslationProvider';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -51,6 +51,11 @@ export default function LoginPage() {
 
   const handleLogin = async () => {
     setError('');
+    if (!/^\d{10}$/.test(phone)) {
+      setError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
     if (loginMethod === 'password') {
       if (!password) { setError('Enter password.'); return; }
       setLoading(true);
@@ -71,7 +76,7 @@ export default function LoginPage() {
         setLoading(false);
       }
     } else {
-      setOtpSent(true);
+      await handleSendOtp('WHATSAPP');
     }
   };
 
@@ -160,7 +165,7 @@ export default function LoginPage() {
             
             <button
               onClick={handleLogin}
-              disabled={loading}
+              disabled={loading || phone.length !== 10}
               className="btn-primary mt-6"
             >
               <span>{loading ? 'Verifying...' : 'Continue securely'}</span>

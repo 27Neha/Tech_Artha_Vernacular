@@ -18,4 +18,16 @@ export class KycController {
   status(@CurrentUser() user: AuthenticatedUser) {
     return this.kycService.getKycStatus(user.id);
   }
+
+  @Post('digilocker/start')
+  @HttpCode(200)
+  generateDigilockerUrl(@CurrentUser() user: AuthenticatedUser, @Body() body: { redirectUrl: string }) {
+    return this.kycService.generateDigilockerUrl(user.id, body.redirectUrl);
+  }
+
+  @Post('esign/start')
+  @HttpCode(200)
+  generateEsignUrl(@CurrentUser() user: AuthenticatedUser, @Body() body: { redirectUrl: string }) {
+    return this.kycService.generateEsignUrl(user.id, body.redirectUrl);
+  }
 }

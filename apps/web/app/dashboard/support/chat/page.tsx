@@ -36,7 +36,7 @@ export default function ChatbotPage() {
 
     try {
       // In a real env, this calls the NestJS backend
-      const res = await fetch('http://localhost:3000/assistant/messages', {
+      const res = await fetch('/api/assistant/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

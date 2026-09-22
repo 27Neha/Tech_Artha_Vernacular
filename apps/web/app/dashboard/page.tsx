@@ -9,7 +9,7 @@ const LEARN_CARDS = [
   { icon: '📈', title: 'Reading Fund Performance', desc: 'Understand NAV, returns, and how to compare mutual funds.', time: '7 min read', slug: 'fund-performance' },
 ];
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 
 export default function DashboardPage() {
   const router = useRouter();

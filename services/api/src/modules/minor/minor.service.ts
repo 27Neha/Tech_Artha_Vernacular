@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
-import { MinorInvestorProfileEngine } from './minor-profile.engine';
+
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -18,8 +18,6 @@ export class MinorService {
         profile: true,
         guardian: true,
         guardianConsents: true,
-        minorAssessments: { orderBy: { completedAt: 'desc' }, take: 1 },
-        minorProfileResult: true,
         kycApplication: true
       }
     });
@@ -29,65 +27,16 @@ export class MinorService {
     const state = {
       investorType: user.profile?.investorType || 'ADULT',
       majorityDate: user.profile?.majorityDate,
-      hasRiskAssessment: user.minorAssessments.length > 0,
-      riskCategory: user.minorAssessments[0]?.riskCategory,
-      profileResult: user.minorProfileResult,
       hasGuardian: !!user.guardian,
       guardianVerified: user.guardian?.isMobileVerified || false,
-      hasConsent: user.guardianConsents.some(c => c.status === 'VERIFIED'),
+      hasConsent: user.guardianConsents.some((c: any) => c.status === 'VERIFIED'),
       kycStatus: user.kycApplication?.status || 'NOT_STARTED'
     };
 
     return state;
   }
 
-  async saveRiskAssessment(userId: string, data: any) {
-    const result = MinorInvestorProfileEngine.calculate(data.answers);
 
-    // Save legacy format to preserve integrity of older functions if needed
-    const assessment = await this.prisma.minorRiskAssessment.create({
-      data: {
-        userId,
-        assessmentType: 'MINOR_INVESTOR_PROFILE',
-        version: 'minor-v2',
-        answers: JSON.stringify(data.answers),
-        score: result.riskToleranceScore,
-        profileType: result.profileType,
-        riskCategory: result.profileTitle,
-        goal: result.goalLabel,
-        timeHorizon: result.timeHorizonScore >= 60 ? 'Long Term' : 'Short Term',
-        knowledgeLevel: result.knowledgeScore >= 70 ? 'Advanced' : 'Beginner',
-        riskComfort: result.riskToleranceScore >= 60 ? 'High' : 'Moderate'
-      }
-    });
-
-    // Save actual structured Profile Result
-    // Use upsert or delete previous to maintain 1-to-1 or just update
-    const existingResult = await this.prisma.minorInvestorProfileResult.findUnique({ where: { userId }});
-    if (existingResult) {
-      await this.prisma.minorInvestorProfileResult.delete({ where: { userId } });
-    }
-
-    const profileResult = await this.prisma.minorInvestorProfileResult.create({
-      data: {
-        userId,
-        assessmentId: assessment.id,
-        assessmentVersion: 'minor-v2',
-        riskToleranceScore: result.riskToleranceScore,
-        timeHorizonScore: result.timeHorizonScore,
-        knowledgeScore: result.knowledgeScore,
-        financialHabitScore: result.financialHabitScore,
-        goalType: result.goalType,
-        profileType: result.profileType,
-        profileTitle: result.profileTitle,
-        profileTagline: result.profileTagline,
-        profileConsistency: result.profileConsistency,
-        strengths: JSON.stringify(result.insights), // Store insights here for now
-      }
-    });
-
-    return { success: true, ...result };
-  }
 
   async saveGuardianDetails(userId: string, data: any) {
     const existing = await this.prisma.guardian.findUnique({ where: { minorUserId: userId } });
@@ -140,7 +89,25 @@ export class MinorService {
       data: { isMobileVerified: true, status: 'VERIFIED' }
     });
 
-    return { success: true };
+    let guardianUser = await this.prisma.user.findUnique({ where: { mobile } });
+    if (!guardianUser) {
+      guardianUser = await this.prisma.user.create({
+        data: { mobile, clientType: 'retail' }
+      });
+      // Optionally create an empty profile
+      await this.prisma.userProfile.create({
+        data: { userId: guardianUser.id, investorType: 'ADULT' }
+      });
+    }
+
+    const hasRiskProfile = await this.prisma.riskProfile.findUnique({ where: { userId: guardianUser.id } });
+    const session = await this.authService.createSessionForUser(guardianUser);
+
+    return { 
+      success: true,
+      hasRiskProfile: !!hasRiskProfile,
+      guardianToken: session.accessToken
+    };
   }
 
   async saveGuardianConsent(userId: string, data: { ipAddress?: string, method?: string }) {

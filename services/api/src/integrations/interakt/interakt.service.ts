@@ -63,7 +63,7 @@ export class InteraktService {
       this.logger.log(`Successfully sent WhatsApp OTP via Interakt to ${phoneNumber}`);
     } catch (error: any) {
       const status = error?.response?.status || 'Unknown';
-      this.logger.error(`Failed to send Interakt WhatsApp message. Status: ${status}`);
+      this.logger.error(`Failed to send Interakt WhatsApp message. Status: ${status}. Data: ${JSON.stringify(error?.response?.data || error.message)}`);
       throw new InternalServerErrorException('Failed to deliver WhatsApp OTP.');
     }
   }

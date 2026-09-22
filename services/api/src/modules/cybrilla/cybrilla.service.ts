@@ -434,4 +434,65 @@ export class CybrillaService {
     }
   }
 
+
+  async getKycRequest(id: string) {
+    await this.ensureAuthenticated();
+    const tenantId = process.env.CYBRILLA_TENANT_ID;
+    try {
+      const response = await axios.get(`${this.baseUrl}/v2/kyc_requests/${id}`, {
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          'x-tenant-id': tenantId,
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      this.logger.error(`Failed to fetch KYC request ${id}`);
+      throw error;
+    }
+  }
+
+  async generateDigilockerUrl(id: string, redirectUrl: string) {
+    await this.ensureAuthenticated();
+    const tenantId = process.env.CYBRILLA_TENANT_ID;
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/v2/kyc_requests/${id}/digilocker`,
+        { redirect_url: redirectUrl },
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+            'x-tenant-id': tenantId,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      return response.data;
+    } catch (error: any) {
+      this.logger.error(`Failed to generate Digilocker URL for ${id}`);
+      throw error;
+    }
+  }
+
+  async generateEsignUrl(id: string, redirectUrl: string) {
+    await this.ensureAuthenticated();
+    const tenantId = process.env.CYBRILLA_TENANT_ID;
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/v2/kyc_requests/${id}/esign`,
+        { redirect_url: redirectUrl },
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+            'x-tenant-id': tenantId,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      return response.data;
+    } catch (error: any) {
+      this.logger.error(`Failed to generate E-Sign URL for ${id}`);
+      throw error;
+    }
+  }
 }

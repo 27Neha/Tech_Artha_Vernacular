@@ -145,7 +145,7 @@ export default function RiskPage() {
   const [loading, setLoading] = useState(false);
 
   const q = QUESTIONS[current];
-  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 
   // When returning to a previous question, pre-select the answer
   useEffect(() => {
@@ -227,7 +227,7 @@ export default function RiskPage() {
         <div className="flex items-center gap-4 mb-4">
           <div className="flex-1 flex justify-between items-center">
             <h1 className="text-lg font-bold">Risk Assessment</h1>
-            <span className="text-sm opacity-80">Q{current + 1} of {QUESTIONS.length}</span>
+            <span key={`qnum-${current}`} className="text-sm opacity-80">Q{current + 1} of {QUESTIONS.length}</span>
           </div>
         </div>
         {/* Progress bar */}
@@ -240,10 +240,10 @@ export default function RiskPage() {
       </div>
 
       <div className="flex-1 p-6">
-        <div className="inline-block bg-[var(--primary-light)] text-[var(--primary)] text-sm font-bold px-4 py-2 rounded-full mb-4">
+        <div key={`chip-${current}`} className="inline-block bg-[var(--primary-light)] text-[var(--primary)] text-sm font-bold px-4 py-2 rounded-full mb-4">
           Question {current + 1}
         </div>
-        <h2 className="text-2xl font-extrabold text-[var(--dark)] leading-tight mb-8">
+        <h2 key={`text-${current}`} className="text-2xl font-extrabold text-[var(--dark)] leading-tight mb-8">
           {q.question}
         </h2>
 

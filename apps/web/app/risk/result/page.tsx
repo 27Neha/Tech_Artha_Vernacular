@@ -10,6 +10,21 @@ function ResultContent() {
   const score = scoreParam ? Number(scoreParam) : 0;
   const categoryParam = searchParams.get('category') || 'MODERATE';
   
+  const isGuardianFlow = typeof window !== 'undefined' && localStorage.getItem('is_guardian_risk_flow') === 'true';
+
+  const handleContinue = () => {
+    if (isGuardianFlow) {
+      const minorToken = localStorage.getItem('minor_token_backup');
+      if (minorToken) localStorage.setItem('access_token', minorToken);
+      localStorage.removeItem('is_guardian_risk_flow');
+      localStorage.removeItem('guardian_token');
+      localStorage.removeItem('minor_token_backup');
+      router.push('/onboarding/minor/consent');
+    } else {
+      router.push('/goals');
+    }
+  };
+
   let label = categoryParam.charAt(0).toUpperCase() + categoryParam.slice(1).toLowerCase();
   let desc = '';
   let rotation = 0;
@@ -75,7 +90,7 @@ function ResultContent() {
         </div>
 
         <div className="mt-8">
-          <button onClick={() => router.push('/goals')} className="btn-primary mb-4 w-full">
+          <button onClick={handleContinue} className="btn-primary mb-4 w-full">
             <span>Continue</span><span>→</span>
           </button>
 

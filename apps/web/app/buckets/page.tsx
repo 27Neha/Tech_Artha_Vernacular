@@ -23,7 +23,7 @@ const autoBalance = (funds: any[]) => {
   });
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 
 const emptyInvestForm = { amount: '', gender: 'male', email: '', bankAccountHolderName: '', bankAccountNumber: '', ifscCode: '', addressLine1: '', postalCode: '' };
 
@@ -83,7 +83,7 @@ function BucketsContent() {
     const fetchBuckets = async () => {
       try {
         const token = localStorage.getItem('access_token');
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000'}/buckets`, {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? '/api'}/buckets`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await res.json();

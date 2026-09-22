@@ -2,7 +2,7 @@
 import { useState } from 'react';
 
 export default function CybrillaSandboxPage() {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 
   // Investor Profile State
   const [profileData, setProfileData] = useState({

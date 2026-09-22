@@ -6,8 +6,6 @@ export default function MinorLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   
   const steps = [
-    { name: 'You', path: '/onboarding/minor/welcome' },
-    { name: 'Profile', path: '/onboarding/minor/investor-profile' },
     { name: 'Guardian', path: '/onboarding/minor/guardian' },
     { name: 'Consent', path: '/onboarding/minor/consent' },
     { name: 'Setup', path: '/onboarding/minor/review' }

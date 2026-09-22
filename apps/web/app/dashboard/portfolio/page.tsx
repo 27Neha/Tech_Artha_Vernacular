@@ -91,7 +91,7 @@ const downloadRealPDF = async (title: string) => {
   }
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 export default function FullPortfolioPage() {
   const router = useRouter();
   const [tab, setTab] = useState<'overview' | 'holdings' | 'transactions' | 'sips' | 'statements'>('overview');

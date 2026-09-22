@@ -29,14 +29,14 @@ export default function SignupPage() {
   const [panNumber, setPanNumber] = useState('');
   const [fullName, setFullName] = useState('');
   const [dob, setDob] = useState('');
-  const [panVerified, setPanVerified] = useState<'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED'>('PENDING');
+  const [panVerified, setPanVerified] = useState<'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED' | 'DIGILOCKER_REQUIRED' | 'ESIGN_REQUIRED'>('PENDING');
   const [faceVerified, setFaceVerified] = useState<'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED'>('PENDING');
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [transactionId, setTransactionId] = useState('');
   
-  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 
   const isPasswordStrong = password.length >= 8 && /[A-Z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password);
 
@@ -172,7 +172,7 @@ export default function SignupPage() {
       if (!res.ok) throw new Error(data.message || 'Failed to save profile');
       
       if (data.investorType === 'MINOR') {
-        router.push('/onboarding/minor/welcome');
+        router.push('/onboarding/minor/guardian');
       } else {
         setStep(3);
       }
@@ -254,7 +254,15 @@ export default function SignupPage() {
       
       setTransactionId(data.transactionId);
 
-      if (data.status === 'VERIFIED') { setPanVerified('SUCCESS'); } else { setPanVerified('FAILED'); }
+      if (data.status === 'VERIFIED') {
+          setPanVerified('SUCCESS');
+        } else if (data.status === 'PENDING' && data.fields_needed?.includes('aadhaar')) {
+          setPanVerified('DIGILOCKER_REQUIRED');
+        } else if (data.status === 'ESIGN_REQUIRED') {
+          setPanVerified('ESIGN_REQUIRED');
+        } else {
+          setPanVerified('FAILED');
+        }
     } catch (e: any) {
       setError(e.message);
       setPanVerified('FAILED');
@@ -541,7 +549,7 @@ export default function SignupPage() {
                 : 'bg-gray-300 cursor-not-allowed'
             }`}
           >
-            {panVerified === 'SUCCESS' ? 'Complete Onboarding' : 'KYC Pending'}
+            {panVerified === 'SUCCESS' ? 'Complete Onboarding' : (panVerified === 'DIGILOCKER_REQUIRED' ? 'DigiLocker Required' : (panVerified === 'ESIGN_REQUIRED' ? 'E-Sign Required' : 'KYC Pending'))}
           </button>
         </div>
       )}

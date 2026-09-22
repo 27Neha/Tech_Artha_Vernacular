@@ -38,9 +38,13 @@ export class KycService {
 
     let result: any;
     try {
-      result = await this.cybrilla.verifyPan(targetPan, fullName, targetDob);
+      const response = await this.cybrilla.createKycRequest({
+        pan: targetPan,
+        name: fullName,
+        date_of_birth: targetDob
+      });
+      result = response.data;
     } catch (e: any) {
-      // If it's our structured KYC_PROVIDER_ERROR, just update the status safely and bubble it up
       if (e.response?.code === 'KYC_PROVIDER_ERROR' || e.message?.includes('temporarily unavailable')) {
         await this.prisma.kYCApplication.update({
           where: { id: application.id },
@@ -50,14 +54,13 @@ export class KycService {
       throw e;
     }
 
-    const evaluated = this.evaluateVerification(result);
+    const evaluated = this.evaluateKycStatus(result);
 
     application = await this.prisma.kYCApplication.update({
       where: { id: application.id },
       data: { provider: 'CYBRILLA', providerTransactionId: result.id, ...evaluated },
     });
 
-    // Retain the submitted identity details so later steps (e.g. investing) don't need to ask again.
     await this.prisma.userProfile.upsert({
       where: { userId },
       update: { fullName, pan, dateOfBirth: new Date(dob) },
@@ -67,54 +70,69 @@ export class KycService {
     return {
       transactionId: result.id,
       status: evaluated.overallStatus,
+      fields_needed: result.fields_needed || [],
       providerResponse: result,
     };
   }
 
   async getKycStatus(userId: string) {
     let application = await this.prisma.kYCApplication.findUnique({
-      where: { userId },
-      include: { verifications: true },
+      where: { userId }
     });
 
-    if (application?.status === 'IN_PROGRESS' && application.providerTransactionId) {
+    if (application && application.providerTransactionId) {
       try {
-        const result = await this.cybrilla.fetchPreVerification(application.providerTransactionId);
-        const evaluated = this.evaluateVerification(result);
+        const result = await this.cybrilla.getKycRequest(application.providerTransactionId);
+        const evaluated = this.evaluateKycStatus(result);
 
         if (evaluated.overallStatus !== application.status) {
           application = await this.prisma.kYCApplication.update({
             where: { id: application.id },
             data: evaluated,
-            include: { verifications: true },
           });
         }
+        
+        return {
+          ...application,
+          fields_needed: result.fields_needed || []
+        };
       } catch (error) {
-        this.logger.warn(`Could not poll pre-verification status for user ${userId}: ${(error as Error).message}`);
+        this.logger.warn(`Could not poll KYC status for user \${userId}: \${(error as Error).message}`);
       }
     }
 
-    return application;
+    return { ...application, fields_needed: [] };
   }
 
-  /** Maps a Cybrilla pre-verification response onto our KYCApplication fields. */
-  private evaluateVerification(result: any) {
-    const fields = ['pan', 'name', 'date_of_birth'];
-    const allVerified = fields.every((field) => result[field]?.status === 'verified');
-    const overallStatus = result.status === 'completed' ? (allVerified ? 'VERIFIED' : 'FAILED') : 'IN_PROGRESS';
-    const failureReason = allVerified
-      ? null
-      : fields
-          .map((field) => (result[field]?.status === 'failed' ? `${field}: ${result[field]?.reason ?? result[field]?.code}` : null))
-          .filter(Boolean)
-          .join('; ') || null;
+  async generateDigilockerUrl(userId: string, redirectUrl: string) {
+    const application = await this.prisma.kYCApplication.findUnique({ where: { userId } });
+    if (!application || !application.providerTransactionId) {
+      throw new BadRequestException('KYC request not found');
+    }
+    return this.cybrilla.generateDigilockerUrl(application.providerTransactionId, redirectUrl);
+  }
+
+  async generateEsignUrl(userId: string, redirectUrl: string) {
+    const application = await this.prisma.kYCApplication.findUnique({ where: { userId } });
+    if (!application || !application.providerTransactionId) {
+      throw new BadRequestException('KYC request not found');
+    }
+    return this.cybrilla.generateEsignUrl(application.providerTransactionId, redirectUrl);
+  }
+
+  private evaluateKycStatus(result: any) {
+    let overallStatus = 'IN_PROGRESS';
+    if (result.status === 'successful') overallStatus = 'VERIFIED';
+    else if (result.status === 'failed') overallStatus = 'FAILED';
+    else if (result.status === 'pending') overallStatus = 'PENDING';
+    else if (result.status === 'esign_required') overallStatus = 'ESIGN_REQUIRED';
+    else if (result.status === 'submitted') overallStatus = 'SUBMITTED';
 
     return {
-      panStatus: result.pan?.status === 'verified' ? 'VERIFIED' : result.pan?.status === 'failed' ? 'FAILED' : 'PENDING',
       overallStatus,
       status: overallStatus,
-      failureReason,
-      completedAt: result.status === 'completed' ? new Date(result.completed_at ?? Date.now()) : null,
+      failureReason: result.failure_reason || null,
+      completedAt: result.status === 'successful' ? new Date(result.completed_at || Date.now()) : null,
     };
   }
 }
