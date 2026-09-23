@@ -1,8 +1,10 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 
 export default function WelcomeMinor() {
+  const { t } = useTranslation('common');
   const router = useRouter();
   const [isStarting, setIsStarting] = useState(false);
 
@@ -19,12 +21,12 @@ export default function WelcomeMinor() {
     <div className={`flex flex-col h-full bg-[#fafafa] relative overflow-hidden transition-opacity duration-300 ${isStarting ? 'opacity-0' : 'opacity-100'}`}>
       <div className="flex flex-col h-full justify-between relative z-10 px-6 pt-12 pb-8 max-w-xl mx-auto w-full">
         <div>
-          <p className="text-[#1653B0] font-bold text-xs tracking-wider uppercase mb-3">Your Investor Profile ✦</p>
+          <p className="text-[#1653B0] font-bold text-xs tracking-wider uppercase mb-3">{t('minor.yourInvestorProfileStar')}</p>
           <h1 className="text-4xl font-extrabold text-[var(--dark)] tracking-tight leading-[1.2] mb-4">
-            Your financial<br/>journey starts here.
+            {t('minor.yourFinancial')}<br/>{t('minor.journeyStartsHere')}
           </h1>
           <p className="text-gray-500 font-medium text-sm leading-relaxed max-w-[280px]">
-            10 quick questions to understand your goals, experience and how comfortable you are with investment ups and downs.
+            {t('minor.tenQuickQuestions')}
           </p>
         </div>
 
@@ -92,16 +94,16 @@ export default function WelcomeMinor() {
         <div className="flex flex-col mt-auto pt-4">
           {/* Subtle Info Chips */}
           <div className="flex justify-center gap-2 mb-6">
-            <span className="bg-white/80 border border-gray-100 text-gray-500 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full shadow-sm">10 questions</span>
-            <span className="bg-white/80 border border-gray-100 text-gray-500 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full shadow-sm">~2 min</span>
-            <span className="bg-white/80 border border-gray-100 text-gray-500 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full shadow-sm">Your Profile</span>
+            <span className="bg-white/80 border border-gray-100 text-gray-500 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full shadow-sm">{t('minor.tenQuestions')}</span>
+            <span className="bg-white/80 border border-gray-100 text-gray-500 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full shadow-sm">{t('minor.twoMin')}</span>
+            <span className="bg-white/80 border border-gray-100 text-gray-500 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full shadow-sm">{t('minor.yourProfileDesc')}</span>
           </div>
 
           <button 
             onClick={handleStart}
             disabled={isStarting}
             className="w-full bg-[var(--primary)] text-white py-4 rounded-2xl font-bold text-lg shadow-[0_8px_20px_rgba(22,83,176,0.15)] hover:-translate-y-0.5 hover:shadow-[0_12px_25px_rgba(22,83,176,0.2)] active:translate-y-0 active:scale-[0.99] transition-all duration-300 relative overflow-hidden group">
-            <span className="relative z-10">Start My Journey →</span>
+            <span className="relative z-10">{t('minor.startMyJourney')}</span>
           </button>
         </div>
       </div>

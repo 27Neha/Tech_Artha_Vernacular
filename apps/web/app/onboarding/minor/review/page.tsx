@@ -2,10 +2,12 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 export default function Review() {
+  const { t } = useTranslation('common');
   const router = useRouter();
   const [status, setStatus] = useState<any>(null);
   const [kycLoading, setKycLoading] = useState(false);
@@ -49,15 +51,15 @@ export default function Review() {
 
   return (
     <div className="flex flex-col h-full mt-4 animate-fade-in">
-      <h2 className="text-2xl font-bold text-[var(--dark)] mb-6">Everything looks ready</h2>
+      <h2 className="text-2xl font-bold text-[var(--dark)] mb-6">{t('minor.everythingReady')}</h2>
       
       <div className="space-y-4 flex-1">
         <div className="p-4 border border-green-100 bg-green-50 rounded-xl flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-xl">👤</span>
             <div>
-              <p className="font-semibold text-green-900">Minor Profile</p>
-              <p className="text-xs text-green-700">Completed</p>
+              <p className="font-semibold text-green-900">{t('minor.minorProfile')}</p>
+              <p className="text-xs text-green-700">{t('minor.completedStatus')}</p>
             </div>
           </div>
           <span className="text-green-600">✓</span>
@@ -67,7 +69,7 @@ export default function Review() {
           <div className="flex items-center gap-3">
             <span className="text-xl">💸</span>
             <div>
-              <p className="font-semibold text-green-900">Investor Profile</p>
+              <p className="font-semibold text-green-900">{t('minor.investorProfileReview')}</p>
               <p className="text-xs text-green-700">{status.riskCategory}</p>
             </div>
           </div>
@@ -78,8 +80,8 @@ export default function Review() {
           <div className="flex items-center gap-3">
             <span className="text-xl">👨‍👩‍👧</span>
             <div>
-              <p className="font-semibold text-green-900">Guardian Verification</p>
-              <p className="text-xs text-green-700">OTP Verified</p>
+              <p className="font-semibold text-green-900">{t('minor.guardianVerification')}</p>
+              <p className="text-xs text-green-700">{t('minor.otpVerified')}</p>
             </div>
           </div>
           <span className="text-green-600">✓</span>
@@ -89,8 +91,8 @@ export default function Review() {
           <div className="flex items-center gap-3">
             <span className="text-xl">📝</span>
             <div>
-              <p className="font-semibold text-green-900">Consent</p>
-              <p className="text-xs text-green-700">Digitally Signed</p>
+              <p className="font-semibold text-green-900">{t('minor.consentText')}</p>
+              <p className="text-xs text-green-700">{t('minor.digitallySigned')}</p>
             </div>
           </div>
           <span className="text-green-600">✓</span>

@@ -82,7 +82,7 @@ function ResultContent() {
           </button>
 
           <button onClick={() => router.push('/risk')} className="btn-outline w-full mb-8">
-            Retake Assessment
+            {t('risk.retakeAssessment')}
           </button>
         </div>
       </div>

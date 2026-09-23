@@ -5,7 +5,7 @@ import { useTranslation, SUPPORTED_LANGUAGES } from './TranslationProvider';
 
 export default function LanguagePage() {
   const router = useRouter();
-  const { setLang } = useTranslation();
+  const { t, setLang } = useTranslation('common');
   const [selected, setSelected] = useState<string | null>(null);
 
   const handleContinue = () => {
@@ -20,15 +20,15 @@ export default function LanguagePage() {
       <div className="flex-1 flex flex-col pt-8">
         <div className="flex justify-center mb-4">
           <span className="bg-indigo-50 text-[var(--primary)] text-xs font-extrabold px-3 py-1 rounded-full border border-indigo-100 uppercase tracking-widest">
-            Welcome to TechArtha
+            {t('welcome.welcomeToTechArtha')}
           </span>
         </div>
         <h1 className="text-3xl font-extrabold text-[var(--dark)] text-center mb-3 leading-tight">
-          Finance Simplified.<br/>
-          <span className="text-[var(--primary)]">Now in your language.</span>
+          {t('welcome.financeSimplified')}<br/>
+          <span className="text-[var(--primary)]">{t('welcome.nowInYourLanguage')}</span>
         </h1>
         <p className="text-gray-500 text-sm text-center mb-8 px-4">
-          Start your wealth creation journey in the language you are most comfortable with.
+          {t('welcome.startYourWealth')}
         </p>
 
         <div className="grid grid-cols-2 gap-3 mb-24 overflow-y-auto no-scrollbar notranslate" translate="no">
@@ -62,7 +62,7 @@ export default function LanguagePage() {
           disabled={!selected}
           className="btn-primary w-full"
         >
-          <span>Continue</span>
+          <span>{t('common.continue') || 'Continue'}</span>
           <span>→</span>
         </button>
       </div>

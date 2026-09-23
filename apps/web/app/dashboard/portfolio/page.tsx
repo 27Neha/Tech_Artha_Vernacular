@@ -209,7 +209,7 @@ export default function FullPortfolioPage() {
             <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 flex flex-col items-center text-center">
               <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-2xl mb-4">📊</div>
               <h3 className="font-extrabold text-[var(--dark)] mb-2">{t('port.noPortfolioHistory')}</h3>
-              <p className="text-gray-400 text-xs max-w-[250px]">Your portfolio overview will appear here once you make your first investment and the provider confirms it.</p>
+              <p className="text-gray-400 text-xs max-w-[250px]">{t('port.emptyOverview')}</p>
               <button onClick={() => router.push('/buckets')} className="mt-6 text-xs font-bold text-white bg-[var(--primary)] px-6 py-3 rounded-xl shadow-md cursor-pointer hover:opacity-90">{t('port.exploreFunds')}</button>
             </div>
             
@@ -422,7 +422,7 @@ export default function FullPortfolioPage() {
                 </div>
 
                 <div className="mb-6">
-                  <p className="text-xs font-extrabold text-[var(--primary)] mb-2 uppercase tracking-wider">Portfolio Summary</p>
+                  <p className="text-xs font-extrabold text-[var(--primary)] mb-2 uppercase tracking-wider">{t('port.portfolioSummaryUpper')}</p>
                   <table className="w-full text-[10px] text-left border-collapse">
                     <thead className="bg-gray-100 text-[var(--dark)] border border-gray-200">
                       <tr>
@@ -470,3 +470,4 @@ export default function FullPortfolioPage() {
     </div>
   );
 }
+

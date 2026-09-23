@@ -140,7 +140,7 @@ export default function LoginPage() {
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                  placeholder="10-digit number"
+                  placeholder={t('login.mobilePlaceholder', { defaultValue: '10-digit number' })}
                   className="flex-1 px-4 py-4 text-[var(--dark)] text-base focus:outline-none bg-transparent"
                   maxLength={10}
                 />
@@ -150,7 +150,7 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
+                placeholder={t('login.emailPlaceholder', { defaultValue: 'name@example.com' })}
                 className="input-field mb-4"
               />
             )}

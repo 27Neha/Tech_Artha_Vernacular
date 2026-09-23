@@ -108,6 +108,7 @@ export default function SignupPage() {
         throw new Error('An account already exists with this ' + (channel === 'EMAIL' ? 'email address' : 'mobile number') + '. Please Login Instead.');
       }
       if (!res.ok) throw new Error(data.message || 'Failed to send OTP');
+        if (data.devOtp) setOtpHint('Test OTP: ' + data.devOtp);
       
       if (channel === 'SMS') setSmsTimer(120);
       if (channel === 'WHATSAPP') setWaTimer(120);
@@ -289,7 +290,7 @@ export default function SignupPage() {
           <span>{error}</span>
           {error.includes('already exists') && (
             <button onClick={() => router.push('/login')} className="text-sm font-bold text-[var(--primary)] underline self-start">
-              Go to Log In
+              {t('signup.goToLogin') || 'Go to Log In'}
             </button>
           )}
         </div>
@@ -299,10 +300,10 @@ export default function SignupPage() {
         <div className="flex-1">
             <div className="flex gap-4 mb-4">
               <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="radio" checked={signupMethod === 'MOBILE'} onChange={() => { setSignupMethod('MOBILE'); setEmail(''); setPassword(''); setConfirmPassword(''); }} className="accent-[var(--primary)]" /> Number
+                <input type="radio" checked={signupMethod === 'MOBILE'} onChange={() => { setSignupMethod('MOBILE'); setEmail(''); setPassword(''); setConfirmPassword(''); }} className="accent-[var(--primary)]" /> {t('signup.mobileNumber') || 'Number'}
               </label>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="radio" checked={signupMethod === 'EMAIL'} onChange={() => { setSignupMethod('EMAIL'); setMobile(''); setPassword(''); setConfirmPassword(''); }} className="accent-blue-500" /> Email
+                <input type="radio" checked={signupMethod === 'EMAIL'} onChange={() => { setSignupMethod('EMAIL'); setMobile(''); setPassword(''); setConfirmPassword(''); }} className="accent-blue-500" /> {t('signup.emailAddress') || 'Email'}
               </label>
             </div>
             <label className="label">{signupMethod === 'EMAIL' ? (t('signup.emailAddress') || 'Email Address') : (t('signup.mobileNumber') || 'Mobile Number')}</label>
@@ -310,7 +311,7 @@ export default function SignupPage() {
               type={signupMethod === 'EMAIL' ? 'email' : 'text'} 
               value={signupMethod === 'EMAIL' ? email : mobile} 
               onChange={e => signupMethod === 'EMAIL' ? setEmail(e.target.value) : setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} 
-              placeholder={signupMethod === 'EMAIL' ? 'name@example.com' : '10-digit mobile number'} 
+              placeholder={signupMethod === 'EMAIL' ? t('signup.emailPlaceholder', { defaultValue: 'name@example.com' }) : t('signup.mobilePlaceholder', { defaultValue: '10-digit mobile number' })} 
               className="input-field" 
               maxLength={signupMethod === 'EMAIL' ? undefined : 10}
               inputMode={signupMethod === 'EMAIL' ? 'email' : 'numeric'}
@@ -361,9 +362,9 @@ export default function SignupPage() {
               </button>
             </div>
             
-            <label className="label mt-4">Confirm Password</label>
+            <label className="label mt-4">{t('signup.confirmPassword') || 'Confirm Password'}</label>
             <div className="relative flex items-center">
-              <input type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Confirm your password" className="input-field w-full pr-10 [&::-ms-reveal]:hidden [&::-webkit-contacts-auto-fill-button]:hidden [&::-webkit-credentials-auto-fill-button]:hidden" />
+              <input type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder={t('signup.confirmYourPassword') || 'Confirm your password'} className="input-field w-full pr-10 [&::-ms-reveal]:hidden [&::-webkit-contacts-auto-fill-button]:hidden [&::-webkit-credentials-auto-fill-button]:hidden" />
               <button 
                 type="button" 
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)} 
@@ -400,26 +401,27 @@ export default function SignupPage() {
             loading={loading}
             error={error}
             setError={setError}
+            otpHint={otpHint}
           />
         </div>
       )}
 
       {step === 2 && (
         <div className="flex-1 flex flex-col mt-8 animate-fade-in">
-          <h2 className="text-2xl font-bold text-[var(--dark)] mb-2">Tell us about yourself</h2>
-          <p className="text-sm text-gray-500 mb-8">We need a few details before verifying your identity.</p>
+          <h2 className="text-2xl font-bold text-[var(--dark)] mb-2">{t('signup.tellUsAboutYourself') || 'Tell us about yourself'}</h2>
+          <p className="text-sm text-gray-500 mb-8">{t('signup.needFewDetails') || 'We need a few details before verifying your identity.'}</p>
 
-          <label className="label">Full Name (As per PAN)</label>
-          <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="e.g. Neha Mahajan" className="input-field mb-4" />
+          <label className="label">{t('signup.fullNamePan') || 'Full Name (As per PAN)'}</label>
+          <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} placeholder={t('signup.namePlaceholder', { defaultValue: 'e.g. Neha Mahajan' })} className="input-field mb-4" />
           
-          <label className="label">Date of Birth</label>
+          <label className="label">{t('signup.dob') || 'Date of Birth'}</label>
           <input type="date" value={dob} onChange={e => setDob(e.target.value)} className="input-field mb-4" />
           
-          <label className="label">PAN Number</label>
-          <input type="text" value={panNumber} onChange={e => setPanNumber(e.target.value.toUpperCase())} placeholder="ABCDE1234F" maxLength={10} className="input-field uppercase mb-8" />
+          <label className="label">{t('signup.panNumber') || 'PAN Number'}</label>
+          <input type="text" value={panNumber} onChange={e => setPanNumber(e.target.value.toUpperCase())} placeholder={t('signup.panPlaceholder', { defaultValue: 'ABCDE1234F' })} maxLength={10} className="input-field uppercase mb-8" />
           
           <button onClick={handleSaveProfile} disabled={loading || !fullName || !dob || panNumber.length !== 10} className="btn-primary mt-auto">
-            <span>{loading ? 'Saving...' : 'Save & Continue'}</span><span>→</span>
+              <span>{loading ? 'Saving...' : (t('profile.continue') || 'Save & Continue')}</span><span>→</span>
           </button>
         </div>
       )}
@@ -427,15 +429,15 @@ export default function SignupPage() {
       {step === 3 && (
         <div className="flex-1 flex flex-col animate-fade-in">
           <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 mb-6">
-            <p className="text-sm text-amber-800 font-semibold mb-1">Identity Verification</p>
-            <p className="text-xs text-amber-700">Your PAN and KYC details are securely verified through Cybrilla.</p>
+            <p className="text-sm text-amber-800 font-semibold mb-1">{t('signup.identityVerification') || 'Identity Verification'}</p>
+            <p className="text-xs text-amber-700">{t('signup.panKycDesc') || 'Your PAN and KYC details are securely verified through Cybrilla.'}</p>
           </div>
           
           <div className="flex flex-col gap-4">
             <div className="border border-gray-100 rounded-xl p-5 bg-gray-50 flex flex-col gap-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-bold text-[var(--dark)]">PAN & KYC</h4>
+                  <h4 className="font-bold text-[var(--dark)]">{t('signup.panAndKyc')}</h4>
                   <p className="text-xs text-gray-500 mt-1">
                     {panVerified === 'PENDING' && 'Verification required'}
                     {panVerified === 'IN_PROGRESS' && 'Verification in progress'}
@@ -449,15 +451,15 @@ export default function SignupPage() {
                       {loading ? 'Starting...' : 'Verify Now'}
                     </button>
                   )}
-                  {panVerified === 'IN_PROGRESS' && <span className="text-gray-500 font-bold text-sm">⏳ Verifying...</span>}
-                  {panVerified === 'SUCCESS' && <span className="text-green-500 font-bold">✅ Verified</span>}
-                  {panVerified === 'FAILED' && <span className="text-red-500 font-bold">❌ Failed</span>}
+                  {panVerified === 'IN_PROGRESS' && <span className="text-gray-500 font-bold text-sm">{t('signup.verifyingStatus')}</span>}
+                  {panVerified === 'SUCCESS' && <span className="text-green-500 font-bold">{t('signup.verifiedStatus')}</span>}
+                  {panVerified === 'FAILED' && <span className="text-red-500 font-bold">{t('signup.failedStatus')}</span>}
                 </div>
               </div>
               
               {panVerified === 'FAILED' && (
                 <div className="bg-red-50 border border-red-100 rounded-lg p-3 mt-2">
-                   <p className="text-xs text-red-600 mb-3">{error || 'The details provided do not match your PAN records.'}</p>
+                   <p className="text-xs text-red-600 mb-3">{error || '{t('signup.panInvalid')}'}</p>
                    <button onClick={() => setStep(2)} className="w-full py-2 bg-white border border-red-200 text-red-600 font-bold rounded-md text-xs hover:bg-red-50 transition-colors">
                      Review Details
                    </button>

@@ -81,7 +81,7 @@ export default function ProfileResult() {
     <div className={'flex flex-col min-h-full bg-[#fafafa] transition-opacity duration-[1000ms] ' + (animateIn ? 'opacity-100' : 'opacity-0')}>
       
       <div className="px-6 pt-10 pb-4 text-center">
-        <p className="text-[#1653B0] font-bold text-xs tracking-wider uppercase mb-8">Your Investor Profile ✦</p>
+        <p className="text-[#1653B0] font-bold text-xs tracking-wider uppercase mb-8">{t('minor.yourInvestorProfileStar')}</p>
         
         <Shape3D risk={data.riskToleranceScore} time={data.timeHorizonScore} />
 
@@ -92,7 +92,7 @@ export default function ProfileResult() {
           {data.profileTagline}
         </p>
         <p className="text-gray-500 font-medium max-w-[280px] mx-auto text-sm italic">
-          "Your answers tell an interesting story about how you view your future."
+          {t('minor.interestingStory')}
         </p>
       </div>
 
@@ -107,7 +107,7 @@ export default function ProfileResult() {
       </div>
 
       <div className="px-6 py-8 bg-white my-4 border-y border-gray-100">
-        <h3 className="text-xs font-bold text-gray-400 tracking-[0.2em] mb-6 uppercase">Comfort with Ups &amp; Downs</h3>
+        <h3 className="text-xs font-bold text-gray-400 tracking-[0.2em] mb-6 uppercase">{t('minor.comfort')}</h3>
         
         <div className="relative h-1 bg-gray-100 rounded-full my-8">
           <div className="absolute top-[-4px] bottom-[-4px] w-[2px] bg-gray-300 left-1/2 -translate-x-1/2" />
@@ -154,7 +154,7 @@ export default function ProfileResult() {
         
         {showWhy && (
           <div className="mt-3 p-5 text-sm font-medium text-gray-600 bg-white rounded-2xl border border-gray-100 animate-[fadeIn_0.3s_ease-out]">
-            Your profile is mathematically calculated based on four dimensions: your time horizon, reaction to temporary losses, growth preference, and financial habits. 
+            {t('minor.calculated')} 
             <br/><br/>
             {data.profileConsistency === 'MIXED' && (
               <span className="text-[#E87731] font-bold block mb-2">{t('minor.oneThing')}</span>
@@ -168,7 +168,7 @@ export default function ProfileResult() {
       </div>
 
       <div className="px-6 py-10 bg-white mt-4 border-t border-gray-100">
-        <h3 className="text-xs font-bold text-gray-400 tracking-[0.2em] mb-8 uppercase">What's Next? 🚀</h3>
+        <h3 className="text-xs font-bold text-gray-400 tracking-[0.2em] mb-8 uppercase">{t('minor.whatsNextResult')}</h3>
         
         <div className="relative border-l-2 border-blue-50 ml-3 space-y-8 pb-8">
           
@@ -181,13 +181,13 @@ export default function ProfileResult() {
           <div className="relative pl-6">
             <div className="absolute left-[-9px] top-1 w-4 h-4 bg-white border-2 border-[var(--primary)] rounded-full" />
             <h4 className="font-bold text-[var(--dark)] text-sm mb-1">{t('minor.learnBasics')}</h4>
-            <p className="text-xs font-medium text-gray-500">Understand SIPs, risk, and time horizon before investing.</p>
+            <p className="text-xs font-medium text-gray-500">{t('minor.understandSips')}</p>
           </div>
 
           <div className="relative pl-6">
             <div className="absolute left-[-9px] top-1 w-4 h-4 bg-white border-2 border-[var(--primary)] rounded-full" />
-            <h4 className="font-bold text-[var(--dark)] text-sm mb-1">Bring your guardian</h4>
-            <p className="text-xs font-medium text-gray-500">Because you're under 18, a parent/legal guardian needs to verify this account.</p>
+            <h4 className="font-bold text-[var(--dark)] text-sm mb-1">{t('minor.bringGuardian')}</h4>
+            <p className="text-xs font-medium text-gray-500">{t('minor.guardianNeeded')}</p>
           </div>
 
         </div>
@@ -196,10 +196,10 @@ export default function ProfileResult() {
           onClick={() => router.push('/onboarding/minor/guardian')} 
           className="w-full bg-[var(--primary)] text-white py-4 rounded-2xl font-bold text-lg shadow-[0_8px_20px_rgba(22,83,176,0.15)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] transition-all duration-200"
         >
-          Continue with Guardian
+          {t('minor.continueWithGuardian')}
         </button>
         <p className="text-[10px] text-gray-400 text-center mt-4 px-4 font-medium leading-relaxed">
-          This profile reflects your answers and preferences. It does not guarantee returns or determine the performance of any investment product.
+          {t('minor.disclaimer')}
         </p>
       </div>
     </div>

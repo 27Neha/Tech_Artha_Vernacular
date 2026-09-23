@@ -5,7 +5,7 @@ import { useTranslation, SUPPORTED_LANGUAGES } from '../../TranslationProvider';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { lang, setLang } = useTranslation();
+  const { t, lang, setLang } = useTranslation('common');
   
   const [expanded, setExpanded] = useState<string | null>(null);
   const [pushEnabled, setPushEnabled] = useState(true);
@@ -41,7 +41,7 @@ export default function SettingsPage() {
     <div className="flex flex-col min-h-screen p-6 bg-gray-50 pb-32">
       <div className="flex items-center gap-4 mb-8">
         <button onClick={() => router.back()} className="text-3xl leading-none opacity-80 text-[var(--dark)]">‹</button>
-        <h1 className="text-2xl font-extrabold text-[var(--dark)]">Settings</h1>
+        <h1 className="text-2xl font-extrabold text-[var(--dark)]">{t('settings.title')}</h1>
       </div>
 
       <div className="flex flex-col gap-3">
@@ -50,8 +50,8 @@ export default function SettingsPage() {
           <button onClick={() => toggleExpand('Language')} className="w-full p-4 flex items-center gap-4 text-left">
             <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">🌐</div>
             <div className="flex-1">
-              <p className="font-bold text-[var(--dark)] text-sm">Language</p>
-              <p className="text-gray-400 text-xs mt-0.5">Change app language</p>
+              <p className="font-bold text-[var(--dark)] text-sm">{t('settings.language')}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t('settings.changeLang')}</p>
             </div>
             <span className={`text-gray-300 text-xl transition-transform ${expanded === 'Language' ? 'rotate-90' : ''}`}>›</span>
           </button>
@@ -74,7 +74,7 @@ export default function SettingsPage() {
         <div className="bg-white rounded-2xl border border-gray-100 transition-all shadow-sm overflow-hidden p-4 flex items-center gap-4 text-left">
           <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">🔔</div>
           <div className="flex-1">
-            <p className="font-bold text-[var(--dark)] text-sm">Push Notifications</p>
+            <p className="font-bold text-[var(--dark)] text-sm">{t('settings.pushNotif')}</p>
             <p className="text-gray-400 text-xs mt-0.5">SIPs, goals, and market updates</p>
           </div>
           <button 
@@ -90,7 +90,7 @@ export default function SettingsPage() {
           <button onClick={() => toggleExpand('App Theme')} className="w-full p-4 flex items-center gap-4 text-left">
             <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">🎨</div>
             <div className="flex-1">
-              <p className="font-bold text-[var(--dark)] text-sm">App Theme</p>
+              <p className="font-bold text-[var(--dark)] text-sm">{t('settings.appTheme')}</p>
               <p className="text-gray-400 text-xs mt-0.5">{theme.charAt(0).toUpperCase() + theme.slice(1)} Mode</p>
             </div>
             <span className={`text-gray-300 text-xl transition-transform ${expanded === 'App Theme' ? 'rotate-90' : ''}`}>›</span>
@@ -112,8 +112,8 @@ export default function SettingsPage() {
           <button onClick={() => toggleExpand('Help & Support')} className="w-full p-4 flex items-center gap-4 text-left">
             <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">❓</div>
             <div className="flex-1">
-              <p className="font-bold text-[var(--dark)] text-sm">Help & Support</p>
-              <p className="text-gray-400 text-xs mt-0.5">FAQs, Tutorials, and Contact Us</p>
+              <p className="font-bold text-[var(--dark)] text-sm">{t('settings.helpSupport')}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t('settings.helpDesc')}</p>
             </div>
             <span className={`text-gray-300 text-xl transition-transform ${expanded === 'Help & Support' ? 'rotate-90' : ''}`}>›</span>
           </button>
@@ -131,14 +131,14 @@ export default function SettingsPage() {
                 <a href="https://wa.me/918308816023" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl hover:border-green-500 transition-all">
                   <span className="text-xl">📱</span>
                   <div>
-                    <p className="text-sm font-bold text-[var(--dark)]">WhatsApp Support</p>
+                    <p className="text-sm font-bold text-[var(--dark)]">{t('settings.whatsapp')}</p>
                     <p className="text-xs text-gray-500">+91 8308816023</p>
                   </div>
                 </a>
                 <a href="mailto:support@TechArtha.com" className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl hover:border-blue-300 transition-all">
                   <span className="text-xl">✉️</span>
                   <div>
-                    <p className="text-sm font-bold text-[var(--dark)]">Email Support</p>
+                    <p className="text-sm font-bold text-[var(--dark)]">{t('settings.email')}</p>
                     <p className="text-xs text-gray-500">support@TechArtha.com</p>
                   </div>
                 </a>
