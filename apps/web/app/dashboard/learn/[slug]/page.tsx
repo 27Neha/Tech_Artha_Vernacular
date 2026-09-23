@@ -1,5 +1,6 @@
 'use client';
 import { useParams, useRouter } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 const ARTICLES = [
   { slug: 'what-is-mutual-fund', icon: '📈', title: 'What is a Mutual Fund?', desc: 'Learn how pooled investments work.', time: '5 min', tag: 'Beginner' },
   { slug: 'sip-vs-lump-sum', icon: '💡', title: 'SIP vs Lump Sum', desc: 'Which approach suits you better?', time: '4 min', tag: 'Beginner' },
@@ -89,18 +90,22 @@ Under recent tax laws in India, gains from international funds are classified as
 };
 
 export default function ArticlePage() {
+  const { t } = useTranslation('common');
   const params = useParams();
   const router = useRouter();
   
   const slug = params.slug as string;
   const article = ARTICLES.find(a => a.slug === slug);
-  const content = ARTICLE_CONTENT[slug];
+  const titleKey = "learn." + slug.replace(/-([a-z])/g, g => g[1].toUpperCase()) + ".title";
+  const tagKey = "learn." + slug.replace(/-([a-z])/g, g => g[1].toUpperCase()) + ".tag";
+  const contentKey = "learn." + slug.replace(/-([a-z])/g, g => g[1].toUpperCase()) + ".content";
+  const content = t(contentKey) !== contentKey ? t(contentKey) : ARTICLE_CONTENT[slug];
 
   if (!article || !content) {
     return (
       <div className="p-6 text-center mt-20">
-        <h1 className="text-2xl font-bold text-[var(--dark)]">Article not found</h1>
-        <button onClick={() => router.back()} className="mt-4 text-[var(--primary)] font-bold">Go Back</button>
+        <h1 className="text-2xl font-bold text-[var(--dark)]">{t('learn.articleNotFound')}</h1>
+        <button onClick={() => router.back()} className="mt-4 text-[var(--primary)] font-bold">{t('learn.goBack')}</button>
       </div>
     );
   }
@@ -126,13 +131,13 @@ export default function ArticlePage() {
       <div className="bg-[var(--primary-light)] p-8 pt-10 pb-12 flex flex-col items-center justify-center text-center rounded-b-[40px]">
         <span className="text-6xl mb-4 shadow-sm bg-white w-20 h-20 rounded-full flex items-center justify-center">{article.icon}</span>
         <span className="bg-white/80 text-[var(--primary)] text-xs font-bold px-3 py-1 rounded-full uppercase tracking-widest mb-3">
-          {article.tag}
+          {t(tagKey)}
         </span>
-        <h1 className="text-2xl md:text-3xl font-extrabold text-[var(--dark)] leading-tight">{article.title}</h1>
+        <h1 className="text-2xl md:text-3xl font-extrabold text-[var(--dark)] leading-tight">{t(titleKey)}</h1>
         <div className="flex items-center gap-2 mt-4 text-[var(--primary)] text-sm font-semibold">
-          <span>⏱️ {article.time} read</span>
+          <span>⏱️ {article.time.split(' ')[0]} {t('learn.minRead')}</span>
           <span>•</span>
-          <span>Expert Curated</span>
+          <span>{t('learn.expertCurated')}</span>
         </div>
       </div>
 
@@ -144,12 +149,14 @@ export default function ArticlePage() {
         
         {/* Footer Action */}
         <div className="mt-12 bg-gray-50 rounded-2xl p-6 border border-gray-100 text-center">
-          <p className="font-bold text-[var(--dark)] mb-2">Ready to apply what you've learned?</p>
+          <p className="font-bold text-[var(--dark)] mb-2">{t("learn.readyToApply") || "Ready to apply what you've learned?"}</p>
           <button onClick={() => router.push('/dashboard')} className="btn-primary w-full mt-2">
-            <span>Explore Funds</span>
+            <span>{t("dash.exploreFunds") || "Explore Funds"}</span>
           </button>
         </div>
       </div>
     </div>
   );
 }
+
+

@@ -244,7 +244,7 @@ export default function RiskPage() {
           Question {current + 1}
         </div>
         <h2 key={`text-${current}`} className="text-2xl font-extrabold text-[var(--dark)] leading-tight mb-8">
-          {q.question}
+          {t(`risk.q${q.id}.q`) !== `risk.q${q.id}.q` ? t(`risk.q${q.id}.q`) : q.question}
         </h2>
 
         <div className="flex flex-col gap-4">
@@ -268,7 +268,7 @@ export default function RiskPage() {
                   {String.fromCharCode(65 + i)}
                 </div>
                 <span className={`font-medium ${isSelected ? 'text-[var(--primary)] font-bold' : 'text-[var(--dark)]'}`}>
-                  {opt.label}
+                  {t(`risk.q${q.id}.${opt.score}`) !== `risk.q${q.id}.${opt.score}` ? t(`risk.q${q.id}.${opt.score}`) : opt.label}
                 </span>
               </button>
             );

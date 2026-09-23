@@ -47,7 +47,7 @@ export default function ParentalApprovalPage() {
 
         {!otpSent ? (
           <>
-            <label className="label">Parent's Mobile Number</label>
+            <label className="label">{t('parent.mobileNumber')}</label>
             <div className="flex items-center border border-gray-200 rounded-2xl bg-white overflow-hidden shadow-sm mb-6">
               <span className="px-4 py-4 text-[var(--dark)] font-bold border-r border-gray-200">+91</span>
               <input
@@ -75,7 +75,7 @@ export default function ParentalApprovalPage() {
               Approval request sent to +91 {parentMobile}
             </div>
             
-            <label className="label">Enter Approval OTP</label>
+            <label className="label">{t('parent.enterOtp')}</label>
             <input
               type="number"
               value={otp}
