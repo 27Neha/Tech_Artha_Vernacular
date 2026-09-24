@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { SafeAreaView, View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { SafeAreaView, View, Text, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { authStore } from '../store/auth';
 
 const SIP_DATES = [1, 5, 10, 15, 20, 25];
+
+// Matches App.tsx rather than the hardcoded LAN address this screen used to carry.
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export const PlanSummaryScreen = () => {
   const navigation = useNavigation<any>();
@@ -19,25 +22,33 @@ export const PlanSummaryScreen = () => {
   const handleConfirm = async () => {
     setLoading(true);
     try {
-      // Create Goal on backend
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.1.15:3000'}/goal/select`, {
+      // Create Goal on backend. The route is /goals (plural) and is behind
+      // AccessTokenGuard, so the bearer token is required - without it this 401s.
+      const response = await fetch(`${API_URL}/goals/select`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authStore.accessToken}`
+        },
+        // The server takes the user from the token; userId in the body was ignored.
         body: JSON.stringify({
-          userId: authStore.userId,
           name: goal,
           targetAmount: 1500000,
           timePeriod: 8,
           bucketName: bucket,
-          sipDate: selectedDate
+          sipDate: selectedDate,
+          consent
         })
       });
-      await response.json();
-      
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message ?? 'Could not save your plan.');
+
       // Navigate to Main Tabs (Home)
       navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
     } catch (e) {
-      console.error(e);
+      // Previously this screen navigated on to MainTabs even when the request failed,
+      // so a 404/401 looked like success and the goal was never saved.
+      Alert.alert('Could not save your plan', e instanceof Error ? e.message : 'Please try again.');
     } finally {
       setLoading(false);
     }
