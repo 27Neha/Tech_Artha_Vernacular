@@ -1,5 +1,6 @@
 'use client';
 import { useState, Suspense } from 'react';
+import { useTranslation } from '../TranslationProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
@@ -19,6 +20,7 @@ const GOAL_NAMES: Record<string, string> = {
 
 function PlanContent() {
   const router = useRouter();
+  const { t } = useTranslation();
   const searchParams = useSearchParams();
   const goal = searchParams.get('goal') ?? 'wealth';
   const bucket = searchParams.get('bucket') ?? 'balanced';
@@ -179,5 +181,6 @@ function PlanContent() {
 }
 
 export default function PlanPage() {
+  const { t } = useTranslation();
   return <Suspense><PlanContent /></Suspense>;
 }

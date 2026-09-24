@@ -21,7 +21,7 @@ const LANGUAGES = [
 
 export default function LanguagePage() {
   const router = useRouter();
-  const { t, setLang } = useTranslation('common');
+  const { t, setLang } = useTranslation();
   const [selected, setSelected] = useState<string | null>(null);
 
   const handleContinue = () => {

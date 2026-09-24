@@ -1,10 +1,11 @@
-﻿'use client';
+'use client';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useTranslation } from '../../TranslationProvider';
 import { SUPPORTED_LANGUAGES } from '../../TranslationProvider';
 
 export default function SettingsPage() {
+  const { t, lang, setLang } = useTranslation();
   const router = useRouter();
     
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -48,8 +49,7 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col min-h-screen p-6 bg-gray-50 pb-32">
       <div className="flex items-center gap-4 mb-8">
-        <button onClick={() => router.back()} className="text-3xl leading-none opacity-80 text-[var(--dark)]">‹</button>
-        <h1 className="text-2xl font-extrabold text-[var(--dark)]">{t('settings.title') || 'Settings'}</h1>
+<h1 className="text-2xl font-extrabold text-[var(--dark)]">{t('settings.title') || 'Settings'}</h1>
       </div>
 
       <div className="flex flex-col gap-3">

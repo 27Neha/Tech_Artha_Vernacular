@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useTranslation } from '../../TranslationProvider';
 import { useRouter } from 'next/navigation';
 
 const HOLDINGS: any[] = []; // REAL DATA REQUIREMENT: Fetch from backend
@@ -93,6 +94,7 @@ const downloadRealPDF = async (title: string) => {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 export default function FullPortfolioPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [tab, setTab] = useState<'overview' | 'holdings' | 'transactions' | 'sips' | 'statements'>('overview');
 

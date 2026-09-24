@@ -1,9 +1,11 @@
 'use client';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslation } from '../../TranslationProvider';
 import { Suspense } from 'react';
 
 function ResultContent() {
   const router = useRouter();
+  const { t } = useTranslation();
   const searchParams = useSearchParams();
   const scoreParam = searchParams.get('score');
   
@@ -104,6 +106,7 @@ function ResultContent() {
 }
 
 export default function RiskResultPage() {
+  const { t } = useTranslation();
   return (
     <Suspense fallback={<div className="min-h-screen bg-white"></div>}>
       <ResultContent />

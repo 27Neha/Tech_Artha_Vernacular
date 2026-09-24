@@ -114,7 +114,7 @@ export default function ArticlePage() {
   const formattedContent = content
     .trim()
     .split('\n\n')
-    .map((paragraph, idx) => {
+    .map((paragraph: string, idx: number) => {
       let html = paragraph
         .replace(/\*\*(.*?)\*\*/g, '<strong class="text-[var(--dark)]">$1</strong>') // Bold
         .replace(/\*(.*?)\*/g, '<em class="text-gray-600 italic">$1</em>') // Italic

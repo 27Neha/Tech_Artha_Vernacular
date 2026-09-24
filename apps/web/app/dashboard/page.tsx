@@ -1,5 +1,6 @@
 'use client';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from '../TranslationProvider';
 import { useState, useEffect } from 'react';
 
 const LEARN_CARDS = [
@@ -12,6 +13,7 @@ const LEARN_CARDS = [
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 
 export default function DashboardPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [profile, setProfile] = useState('');
   const [recommendedFunds, setRecommendedFunds] = useState<any[]>([]);

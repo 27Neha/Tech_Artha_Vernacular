@@ -38,6 +38,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 updateTheme();
               }
             });
+
+            // CRITICAL FIX FOR NEXT.JS + GOOGLE TRANSLATE CRASHES
+            // Safely swallow NotFoundError for insertBefore and removeChild when extensions hijack the DOM
+            if (typeof Node === 'function' && Node.prototype) {
+              var originalInsertBefore = Node.prototype.insertBefore;
+              Node.prototype.insertBefore = function(newNode, referenceNode) {
+                if (referenceNode && referenceNode.parentNode !== this) {
+                  return newNode;
+                }
+                return originalInsertBefore.call(this, newNode, referenceNode);
+              };
+              var originalRemoveChild = Node.prototype.removeChild;
+              Node.prototype.removeChild = function(child) {
+                if (child && child.parentNode !== this) {
+                  return child;
+                }
+                return originalRemoveChild.call(this, child);
+              };
+            }
           } catch (e) {}
         `}} />
       </head>

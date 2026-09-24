@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useTranslation } from '../TranslationProvider';
 import { useRouter } from 'next/navigation';
 
 const QUESTIONS = [
@@ -138,6 +139,7 @@ const QUESTIONS = [
 ];
 
 export default function RiskPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<number[]>([]);
