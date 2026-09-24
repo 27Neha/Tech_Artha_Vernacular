@@ -620,5 +620,19 @@
   "minor.calculated": "আপনার প্রোফাইল চারটি মাত্রার উপর ভিত্তি করে গণনা করা হয়: সময়কাল, ক্ষতিতে প্রতিক্রিয়া, বৃদ্ধির পছন্দ এবং আর্থিক অভ্যাস।",
   "minor.disclaimer": "এই প্রোফাইল আপনার উত্তর প্রতিফলিত করে। এটি রিটার্নের গ্যারান্টি দেয় না।",
   "signup.panInvalid": "প্রদত্ত বিবরণ আপনার প্যান রেকর্ডের সাথে মেলে না।",
-  "signup.or": "অথবা"
+  "signup.or": "অথবা",
+  "settings.permissions": "অনুমতি",
+  "settings.deviceNotif": "বিজ্ঞপ্তি",
+  "settings.statusAllowed": "অনুমোদিত",
+  "settings.statusDenied": "প্রত্যাখ্যান করা হয়েছে",
+  "settings.statusNotRequested": "অনুরোধ করা হয়নি",
+  "settings.manage": "পরিচালনা করুন",
+  "settings.enable": "সক্ষম করুন",
+  "settings.notifNotSupported": "এই ডিভাইসে বিজ্ঞপ্তি সমর্থিত নয়।",
+  "settings.notifEnableInstructions": "বিজ্ঞপ্তিগুলি সক্ষম করতে দয়া করে আপনার ডিভাইস সেটিংস খুলুন।",
+  "settings.notifAlreadyEnabled": "বিজ্ঞপ্তিগুলি ইতিমধ্যে সক্ষম করা আছে।",
+  "settings.privacyTitle": "গোপনীয়তা এবং নিরাপত্তা",
+  "settings.privacyDesc": "অ্যাপ লক, বায়োমেট্রিক্স এবং ডেটা গোপনীয়তা",
+  "settings.devicesTitle": "লিঙ্ক করা ডিভাইস",
+  "settings.devicesDesc": "আপনার অ্যাকাউন্টে লগ ইন করা ডিভাইসগুলি পরিচালনা করুন"
 }

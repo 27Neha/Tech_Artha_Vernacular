@@ -8,18 +8,43 @@ export default function SettingsPage() {
   const { t, lang, setLang } = useTranslation('common');
   
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [pushEnabled, setPushEnabled] = useState(true);
   const [theme, setTheme] = useState('system');
+  const [deviceNotifStatus, setDeviceNotifStatus] = useState<NotificationPermission | 'unknown'>('unknown');
 
   useEffect(() => {
-    setPushEnabled(localStorage.getItem('pushEnabled') !== 'false');
-    setTheme(localStorage.getItem('appTheme') || 'system');
+    const checkPerm = () => {
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        setDeviceNotifStatus(Notification.permission);
+      } else {
+        setDeviceNotifStatus('unknown');
+      }
+    };
+    checkPerm();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('visibilitychange', checkPerm);
+      window.addEventListener('focus', checkPerm);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('visibilitychange', checkPerm);
+        window.removeEventListener('focus', checkPerm);
+      }
+    };
   }, []);
 
-  const handleTogglePush = () => {
-    const newVal = !pushEnabled;
-    setPushEnabled(newVal);
-    localStorage.setItem('pushEnabled', String(newVal));
+  const handleManageDeviceNotif = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      alert(t('settings.notifNotSupported') || 'Notifications not supported on this device.');
+      return;
+    }
+    if (deviceNotifStatus === 'default' || deviceNotifStatus === 'unknown') {
+      const perm = await Notification.requestPermission();
+      setDeviceNotifStatus(perm);
+    } else if (deviceNotifStatus === 'denied') {
+      alert(t('settings.notifEnableInstructions') || 'Please open your app or device settings to enable notifications.');
+    } else {
+      alert(t('settings.notifAlreadyEnabled') || 'Notifications are already enabled. You can manage them in your device settings.');
+    }
   };
 
   const handleThemeChange = (newTheme: string) => {
@@ -29,7 +54,7 @@ export default function SettingsPage() {
   };
 
   const handleLangSelect = (newLang: string) => {
-    setLang(newLang as any); // changeLang in TranslationProvider also saves to localStorage
+    setLang(newLang as any);
   };
 
   const toggleExpand = (label: string) => {
@@ -39,8 +64,7 @@ export default function SettingsPage() {
 
   return (
     <div className="flex flex-col min-h-screen p-6 bg-gray-50 pb-32">
-      <div className="flex items-center gap-4 mb-8">
-        <button onClick={() => router.back()} className="text-3xl leading-none opacity-80 text-[var(--dark)]">‹</button>
+      <div className="mb-8">
         <h1 className="text-2xl font-extrabold text-[var(--dark)]">{t('settings.title')}</h1>
       </div>
 
@@ -70,19 +94,25 @@ export default function SettingsPage() {
           )}
         </div>
 
-        {/* PUSH NOTIFICATIONS SETTING */}
-        <div className="bg-white rounded-2xl border border-gray-100 transition-all shadow-sm overflow-hidden p-4 flex items-center gap-4 text-left">
-          <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">🔔</div>
-          <div className="flex-1">
-            <p className="font-bold text-[var(--dark)] text-sm">{t('settings.pushNotif')}</p>
-            <p className="text-gray-400 text-xs mt-0.5">SIPs, goals, and market updates</p>
+        {/* DEVICE PERMISSIONS */}
+        <div className="bg-white rounded-2xl border border-gray-100 transition-all shadow-sm overflow-hidden p-4 flex flex-col gap-3 text-left">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">{t('settings.permissions') || 'Permissions'}</p>
+          
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">🔔</div>
+            <div className="flex-1">
+              <p className="font-bold text-[var(--dark)] text-sm">{t('settings.deviceNotif') || 'Notifications'}</p>
+              <p className="text-xs mt-0.5" style={{ color: deviceNotifStatus === 'granted' ? '#10B981' : deviceNotifStatus === 'denied' ? '#EF4444' : '#9CA3AF' }}>
+                {deviceNotifStatus === 'granted' ? (t('settings.statusAllowed') || 'Allowed') : deviceNotifStatus === 'denied' ? (t('settings.statusDenied') || 'Denied') : (t('settings.statusNotRequested') || 'Not requested')}
+              </p>
+            </div>
+            <button 
+              onClick={handleManageDeviceNotif}
+              className={`text-xs font-bold px-4 py-2 rounded-xl transition-all ${deviceNotifStatus === 'granted' ? 'bg-gray-100 text-gray-700' : 'bg-[var(--primary)] text-white shadow-sm'}`}
+            >
+              {deviceNotifStatus === 'granted' ? (t('settings.manage') || 'Manage') : (t('settings.enable') || 'Enable')}
+            </button>
           </div>
-          <button 
-            onClick={handleTogglePush}
-            className={`w-12 h-6 rounded-full transition-all relative ${pushEnabled ? 'bg-[var(--primary)]' : 'bg-gray-200'}`}
-          >
-            <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow-sm ${pushEnabled ? 'left-[26px]' : 'left-0.5'}`}></div>
-          </button>
         </div>
 
         {/* APP THEME SETTING */}
@@ -97,10 +127,10 @@ export default function SettingsPage() {
           </button>
           {expanded === 'App Theme' && (
             <div className="px-4 pb-4 pt-1 flex flex-col gap-2 border-t border-gray-50">
-              {['light', 'dark', 'system'].map((t) => (
-                <button key={t} onClick={() => handleThemeChange(t)} className={`flex items-center justify-between p-3 rounded-xl border ${theme === t ? 'bg-blue-50 border-[var(--primary)] text-[var(--primary)]' : 'border-gray-100 text-[var(--dark)]'}`}>
-                  <span className="font-bold text-sm capitalize">{t}</span>
-                  {theme === t && <span className="font-bold">✓</span>}
+              {['light', 'dark', 'system'].map((tType) => (
+                <button key={tType} onClick={() => handleThemeChange(tType)} className={`flex items-center justify-between p-3 rounded-xl border ${theme === tType ? 'bg-blue-50 border-[var(--primary)] text-[var(--primary)]' : 'border-gray-100 text-[var(--dark)]'}`}>
+                  <span className="font-bold text-sm capitalize">{tType}</span>
+                  {theme === tType && <span className="font-bold">✓</span>}
                 </button>
               ))}
             </div>
@@ -149,14 +179,14 @@ export default function SettingsPage() {
 
         {/* OTHER SETTINGS (Mocked) */}
         {[
-          { icon: '🔒', label: 'Privacy & Security', desc: 'App Lock, Biometrics, and Data Privacy' },
-          { icon: '📱', label: 'Linked Devices', desc: 'Manage devices logged into your account' },
+          { icon: '🔒', label: 'Privacy & Security', desc: 'App Lock, Biometrics, and Data Privacy', key: 'privacy' },
+          { icon: '📱', label: 'Linked Devices', desc: 'Manage devices logged into your account', key: 'devices' },
         ].map((item) => (
-          <button key={item.label} onClick={() => alert(`${item.label} configuration coming soon!`)} className="bg-white p-4 rounded-2xl flex items-center gap-4 text-left border border-gray-100 hover:border-[var(--primary)] transition-all shadow-sm">
+          <button key={item.label} onClick={() => alert(`${t('settings.' + item.key + 'Title') || item.label} configuration coming soon!`)} className="bg-white p-4 rounded-2xl flex items-center gap-4 text-left border border-gray-100 hover:border-[var(--primary)] transition-all shadow-sm">
             <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">{item.icon}</div>
             <div className="flex-1">
-              <p className="font-bold text-[var(--dark)] text-sm">{item.label}</p>
-              <p className="text-gray-400 text-xs mt-0.5">{item.desc}</p>
+              <p className="font-bold text-[var(--dark)] text-sm">{t('settings.' + item.key + 'Title') || item.label}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t('settings.' + item.key + 'Desc') || item.desc}</p>
             </div>
             <span className="text-gray-300 text-xl">›</span>
           </button>
@@ -170,7 +200,7 @@ export default function SettingsPage() {
         }}
         className="w-full mt-8 py-4 rounded-2xl bg-white border border-red-100 text-red-500 font-extrabold hover:bg-red-50 transition-all shadow-sm"
       >
-        Sign Out
+        {t('settings.logout') || 'Sign Out'}
       </button>
 
       <p className="text-xs text-gray-400 text-center mt-10">TechArtha v1.0.0 (Build 42)</p>
