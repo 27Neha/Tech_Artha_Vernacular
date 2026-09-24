@@ -108,9 +108,9 @@ export default function SettingsPage() {
             </div>
             <button 
               onClick={handleManageDeviceNotif}
-              className={`text-xs font-bold px-4 py-2 rounded-xl transition-all ${deviceNotifStatus === 'granted' ? 'bg-gray-100 text-gray-700' : 'bg-[var(--primary)] text-white shadow-sm'}`}
+              className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${deviceNotifStatus === 'granted' ? 'bg-[var(--primary)]' : 'bg-gray-200'}`}
             >
-              {deviceNotifStatus === 'granted' ? (t('settings.manage') || 'Manage') : (t('settings.enable') || 'Enable')}
+              <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow-sm ${deviceNotifStatus === 'granted' ? 'left-[26px]' : 'left-0.5'}`}></div>
             </button>
           </div>
         </div>
