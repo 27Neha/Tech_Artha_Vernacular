@@ -6,7 +6,7 @@ export default function GoogleTranslateWidget() {
   useEffect(() => {
     (window as any).googleTranslateElementInit = () => {
       new (window as any).google.translate.TranslateElement(
-        { pageLanguage: 'en', autoDisplay: false },
+        { pageLanguage: 'en', includedLanguages: 'en,hi,mr,gu,bn,ta,te,kn,ml,pa,or,as', autoDisplay: false },
         'google_translate_element'
       );
     };
