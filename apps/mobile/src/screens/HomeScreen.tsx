@@ -1,16 +1,16 @@
 import React, { useMemo } from 'react';
 import { SafeAreaView, View, Text, Pressable, ScrollView, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useNavigation } from '@react-navigation/native';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
-import { Screen } from '../types';
 
 interface HomeScreenProps {
-  setScreen: (screen: Screen) => void;
   name: string;
 }
 
-export const HomeScreen = ({ setScreen, name }: HomeScreenProps) => {
+export const HomeScreen = ({ name }: HomeScreenProps) => {
+  const navigation = useNavigation<any>();
   const greeting = useMemo(() => (name.trim() ? name.trim().split(' ')[0] : 'there'), [name]);
 
   return (
@@ -26,7 +26,7 @@ export const HomeScreen = ({ setScreen, name }: HomeScreenProps) => {
           <Text style={styles.balanceLabel}>YOUR INVESTMENT JOURNEY</Text>
           <Text style={styles.balance}>₹0</Text>
           <Text style={styles.balanceSub}>Start with as little as ₹100</Text>
-          <Pressable style={styles.lightButton} onPress={() => setScreen('funds')}>
+          <Pressable style={styles.lightButton} onPress={() => navigation.navigate('Funds')}>
             <Text style={styles.lightButtonText}>Explore investments</Text>
           </Pressable>
         </View>
@@ -45,7 +45,7 @@ export const HomeScreen = ({ setScreen, name }: HomeScreenProps) => {
           <Text style={styles.arrow}>›</Text>
         </Pressable>
         
-        <Pressable style={styles.learningCard} onPress={() => setScreen('funds')}>
+        <Pressable style={styles.learningCard} onPress={() => navigation.navigate('Funds')}>
           <Text style={styles.cardIcon}>📈</Text>
           <View>
             <Text style={styles.cardTitle}>Explore mutual funds</Text>

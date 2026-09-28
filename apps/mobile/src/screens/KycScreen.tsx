@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
 import { Screen } from '../types';
-import { authStore } from '../store/auth';
+import { api } from '../services/api/client';
 import { useNavigation } from '@react-navigation/native';
 
 interface KycScreenProps {
@@ -15,11 +15,10 @@ interface KycScreenProps {
   setPan: (pan: string) => void;
   consent: boolean;
   setConsent: (consent: boolean) => void;
-  apiUrl: string;
 }
 
 export const KycScreen = ({ 
-  phone, name, setName, pan, setPan, consent, setConsent, apiUrl 
+  phone, name, setName, pan, setPan, consent, setConsent 
 }: KycScreenProps) => {
   const navigation = useNavigation<any>();
   const [kycSubmitting, setKycSubmitting] = useState(false);
@@ -36,19 +35,15 @@ export const KycScreen = ({
       // KycController is mounted at 'api/v1/kyc'. Most controllers (auth, funds, goals,
       // risk) are bare, so this prefix is easy to miss - it is the only reason this
       // call used to 404.
-      const response = await fetch(`${apiUrl}/api/v1/kyc/start`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authStore.accessToken}`
-        },
-        // The server identifies the user from the bearer token and reads only these
-        // three fields; userId/mobile/consent in the body were silently ignored.
-        body: JSON.stringify({ fullName: name.trim(), pan, dob })
+      // The server identifies the user from the bearer token (attached by the api
+      // client) and reads only these three fields; userId/mobile/consent in the body
+      // were silently ignored.
+      const result = await api.post<{ message?: string }>('/api/v1/kyc/start', {
+        fullName: name.trim(),
+        pan,
+        dob,
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.message ?? 'KYC could not be started.');
-      Alert.alert('KYC Verified', result.message || 'Verification complete!', [
+      Alert.alert('KYC Verified', result?.message || 'Verification complete!', [
         { text: 'OK', onPress: () => navigation.navigate('RiskAssessment') }
       ]);
     } catch (error) { 

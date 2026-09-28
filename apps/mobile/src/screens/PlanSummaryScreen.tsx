@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { SafeAreaView, View, Text, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { authStore } from '../store/auth';
+import { api } from '../services/api/client';
 
 const SIP_DATES = [1, 5, 10, 15, 20, 25];
 
@@ -24,24 +24,14 @@ export const PlanSummaryScreen = () => {
     try {
       // Create Goal on backend. The route is /goals (plural) and is behind
       // AccessTokenGuard, so the bearer token is required - without it this 401s.
-      const response = await fetch(`${API_URL}/goals/select`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authStore.accessToken}`
-        },
-        // The server takes the user from the token; userId in the body was ignored.
-        body: JSON.stringify({
-          name: goal,
-          targetAmount: 1500000,
-          timePeriod: 8,
-          bucketName: bucket,
-          sipDate: selectedDate,
-          consent
-        })
+      await api.post('/goals/select', {
+        name: goal,
+        targetAmount: 1500000,
+        timePeriod: 8,
+        bucketName: bucket,
+        sipDate: selectedDate,
+        consent,
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.message ?? 'Could not save your plan.');
 
       // Navigate to Main Tabs (Home)
       navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });

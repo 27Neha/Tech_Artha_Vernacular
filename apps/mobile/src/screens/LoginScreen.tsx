@@ -4,16 +4,17 @@ import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
 import { Screen } from '../types';
-import { authStore } from '../store/auth';
+import { api } from '../services/api/client';
+import { Session, useAuth } from '../store/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 
 interface LoginScreenProps {
   phone: string;
   setPhone: (phone: string) => void;
-  apiUrl: string;
 }
 
-export const LoginScreen = ({ phone, setPhone, apiUrl }: LoginScreenProps) => {
+export const LoginScreen = ({ phone, setPhone }: LoginScreenProps) => {
+  const { signIn } = useAuth();
   const navigation = useNavigation<any>();
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
@@ -26,15 +27,9 @@ export const LoginScreen = ({ phone, setPhone, apiUrl }: LoginScreenProps) => {
     
     setLoading(true);
     try {
-      const response = await fetch(`${apiUrl}/auth/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: phone })
-      });
-      const result = await response.json();
-      
-      if (!response.ok) throw new Error(result.message || 'Failed to send OTP');
-      
+      // Public route - no bearer token exists yet.
+      await api.post('/auth/send-otp', { mobile: phone }, { anonymous: true });
+
       setOtpSent(true);
       Alert.alert('OTP Sent', 'An OTP has been sent to your mobile number.');
     } catch (error) {
@@ -51,19 +46,17 @@ export const LoginScreen = ({ phone, setPhone, apiUrl }: LoginScreenProps) => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${apiUrl}/auth/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: phone, otp })
-      });
-      const result = await response.json();
-      
-      if (!response.ok) throw new Error(result.message || 'Failed to verify OTP');
-      
-      // Store credentials in memory store
-      authStore.accessToken = result.access_token;
-      authStore.userId = result.user?.id;
-      
+      const session = await api.post<Session>(
+        '/auth/verify-otp',
+        { mobile: phone, otp },
+        { anonymous: true },
+      );
+
+      // Persists to the device keychain and flips the navigator into the signed-in
+      // stack; the old code only assigned to an in-memory object, so the session was
+      // lost on every restart and no component re-rendered.
+      await signIn(session);
+
       navigation.navigate('KYC');
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Invalid OTP. Please try again.');

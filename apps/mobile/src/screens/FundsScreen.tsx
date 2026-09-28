@@ -1,16 +1,13 @@
 import React, { useState } from 'react';
 import { SafeAreaView, View, Text, TextInput, Pressable, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useNavigation } from '@react-navigation/native';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
-import { Screen } from '../types';
+import { api } from '../services/api/client';
 
-interface FundsScreenProps {
-  setScreen: (screen: Screen) => void;
-  apiUrl: string;
-}
-
-export const FundsScreen = ({ setScreen, apiUrl }: FundsScreenProps) => {
+export const FundsScreen = () => {
+  const navigation = useNavigation<any>();
   const [fundQuery, setFundQuery] = useState('');
   const [funds, setFunds] = useState<Array<{ schemeCode: number; schemeName: string }>>([]);
   const [loading, setLoading] = useState(false);
@@ -19,9 +16,13 @@ export const FundsScreen = ({ setScreen, apiUrl }: FundsScreenProps) => {
     if (!fundQuery.trim()) return;
     setLoading(true);
     try {
-      const response = await fetch(`${apiUrl}/funds/search?q=${encodeURIComponent(fundQuery.trim())}`);
-      if (!response.ok) throw new Error('Search failed');
-      setFunds(await response.json());
+      // /funds/search answers { source, authoritativeForTransactions, items } - the old
+      // code assigned that whole object to an array state, so results never rendered.
+      const data = await api.get<{ items: Array<{ schemeCode: number; schemeName: string }> }>(
+        `/funds/search?q=${encodeURIComponent(fundQuery.trim())}`,
+        { anonymous: true },
+      );
+      setFunds(data?.items ?? []);
     } catch { 
       Alert.alert('Could not load funds', 'Please check your connection and try again.'); 
     } finally { 
@@ -32,7 +33,7 @@ export const FundsScreen = ({ setScreen, apiUrl }: FundsScreenProps) => {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
-      <Header title="Explore funds" back="home" onBack={setScreen} />
+      <Header title="Explore funds" onBack={() => navigation.goBack()} />
       <View style={styles.page}>
         <Text style={styles.title}>Find a fund</Text>
         <Text style={styles.description}>Search mutual funds and view their latest NAV.</Text>

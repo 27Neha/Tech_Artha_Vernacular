@@ -1,18 +1,18 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { styles } from '../theme/styles';
-import { Screen } from '../types';
 
 interface HeaderProps {
   title: string;
-  back?: Screen;
-  onBack?: (screen: Screen) => void;
+  /** Present only for backward compatibility with callers that still pass it. */
+  back?: string;
+  onBack?: () => void;
 }
 
 export const Header = ({ title, back, onBack }: HeaderProps) => (
   <View style={styles.header}>
-    {back && onBack ? (
-      <Pressable onPress={() => onBack(back)}>
+    {onBack ? (
+      <Pressable onPress={onBack}>
         <Text style={styles.back}>‹</Text>
       </Pressable>
     ) : (

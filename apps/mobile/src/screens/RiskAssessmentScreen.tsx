@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { SafeAreaView, View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { SafeAreaView, View, Text, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
-import { authStore } from '../store/auth';
+import { api } from '../services/api/client';
 
 const QUESTIONS = [
   {
@@ -73,18 +73,16 @@ export const RiskAssessmentScreen = () => {
       // Submit
       setLoading(true);
       try {
-        const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'}/risk/calculate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: authStore.userId,
-            answers: Object.values(answers)
-          })
-        });
-        const result = await response.json();
+        // The server identifies the user from the bearer token; userId in the body was
+        // ignored. RiskController is guarded, so the header is required - without it
+        // this call 401'd and the screen still navigated on with the error body.
+        const result = await api.post('/risk/calculate', { answers: Object.values(answers) });
         navigation.navigate('RiskProfileResult', { profile: result });
       } catch (e) {
-        console.error(e);
+        Alert.alert(
+          'Could not save your risk profile',
+          e instanceof Error ? e.message : 'Please try again.',
+        );
       } finally {
         setLoading(false);
       }
