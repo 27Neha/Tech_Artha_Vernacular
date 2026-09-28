@@ -79,14 +79,32 @@ async function request<T>(
 
   if (!response.ok) {
     if (response.status === 401) handleUnauthorized();
-    const message =
-      (parsed && typeof parsed === 'object' && 'message' in parsed
-        ? String((parsed as { message: unknown }).message)
-        : null) ?? `Request failed (${response.status}).`;
-    throw new ApiError(response.status, message, parsed);
+    throw new ApiError(response.status, extractMessage(parsed, response.status), parsed);
   }
 
   return parsed as T;
+}
+
+/**
+ * NestJS's ValidationPipe returns `message` as an ARRAY of failures, one per invalid
+ * field. Stringifying that directly gives "a,b,c" with no spacing, so a form rejected on
+ * three fields reads as noise. The invest endpoint has eight validated fields, which is
+ * where this matters most.
+ */
+function extractMessage(parsed: unknown, status: number): string {
+  const fallback = `Request failed (${status}).`;
+  if (!parsed || typeof parsed !== 'object') return fallback;
+
+  const message = (parsed as { message?: unknown }).message;
+  if (typeof message === 'string' && message) return message;
+
+  if (Array.isArray(message)) {
+    const parts = message
+      .map((item) => (typeof item === 'string' ? item : (item as { message?: string })?.message))
+      .filter(Boolean) as string[];
+    if (parts.length) return parts.join('\n');
+  }
+  return fallback;
 }
 
 function safeParse(raw: string): unknown {

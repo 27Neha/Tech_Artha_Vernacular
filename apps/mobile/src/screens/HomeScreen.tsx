@@ -1,17 +1,42 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, View, Text, Pressable, ScrollView, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
+import { api } from '../services/api/client';
 
 interface HomeScreenProps {
-  name: string;
+  /** Only present when arriving straight from onboarding; absent for a returning user. */
+  name?: string;
 }
 
 export const HomeScreen = ({ name }: HomeScreenProps) => {
   const navigation = useNavigation<any>();
-  const greeting = useMemo(() => (name.trim() ? name.trim().split(' ')[0] : 'there'), [name]);
+
+  // The name used to come only from MainTabs' route params, but nothing passes them -
+  // neither the initial route for a signed-in user nor PlanSummaryScreen's reset. So
+  // `name` was undefined and `name.trim()` crashed the screen on launch. The profile is
+  // the real source anyway: a returning user never passes through onboarding.
+  const [profileName, setProfileName] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<{ profile?: { fullName?: string | null } | null }>('/auth/profile')
+      .then((profile) => {
+        if (!cancelled) setProfileName(profile?.profile?.fullName ?? null);
+      })
+      .catch(() => undefined); // A greeting is not worth surfacing an error for.
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const greeting = useMemo(() => {
+    const source = (profileName ?? name ?? '').trim();
+    return source ? source.split(' ')[0] : 'there';
+  }, [profileName, name]);
 
   return (
     <SafeAreaView style={styles.safe}>

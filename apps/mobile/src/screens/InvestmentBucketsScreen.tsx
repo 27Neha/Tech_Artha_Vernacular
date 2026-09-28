@@ -134,6 +134,17 @@ export const InvestmentBucketsScreen = () => {
 
               {selected ? (
                 <Pressable
+                  style={styles.investButton}
+                  onPress={() =>
+                    navigation.navigate('Invest', { bucketId: bucket.id, bucketName: bucket.name })
+                  }
+                >
+                  <Text style={styles.chooseText}>Invest in this bucket →</Text>
+                </Pressable>
+              ) : null}
+
+              {selected ? (
+                <Pressable
                   style={styles.chooseButton}
                   onPress={() =>
                     // bucketName comes from the API so the summary shows the real name
@@ -184,7 +195,8 @@ const styles = StyleSheet.create({
   fundRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4, gap: 12 },
   fundName: { flex: 1, color: '#2D3748', fontSize: 13 },
   fundNav: { color: '#3C3985', fontWeight: '700', fontSize: 13 },
-  chooseButton: { backgroundColor: '#3C3985', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 16 },
+  chooseButton: { backgroundColor: '#3C3985', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 12 },
+  investButton: { backgroundColor: '#F7941E', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 16 },
   chooseText: { color: 'white', fontSize: 16, fontWeight: '700' },
   error: { color: '#C53030', fontSize: 13, marginBottom: 12 },
   disclaimer: { fontSize: 10, color: '#A0AEC0', textAlign: 'center', marginTop: 8, marginBottom: 40, lineHeight: 15 },

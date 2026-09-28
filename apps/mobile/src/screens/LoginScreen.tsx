@@ -28,10 +28,16 @@ export const LoginScreen = ({ phone, setPhone }: LoginScreenProps) => {
     setLoading(true);
     try {
       // Public route - no bearer token exists yet.
-      await api.post('/auth/send-otp', { mobile: phone }, { anonymous: true });
+      //
+      // The channel MUST be explicit. AuthController defaults it to 'SMS', but with
+      // OTP_PROVIDER=interakt the service hands every request to InteraktOtpProvider,
+      // which silently returns without sending anything for a non-WHATSAPP channel -
+      // and the endpoint still answers 202, so the app showed "OTP Sent" while nothing
+      // had been delivered.
+      await api.post('/auth/send-otp', { mobile: phone, channel: 'WHATSAPP' }, { anonymous: true });
 
       setOtpSent(true);
-      Alert.alert('OTP Sent', 'An OTP has been sent to your mobile number.');
+      Alert.alert('OTP sent on WhatsApp', 'Please check WhatsApp for your verification code.');
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Please try again.');
     } finally {

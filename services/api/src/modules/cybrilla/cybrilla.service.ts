@@ -3,6 +3,7 @@ import {
   Logger,
   InternalServerErrorException,
   BadRequestException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import axios from 'axios';
 
@@ -421,15 +422,49 @@ export class CybrillaService {
       params.append('grant_type', 'client_credentials');
       const response = await axios.post(`${this.sandboxBaseUrl}/v2/auth/cybrillarta/token`, params.toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
       this.preVerifyAccessToken = response.data.access_token;
-    } catch (error: any) { }
+    } catch (error: any) {
+      // This used to swallow the failure entirely, leaving preVerifyAccessToken null.
+      // verifyPan then sent "Bearer null", Cybrilla answered 401, and the caller saw a
+      // generic 500 with nothing in the logs to explain it.
+      const status = error?.response?.status;
+      this.logger.error(`Cybrilla pre-verify authentication failed. HTTP ${status ?? 'unknown'}.`);
+      this.preVerifyAccessToken = null;
+    }
   }
 
   async verifyPan(pan: string, name: string, dateOfBirth: string) {
     if (!this.preVerifyAccessToken) await this.authenticatePreVerify();
+    if (!this.preVerifyAccessToken) {
+      throw new ServiceUnavailableException('PAN verification is temporarily unavailable. Please try again shortly.');
+    }
     try {
       const response = await axios.post(`${this.preVerifyBaseUrl}/poa/pre_verifications`, { investor_identifier: pan, pan: { value: pan }, name: { value: name }, date_of_birth: { value: dateOfBirth } }, { headers: { Authorization: `Bearer ${this.preVerifyAccessToken}`, 'Content-Type': 'application/json' } });
       return response.data;
     } catch (error: any) {
+      const status = error?.response?.status;
+      const payload = error?.response?.data?.error;
+
+      // Cybrilla answers 400 with a per-field list, e.g.
+      //   [{field:"pan", message:"not a valid pan"}]
+      // Discarding it turned a user input problem into an opaque 500, so the app told
+      // people "verification failed" when the real answer was "that PAN is not valid".
+      const fieldErrors: string[] = Array.isArray(payload?.errors)
+        ? payload.errors.map((e: { field?: string; message?: string }) => e?.message).filter(Boolean)
+        : [];
+
+      this.logger.error(
+        `Cybrilla PAN pre-verification failed. HTTP ${status ?? 'unknown'}: ${payload?.message ?? error?.message ?? 'no detail'}`,
+      );
+
+      if (status === 400 && fieldErrors.length) {
+        // Deduplicated because Cybrilla often reports the same cause twice, once against
+        // the request and once against the field.
+        throw new BadRequestException(`PAN verification rejected: ${[...new Set(fieldErrors)].join('; ')}.`);
+      }
+      if (status === 401 || status === 403) {
+        this.preVerifyAccessToken = null; // Force a re-auth on the next attempt.
+        throw new ServiceUnavailableException('PAN verification is temporarily unavailable. Please try again shortly.');
+      }
       throw new InternalServerErrorException('Cybrilla PAN pre-verification failed.');
     }
   }

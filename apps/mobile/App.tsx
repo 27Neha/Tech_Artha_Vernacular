@@ -18,6 +18,7 @@ import { RiskAssessmentScreen } from './src/screens/RiskAssessmentScreen';
 import { GoalSelectionScreen } from './src/screens/GoalSelectionScreen';
 import { InvestmentBucketsScreen } from './src/screens/InvestmentBucketsScreen';
 import { PlanSummaryScreen } from './src/screens/PlanSummaryScreen';
+import { InvestScreen } from './src/screens/InvestScreen';
 import { AuthProvider, useAuth } from './src/store/AuthContext';
 
 const Stack = createNativeStackNavigator();
@@ -101,6 +102,7 @@ function RootNavigator() {
       <Stack.Screen name="PlanSummary" component={PlanSummaryScreen} />
       <Stack.Screen name="MainTabs" component={MainTabs} />
       <Stack.Screen name="Funds" component={FundsScreen} />
+      <Stack.Screen name="Invest" component={InvestScreen} />
     </Stack.Navigator>
   );
 }
