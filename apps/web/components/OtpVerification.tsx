@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 interface OtpVerificationProps {
   identifierType: 'MOBILE' | 'EMAIL';
+  initialChannel?: 'SMS' | 'WHATSAPP' | 'EMAIL' | null;
   identifierValue: string;
   onSendOtp: (channel: 'SMS' | 'WHATSAPP' | 'EMAIL') => Promise<void>;
   onVerify: (otp: string, channel: 'SMS' | 'WHATSAPP' | 'EMAIL' | null) => Promise<void>;
@@ -16,6 +17,7 @@ interface OtpVerificationProps {
 
 export default function OtpVerification({
   identifierType,
+  initialChannel,
   identifierValue,
   onSendOtp,
   onVerify,
@@ -27,11 +29,19 @@ export default function OtpVerification({
 }: OtpVerificationProps) {
   const { t } = useTranslation();
   const [otp, setOtp] = useState('');
-  const [otpChannel, setOtpChannel] = useState<'SMS' | 'WHATSAPP' | 'EMAIL' | null>(identifierType === 'EMAIL' ? 'EMAIL' : null);
+  const [otpChannel, setOtpChannel] = useState<'SMS' | 'WHATSAPP' | 'EMAIL' | null>(initialChannel || (identifierType === 'EMAIL' ? 'EMAIL' : null));
+
+  useEffect(() => {
+    if (initialChannel) {
+      setOtpChannel(initialChannel);
+      setHasSent(false);
+    }
+  }, [initialChannel]);
   
   const [smsTimer, setSmsTimer] = useState(0);
   const [waTimer, setWaTimer] = useState(0);
   const [emailTimer, setEmailTimer] = useState(0);
+  const [hasSent, setHasSent] = useState(false);
 
   useEffect(() => {
     let sInt: NodeJS.Timeout, wInt: NodeJS.Timeout, eInt: NodeJS.Timeout;
@@ -41,8 +51,12 @@ export default function OtpVerification({
     return () => { clearInterval(sInt); clearInterval(wInt); clearInterval(eInt); };
   }, [smsTimer, waTimer, emailTimer]);
 
-  const handleSend = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL') => {
+  
+
+  
+const handleSend = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL') => {
     setOtpChannel(channel);
+    setHasSent(true);
     try {
       await onSendOtp(channel);
       if (channel === 'SMS') setSmsTimer(60);
@@ -91,18 +105,28 @@ export default function OtpVerification({
         <div className="flex gap-4 mt-6">
           <button 
             onClick={() => handleSend('SMS')}
+            style={{ display: otpChannel !== 'SMS' ? 'none' : 'flex' }}
             disabled={loading || smsTimer > 0}
             className={`flex-1 py-3 flex flex-col items-center justify-center rounded-xl border-2 font-bold transition-all ${otpChannel === 'SMS' ? 'border-[var(--primary)] text-[var(--dark)] bg-[var(--primary-light)]' : 'border-gray-100 text-gray-400 bg-white hover:border-gray-200'} ${smsTimer > 0 ? 'opacity-70 cursor-not-allowed' : ''}`}
           >
-            <span className="text-sm">{t('login.sendSms') || 'Send via SMS'}</span>
+            {smsTimer === 0 ? (
+                <span className="text-sm">{hasSent ? (t('login.resendOtp', { defaultValue: 'Resend OTP' })) : (t('login.sendSms', { defaultValue: 'Send via SMS' }))}</span>
+              ) : (
+                <span className="text-sm opacity-50">{t('login.sent', { defaultValue: 'Sent' })}</span>
+              )}
             {smsTimer > 0 && <span className="text-[10px] mt-0.5 opacity-80">{t('login.resendIn', { time: `${Math.floor(smsTimer / 60)}:${(smsTimer % 60).toString().padStart(2, '0')}` }) || `Resend in ${Math.floor(smsTimer / 60)}:${(smsTimer % 60).toString().padStart(2, '0')}`}</span>}
           </button>
           <button 
             onClick={() => handleSend('WHATSAPP')}
+            style={{ display: otpChannel !== 'WHATSAPP' ? 'none' : 'flex' }}
             disabled={loading || waTimer > 0}
             className={`flex-1 py-3 flex flex-col items-center justify-center rounded-xl border-2 font-bold transition-all ${otpChannel === 'WHATSAPP' ? 'border-[#25D366] text-[#128C7E] bg-[#dcf8c6]' : 'border-gray-100 text-gray-400 bg-white hover:border-gray-200'} ${waTimer > 0 ? 'opacity-70 cursor-not-allowed' : ''}`}
           >
-            <span className="text-sm">{t('login.sendWa') || 'Send via WhatsApp'}</span>
+            {waTimer === 0 ? (
+                <span className="text-sm">{hasSent ? (t('login.resendOtp', { defaultValue: 'Resend OTP' })) : (t('login.sendWa', { defaultValue: 'Send via WhatsApp' }))}</span>
+              ) : (
+                <span className="text-sm opacity-50">{t('login.sent', { defaultValue: 'Sent' })}</span>
+              )}
             {waTimer > 0 && <span className="text-[10px] mt-0.5 opacity-80">{t('login.resendIn', { time: `${Math.floor(waTimer / 60)}:${(waTimer % 60).toString().padStart(2, '0')}` }) || `Resend in ${Math.floor(waTimer / 60)}:${(waTimer % 60).toString().padStart(2, '0')}`}</span>}
           </button>
         </div>
@@ -110,10 +134,15 @@ export default function OtpVerification({
         <div className="flex gap-4 mt-6">
           <button 
             onClick={() => handleSend('EMAIL')}
+            style={{ display: otpChannel !== 'EMAIL' ? 'none' : 'flex' }}
             disabled={loading || emailTimer > 0}
             className={`flex-1 py-3 flex flex-col items-center justify-center rounded-xl border-2 font-bold transition-all ${otpChannel === 'EMAIL' ? 'border-[var(--primary)] text-[var(--dark)] bg-[var(--primary-light)]' : 'border-[var(--primary)] text-[var(--primary)] bg-white hover:bg-gray-50'} ${emailTimer > 0 ? 'opacity-70 cursor-not-allowed' : ''}`}
           >
-            <span className="text-sm">{t('login.sendOtp') || 'Send OTP'}</span>
+            {emailTimer === 0 ? (
+                <span className="text-sm">{hasSent ? (t('login.resendOtp', { defaultValue: 'Resend OTP' })) : (t('login.sendOtp', { defaultValue: 'Send OTP' }))}</span>
+              ) : (
+                <span className="text-sm opacity-50">{t('login.sent', { defaultValue: 'Sent' })}</span>
+              )}
             {emailTimer > 0 && <span className="text-[10px] mt-0.5 opacity-80">{t('login.resendIn', { time: `${Math.floor(emailTimer / 60)}:${(emailTimer % 60).toString().padStart(2, '0')}` }) || `Resend in ${Math.floor(emailTimer / 60)}:${(emailTimer % 60).toString().padStart(2, '0')}`}</span>}
           </button>
         </div>

@@ -18,6 +18,7 @@ export default function SignupPage() {
   const router = useRouter();
   const { t } = useTranslation();
   const [step, setStep] = useState(1);
+  const [authChannel, setAuthChannel] = useState<'SMS' | 'WHATSAPP' | 'EMAIL'>('SMS');
   
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
@@ -33,7 +34,67 @@ export default function SignupPage() {
   const [panVerified, setPanVerified] = useState<'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED'>('PENDING');
   const [faceVerified, setFaceVerified] = useState<'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED'>('PENDING');
   
+  
+  const mobileInputRef = useRef<HTMLInputElement>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
+  const [validationError, setValidationError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [accountExistsWarning, setAccountExistsWarning] = useState(false);
+
+  
+  const handleContinue = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL') => {
+    setValidationError('');
+    setAccountExistsWarning(false);
+    
+    if (channel === 'EMAIL') {
+      if (!email.trim()) {
+        setValidationError(t('validation.emailEmpty', { defaultValue: 'Please enter your email address first.' }));
+        emailInputRef.current?.focus();
+        return;
+      }
+      if (!/^[^s@]+@[^s@]+.[^s@]+$/.test(email)) {
+        setValidationError(t('validation.emailInvalid', { defaultValue: 'Please enter a valid email address.' }));
+        emailInputRef.current?.focus();
+        return;
+      }
+    } else {
+      if (!mobile.trim()) {
+        setValidationError(t('validation.mobileEmpty', { defaultValue: 'Please enter your mobile number first.' }));
+        mobileInputRef.current?.focus();
+        return;
+      }
+      if (mobile.length !== 10) {
+        setValidationError(t('validation.mobileInvalid', { defaultValue: 'Please enter a valid 10-digit mobile number.' }));
+        mobileInputRef.current?.focus();
+        return;
+      }
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await fetch(`${API_URL}/auth/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(channel === 'EMAIL' ? { email } : { mobile })
+      });
+      const data = await safeFetchJson(res);
+      if (data.exists) {
+        setAccountExistsWarning(true);
+        setLoading(false);
+        return;
+      }
+      setAuthChannel(channel);
+      setActiveChannel(channel);
+      setStep(1.5);
+    } catch (e) {
+      setError(t('common.error', { defaultValue: 'Something went wrong. Please try again.' }));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const [error, setError] = useState('');
   const [transactionId, setTransactionId] = useState('');
   
@@ -50,8 +111,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [activeChannel, setActiveChannel] = useState<'SMS'|'WHATSAPP'|'EMAIL' | null>(null);
   const [otpHint, setOtpHint] = useState('');
-  const [signupMethod, setSignupMethod] = useState<'MOBILE' | 'EMAIL'>('MOBILE');
-  const [showPasswordInfo, setShowPasswordInfo] = useState(false);
+    const [showPasswordInfo, setShowPasswordInfo] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
   const passwordInfoRef = useRef<HTMLDivElement>(null);
 
@@ -71,6 +131,29 @@ export default function SignupPage() {
     setStep(s => s + 1);
   };
 
+  
+  const handleSavePassword = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/auth/password`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ password })
+      });
+      const data = await safeFetchJson(res);
+      if (res.ok) {
+        setStep(2);
+      } else {
+        setError(data.message || 'Failed to save password');
+      }
+    } catch (e) {
+      setError('An error occurred');
+    }
+    setLoading(false);
+  };
+
   const handleContinueToOtp = () => {
     if (password !== confirmPassword) {
       setError(t('signup.passwordMismatch') || 'Passwords do not match');
@@ -78,7 +161,7 @@ export default function SignupPage() {
     }
     setError('');
     
-    setActiveChannel(signupMethod === 'EMAIL' ? 'EMAIL' : null);
+    setActiveChannel(authChannel);
     setStep(1.5);
   };
 
@@ -148,7 +231,7 @@ export default function SignupPage() {
       const res = await fetch(`${API_URL}/auth/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(signupMethod === 'EMAIL' ? { email, otp: currentOtp, type: 'signup', password } : { mobile, otp: currentOtp, type: 'signup', password })
+        body: JSON.stringify(authChannel === 'EMAIL' ? { email, otp: currentOtp, type: 'signup' } : { mobile, otp: currentOtp, type: 'signup' })
       });
       const data = await safeFetchJson(res);
       if (!res.ok) throw new Error(data.message || 'Invalid OTP');
@@ -296,52 +379,160 @@ export default function SignupPage() {
         </div>
       )}
 
-      {step === 1 && (
-        <div className="flex-1">
-            <div className="flex gap-4 mb-4">
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="radio" checked={signupMethod === 'MOBILE'} onChange={() => { setSignupMethod('MOBILE'); setEmail(''); setPassword(''); setConfirmPassword(''); }} className="accent-[var(--primary)]" /> {t('signup.mobileNumber') || 'Number'}
-              </label>
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="radio" checked={signupMethod === 'EMAIL'} onChange={() => { setSignupMethod('EMAIL'); setMobile(''); setPassword(''); setConfirmPassword(''); }} className="accent-blue-500" /> {t('signup.emailAddress') || 'Email'}
-              </label>
+      
+            {step === 1 && (
+        <div className="flex-1 animate-fade-in flex flex-col justify-start max-w-md w-full mx-auto mt-4">
+            <h1 className="text-2xl font-bold text-[var(--dark)] mb-6">{t('signup.createAccount') || 'Create your TechArtha account'}</h1>
+
+            <div className="flex justify-end mb-2">
+              {authChannel !== 'EMAIL' ? (
+                 <button onClick={() => setAuthChannel('EMAIL')} className="text-sm font-semibold text-[var(--primary)] hover:underline">
+                   {t('signup.useEmailInstead') || 'Use email instead'}
+                 </button>
+              ) : (
+                 <button onClick={() => setAuthChannel('SMS')} className="text-sm font-semibold text-[var(--primary)] hover:underline">
+                   {t('signup.useMobileInstead') || 'Use mobile number instead'}
+                 </button>
+              )}
             </div>
-            <label className="label">{signupMethod === 'EMAIL' ? (t('signup.emailAddress') || 'Email Address') : (t('signup.mobileNumber') || 'Mobile Number')}</label>
-            <input 
-              type={signupMethod === 'EMAIL' ? 'email' : 'text'} 
-              value={signupMethod === 'EMAIL' ? email : mobile} 
-              onChange={e => signupMethod === 'EMAIL' ? setEmail(e.target.value) : setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} 
-              placeholder={signupMethod === 'EMAIL' ? t('signup.emailPlaceholder', { defaultValue: 'name@example.com' }) : t('signup.mobilePlaceholder', { defaultValue: '10-digit mobile number' })} 
-              className="input-field" 
-              maxLength={signupMethod === 'EMAIL' ? undefined : 10}
-              inputMode={signupMethod === 'EMAIL' ? 'email' : 'numeric'}
-            />
-          
-                    
-                    <label className="label flex items-center gap-2 relative">
+
+            
+            {authChannel === 'EMAIL' ? (
+              <div className="flex flex-col w-full">
+                <div className="mb-6">
+                  <label className="label text-sm text-gray-700 font-semibold mb-2 block">{t('signup.emailAddress') || 'Email Address'}</label>
+                  <input 
+                    type="email"
+                      ref={emailInputRef}
+                    value={email} 
+                    onChange={e => setEmail(e.target.value)} 
+                    placeholder={t('signup.emailPlaceholder') || 'name@example.com'} 
+                    className="w-full p-4 border border-gray-200 rounded-xl focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none transition-colors" 
+                  />
+                  {validationError && <p className="text-red-500 text-xs mt-2 font-medium">{validationError}</p>}
+                  </div>
+
+                  {accountExistsWarning && (
+                    <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl flex flex-col items-center justify-center text-center">
+                      <p className="text-sm text-red-600 mb-2 font-medium">
+                        {String(authChannel) === 'EMAIL' ? (t('signup.emailExists') || 'This email is already registered. Please log in instead.') : (t('signup.mobileExists') || 'This mobile number is already registered. Please log in instead.')}
+                      </p>
+                      <button onClick={() => router.push('/login')} className="text-sm font-bold text-red-700 hover:underline">
+                        {t('signup.goToLogin') || 'Go to Login'} →
+                      </button>
+                    </div>
+                  )}
+                  <button 
+                    onClick={() => handleContinue('EMAIL')}
+                  disabled={loading} 
+                  className="btn-primary w-full py-4 rounded-xl font-bold text-lg mb-6 shadow-sm"
+                >
+                  {t('signup.continueWithEmail') || 'Continue with Email'} →
+                </button>
+                
+                
+              </div>
+            ) : (
+              <div className="flex flex-col w-full">
+                <div className="mb-6">
+                  <label className="label text-sm text-gray-700 font-semibold mb-2 block">{t('signup.mobileNumber') || 'Mobile Number'}</label>
+                  <div className="flex w-full">
+                    <div className="flex-shrink-0 flex items-center justify-center px-4 border border-gray-200 border-r-0 rounded-l-xl bg-gray-50 text-gray-600 font-semibold">
+                      +91
+                    </div>
+                    <input 
+                      type="tel"
+                      ref={mobileInputRef}
+                      value={mobile} 
+                      onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} 
+                      placeholder={t('signup.mobilePlaceholder') || 'Enter 10-digit mobile number'} 
+                      className="w-full p-4 border border-gray-200 rounded-r-xl focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none transition-colors" 
+                      maxLength={10}
+                      inputMode="numeric"
+                    />
+                  </div>
+                  {validationError && <p className="text-red-500 text-xs mt-2 font-medium">{validationError}</p>}
+                  </div>
+
+                  {accountExistsWarning && (
+                    <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl flex flex-col items-center justify-center text-center">
+                      <p className="text-sm text-red-600 mb-2 font-medium">
+                        {String(authChannel) === 'EMAIL' ? (t('signup.emailExists') || 'This email is already registered. Please log in instead.') : (t('signup.mobileExists') || 'This mobile number is already registered. Please log in instead.')}
+                      </p>
+                      <button onClick={() => router.push('/login')} className="text-sm font-bold text-red-700 hover:underline">
+                        {t('signup.goToLogin') || 'Go to Login'} →
+                      </button>
+                    </div>
+                  )}
+                  <button 
+                    onClick={() => handleContinue('SMS')}
+                  disabled={loading} 
+                  className="btn-primary w-full py-4 rounded-xl font-bold text-lg mb-6 shadow-sm"
+                >
+                  {t('signup.continueWithSms') || 'Continue with SMS'} →
+                </button>
+                
+                <div className="relative flex items-center justify-center mb-6">
+                  <div className="border-t border-gray-200 w-full absolute"></div>
+                  <span className="bg-white px-4 text-gray-400 text-sm relative">{t('signup.or') || 'or'}</span>
+                </div>
+
+                <button 
+                  onClick={() => handleContinue('WHATSAPP')}
+                  disabled={loading} 
+                  className="w-full flex items-center justify-center gap-3 py-3 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors mb-2 shadow-sm"
+                >
+                  <span className="text-xl">💬</span>
+                  {t('signup.continueWithWa') || 'Continue with WhatsApp'}
+                </button>
+                
+                <p className="text-xs text-center text-gray-500 mb-8">
+                  {t('signup.preferWa') || 'Prefer WhatsApp? Get your OTP there instead.'}
+                </p>
+                
+                
+              </div>
+            )}
+        </div>
+      )}
+
+      {step === 1.5 && (
+        <div className="flex-1 flex flex-col justify-start animate-fade-in">
+          <OtpVerification
+            identifierType={authChannel === 'EMAIL' ? 'EMAIL' : 'MOBILE'}
+            initialChannel={authChannel}
+            identifierValue={authChannel === 'EMAIL' ? email : mobile}
+            onSendOtp={handleSendSignupOtp}
+            onVerify={handleVerifyOtp}
+            onChangeIdentifier={() => setStep(1)}
+            loading={loading}
+            error={error}
+            setError={setError}
+            otpHint={otpHint}
+          />
+        </div>
+      )}
+
+      {step === 1.6 && (
+        <div className="flex-1 flex flex-col justify-start animate-fade-in">
+            <h2 className="text-xl font-bold mb-4">{t('signup.passwordLabel') || 'Create Password'}</h2>
+            
+            <label className="label flex items-center gap-2 relative mt-4">
               {t('signup.passwordLabel') || 'Create Password'}
-              <div ref={passwordInfoRef} className="relative flex items-center">
-                <button type="button" onClick={(e) => { e.preventDefault(); setShowPasswordInfo(!showPasswordInfo); }} className="text-gray-400 hover:text-[var(--primary)] transition-colors focus:outline-none flex items-center justify-center" aria-label="Password requirements">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+              <div className="relative inline-block" ref={passwordInfoRef}>
+                <button type="button" onClick={() => setShowPasswordInfo(!showPasswordInfo)} className="text-gray-400 hover:text-[var(--primary)] focus:outline-none flex items-center justify-center rounded-full bg-gray-100 w-5 h-5 transition-colors">
+                  <span className="text-xs font-bold">i</span>
                 </button>
                 {showPasswordInfo && (
-                  <div className="absolute top-full left-0 mt-2 w-64 p-3 bg-white shadow-xl rounded-xl border border-gray-100 z-50 animate-fade-in font-normal normal-case tracking-normal">
-                    <p className="text-[10px] uppercase font-bold text-gray-500 mb-2">{t('signup.passwordReqs') || 'Password Requirements'}</p>
-                    <div className={`text-xs flex items-center gap-2 mb-1.5 transition-colors ${password.length === 0 ? 'text-gray-500' : (password.length >= 8 ? 'text-green-500' : 'text-red-500')}`}>
-          <span className="w-3 flex-shrink-0 font-bold">{password.length === 0 ? '\u2022' : (password.length >= 8 ? '\u2713' : '\u2715')}</span> {t('signup.req8Chars') || 'At least 8 characters'}
-        </div>
-                    <div className={`text-xs flex items-center gap-2 mb-1.5 transition-colors ${password.length === 0 ? 'text-gray-500' : (/[A-Z]/.test(password) ? 'text-green-500' : 'text-red-500')}`}>
-          <span className="w-3 flex-shrink-0 font-bold">{password.length === 0 ? '\u2022' : (/[A-Z]/.test(password) ? '\u2713' : '\u2715')}</span> {t('signup.reqUppercase') || 'One uppercase letter'}
-        </div>
-                    <div className={`text-xs flex items-center gap-2 mb-1.5 transition-colors ${password.length === 0 ? 'text-gray-500' : (/[a-z]/.test(password) ? 'text-green-500' : 'text-red-500')}`}>
-          <span className="w-3 flex-shrink-0 font-bold">{password.length === 0 ? '\u2022' : (/[a-z]/.test(password) ? '\u2713' : '\u2715')}</span> {t('signup.reqLowercase') || 'One lowercase letter'}
-        </div>
-                    <div className={`text-xs flex items-center gap-2 mb-1.5 transition-colors ${password.length === 0 ? 'text-gray-500' : (/[0-9]/.test(password) ? 'text-green-500' : 'text-red-500')}`}>
-          <span className="w-3 flex-shrink-0 font-bold">{password.length === 0 ? '\u2022' : (/[0-9]/.test(password) ? '\u2713' : '\u2715')}</span> {t('signup.reqNumber') || 'One number'}
-        </div>
-                    <div className={`text-xs flex items-center gap-2 transition-colors ${password.length === 0 ? 'text-gray-500' : (/[^A-Za-z0-9]/.test(password) ? 'text-green-500' : 'text-red-500')}`}>
-          <span className="w-3 flex-shrink-0 font-bold">{password.length === 0 ? '\u2022' : (/[^A-Za-z0-9]/.test(password) ? '\u2713' : '\u2715')}</span> {t('signup.reqSpecial') || 'One special character'}
-        </div>
+                  <div className="absolute left-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-10 text-xs text-gray-600">
+                    <p className="font-bold text-[var(--dark)] mb-2">{t('signup.reqTitle') || 'Password Requirements:'}</p>
+                    <div className="flex flex-col gap-1">
+                      <span className="flex items-center gap-2"><span className="w-3 flex-shrink-0 font-bold">{password.length === 0 ? '•' : (password.length >= 8 ? '✓' : '✕')}</span> {t('signup.reqLength') || 'At least 8 characters'}</span>
+                      <span className="flex items-center gap-2"><span className="w-3 flex-shrink-0 font-bold">{password.length === 0 ? '•' : (/[A-Z]/.test(password) ? '✓' : '✕')}</span> {t('signup.reqUpper') || 'One uppercase letter'}</span>
+                      <span className="flex items-center gap-2"><span className="w-3 flex-shrink-0 font-bold">{password.length === 0 ? '•' : (/[a-z]/.test(password) ? '✓' : '✕')}</span> {t('signup.reqLower') || 'One lowercase letter'}</span>
+                      <span className="flex items-center gap-2"><span className="w-3 flex-shrink-0 font-bold">{password.length === 0 ? '•' : (/[0-9]/.test(password) ? '✓' : '✕')}</span> {t('signup.reqNumber') || 'One number'}</span>
+                      <span className="flex items-center gap-2"><span className="w-3 flex-shrink-0 font-bold">{password.length === 0 ? '•' : (/[^A-Za-z0-9]/.test(password) ? '✓' : '✕')}</span> {t('signup.reqSpecial') || 'One special character'}</span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -378,33 +569,20 @@ export default function SignupPage() {
                 )}
               </button>
             </div>
-            <button onClick={handleContinueToOtp}
-  disabled={(signupMethod === 'EMAIL' ? !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) : mobile.length !== 10) || !isPasswordStrong || loading} className="btn-primary mt-8">
+            
+            <button onClick={handleSavePassword}
+              disabled={!isPasswordStrong || password !== confirmPassword || loading} className="btn-primary mt-8">
                 <span>{t('signup.continue') || 'Continue'}</span><span>→</span>
-              </button>
-              {!isPasswordStrong && passwordTouched && (
-                <p className="text-red-500 text-xs font-semibold text-center mt-3 animate-fade-in">
-                  {t('signup.passwordWarning') || 'Please check the password requirements using the ⓘ icon above.'}
-                </p>
-              )}
+            </button>
+            
+            {!isPasswordStrong && passwordTouched && (
+              <p className="text-red-500 text-xs font-semibold text-center mt-3 animate-fade-in">
+                {t('signup.passwordWarning') || 'Please check the password requirements using the ⓘ icon above.'}
+              </p>
+            )}
         </div>
       )}
 
-      {step === 1.5 && (
-        <div className="flex-1 flex flex-col justify-start">
-          <OtpVerification
-            identifierType={signupMethod}
-            identifierValue={signupMethod === 'EMAIL' ? email : mobile}
-            onSendOtp={handleSendSignupOtp}
-            onVerify={handleVerifyOtp}
-            onChangeIdentifier={() => setStep(1)}
-            loading={loading}
-            error={error}
-            setError={setError}
-            otpHint={otpHint}
-          />
-        </div>
-      )}
 
       {step === 2 && (
         <div className="flex-1 flex flex-col mt-8 animate-fade-in">
@@ -459,7 +637,7 @@ export default function SignupPage() {
               
               {panVerified === 'FAILED' && (
                 <div className="bg-red-50 border border-red-100 rounded-lg p-3 mt-2">
-                   <p className="text-xs text-red-600 mb-3">{error || '{t('signup.panInvalid')}'}</p>
+                   <p className="text-xs text-red-600 mb-3">{error || t('signup.panInvalid')}</p>
                    <button onClick={() => setStep(2)} className="w-full py-2 bg-white border border-red-200 text-red-600 font-bold rounded-md text-xs hover:bg-red-50 transition-colors">
                      Review Details
                    </button>

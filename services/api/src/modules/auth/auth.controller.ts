@@ -7,6 +7,19 @@ import type { AuthenticatedUser } from '../../common/auth';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Post('check')
+  @HttpCode(200)
+  async checkUser(@Body() body: { mobile?: string; email?: string }) {
+    if (body.email) {
+      return this.authService.checkUserExists(body.email, true);
+    }
+    if (body.mobile) {
+      return this.authService.checkUserExists(body.mobile, false);
+    }
+    throw new BadRequestException('Mobile or email is required');
+  }
+
+
   @Post('send-otp')
   @HttpCode(202)
   async sendOtp(@Body() body: { mobile?: string; channel?: 'SMS' | 'WHATSAPP' | 'EMAIL' }) {
@@ -110,6 +123,12 @@ export class AuthController {
 
   @UseGuards(AccessTokenGuard)
   @Put('profile')
+  @Put('password')
+  @UseGuards(AccessTokenGuard)
+  async setPassword(@CurrentUser() user: AuthenticatedUser, @Body() body: { password: string }) {
+    return this.authService.setPassword(user.id, body.password);
+  }
+
   async updateProfile(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: { fullName?: string; dateOfBirth?: string; pan?: string; clientType?: string; referralCode?: string }

@@ -38,6 +38,17 @@ export class AuthService {
       .digest('hex');
   }
 
+  
+  async checkUserExists(identifier: string, isEmail: boolean): Promise<{ exists: boolean }> {
+    let user;
+    if (isEmail) {
+      user = await this.prisma.user.findUnique({ where: { email: identifier } });
+    } else {
+      user = await this.prisma.user.findUnique({ where: { mobile: identifier } });
+    }
+    return { exists: !!user };
+  }
+
   async sendOtp(mobile: string, channel: OtpChannel) {
     const normalizedMobile = this.normalizeMobile(mobile);
     if (!['SMS', 'WHATSAPP', 'EMAIL'].includes(channel)) throw new BadRequestException('Unsupported OTP channel.');
@@ -343,6 +354,15 @@ async loginPassword(mobile: string, password?: string, deviceId?: string) {
     });
     if (!user) throw new Error('User not found');
     return { id: user.id, mobile: user.mobile, clientType: user.clientType, profile: user.profile, riskProfile: user.riskProfile, onboardingProgress: user.onboardingProgress };
+  }
+
+  async setPassword(userId: string, password: string) {
+    const hashedPassword = this.hash(password);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: hashedPassword }
+    });
+    return { success: true };
   }
 
   async updateProfile(userId: string, data: { fullName?: string; dateOfBirth?: string; pan?: string; clientType?: string; referralCode?: string }) {
