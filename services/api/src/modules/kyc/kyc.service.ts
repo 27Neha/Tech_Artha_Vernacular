@@ -40,13 +40,24 @@ export class KycService {
     try {
       result = await this.cybrilla.verifyPan(targetPan, fullName, targetDob);
     } catch (e: any) {
-      // If it's our structured KYC_PROVIDER_ERROR, just update the status safely and bubble it up
-      if (e.response?.code === 'KYC_PROVIDER_ERROR' || e.message?.includes('temporarily unavailable')) {
-        await this.prisma.kYCApplication.update({
-          where: { id: application.id },
-          data: { status: 'FAILED', failureReason: 'Provider unavailable' },
-        });
-      }
+      // Every failure has to land the application in a terminal state, not just a
+      // provider outage. The row is created as IN_PROGRESS before this call and the
+      // providerTransactionId is only set on success, so a rejected PAN used to leave a
+      // row that was IN_PROGRESS with no transaction id - which getKycStatus can never
+      // poll, because its polling branch requires that id. The user was then shown
+      // "verification in progress" forever for what was actually a rejection, and
+      // /buckets/:id/invest kept refusing because panStatus never reached VERIFIED.
+      const isProviderOutage =
+        e.response?.code === 'KYC_PROVIDER_ERROR' || e.message?.includes('temporarily unavailable');
+
+      await this.prisma.kYCApplication.update({
+        where: { id: application.id },
+        data: {
+          status: 'FAILED',
+          failureReason: isProviderOutage ? 'Provider unavailable' : (e?.message ?? 'Verification failed'),
+        },
+      });
+
       throw e;
     }
 
