@@ -136,7 +136,13 @@ export const InvestmentBucketsScreen = () => {
                 <Pressable
                   style={styles.chooseButton}
                   onPress={() =>
-                    navigation.navigate('PlanSummary', { goal: route.params?.goal, bucket: bucket.id })
+                    // bucketName comes from the API so the summary shows the real name
+                    // instead of mapping ids back to hardcoded labels.
+                    navigation.navigate('PlanSummary', {
+                      goal: route.params?.goal,
+                      bucket: bucket.id,
+                      bucketName: bucket.name,
+                    })
                   }
                 >
                   <Text style={styles.chooseText}>Choose This Bucket →</Text>

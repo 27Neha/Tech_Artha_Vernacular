@@ -29,9 +29,15 @@ export class ZohoTokenService {
     return process.env.ZOHO_ACCOUNTS_DOMAIN || 'https://accounts.zoho.in';
   }
 
-  /** Zoho returns the correct api_domain on refresh; env is only the starting guess. */
+  /**
+   * An explicitly configured domain ALWAYS wins over the api_domain Zoho returns on
+   * refresh. This ordering is deliberate and load-bearing: when pointing at a sandbox,
+   * the token response can still name the production domain, and preferring it would
+   * silently send sandbox-intended writes into the production org - which holds real
+   * client contacts. Discovery is only a fallback for when nothing is configured.
+   */
   get apiDomain(): string {
-    return this.discoveredApiDomain ?? process.env.ZOHO_API_DOMAIN ?? 'https://www.zohoapis.in';
+    return process.env.ZOHO_API_DOMAIN ?? this.discoveredApiDomain ?? 'https://www.zohoapis.in';
   }
 
   /** True once credentials are present. Callers use this rather than throwing on boot. */
