@@ -82,7 +82,7 @@ export default function LanguagePage() {
           disabled={!selected}
           className="btn-primary w-full"
         >
-          <span>{t('common.continue') || 'Continue'}</span>
+          <span>{t('profile.continue')}</span>
           <span>→</span>
         </button>
       </div>

@@ -191,7 +191,7 @@ export class BucketsService {
       // folio_defaults fields are references to separately-created contact resources, not inline values.
       const [email, phone, address] = await Promise.all([
         this.cybrilla.createEmailAddress(fpProfileId, dto.email),
-        this.cybrilla.createPhoneNumber(fpProfileId, '91', user!.mobile.replace(/^\+?91/, '')),
+        this.cybrilla.createPhoneNumber(fpProfileId, '91', (user!.mobile || '').replace(/^\+?91/, '')),
         this.cybrilla.createAddress(fpProfileId, dto.addressLine1, 'IN', dto.postalCode),
       ]);
 

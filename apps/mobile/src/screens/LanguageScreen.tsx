@@ -6,6 +6,8 @@ import { Screen } from '../types';
 import { authStore } from '../store/auth';
 
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
+import i18next from '../i18n';
 
 const LANGUAGES = [
   { code: 'en', label: 'English', native: 'English' },
@@ -20,6 +22,7 @@ export const LanguageScreen = () => {
   const handleContinue = () => {
     if (selected) {
       authStore.language = selected;
+      i18next.changeLanguage(selected);
       navigation.navigate('Welcome');
     }
   };

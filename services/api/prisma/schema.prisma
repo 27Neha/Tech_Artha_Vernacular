@@ -9,7 +9,8 @@ datasource db {
 
 model User {
   id                 String                @id @default(uuid())
-  mobile             String                @unique
+  mobile             String?               @unique
+  email              String?               @unique
   preferredLanguage  String                @default("en")
   passwordHash       String?
   referralCode       String?
@@ -84,7 +85,8 @@ model Session {
 
 model OtpVerification {
   id         String    @id @default(uuid())
-  mobile     String
+  mobile     String?
+  email      String?
   otpHash    String
   expiresAt  DateTime
   attempts   Int       @default(0)

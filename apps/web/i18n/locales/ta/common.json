@@ -626,5 +626,19 @@
   "minor.calculated": "உங்கள் சுயவிவரம் நான்கு பரிமாணங்களின் அடிப்படையில் கணக்கிடப்படுகிறது: காலக்கெடு, இழப்புகளுக்கு எதிர்வினை, வளர்ச்சி விருப்பம் மற்றும் நிதி பழக்கவழக்கங்கள்.",
   "minor.disclaimer": "இந்த சுயவிவரம் உங்கள் பதில்களைப் பிரதிபலிக்கிறது. இது வருமானத்திற்கு உத்தரவாதம் அளிக்காது.",
   "signup.panInvalid": "வழங்கப்பட்ட விவரங்கள் உங்கள் பான் பதிவுகளுடன் பொருந்தவில்லை.",
-  "signup.or": "அல்லது"
+  "signup.or": "அல்லது",
+  "settings.permissions": "அனுமதிகள்",
+  "settings.deviceNotif": "அறிவிப்புகள்",
+  "settings.statusAllowed": "அனுமதிக்கப்பட்டது",
+  "settings.statusDenied": "மறுக்கப்பட்டது",
+  "settings.statusNotRequested": "கோரப்படவில்லை",
+  "settings.manage": "நிர்வகி",
+  "settings.enable": "இயக்கு",
+  "settings.notifNotSupported": "இந்த சாதனத்தில் அறிவிப்புகள் ஆதரிக்கப்படவில்லை.",
+  "settings.notifEnableInstructions": "அறிவிப்புகளை இயக்க உங்கள் சாதன அமைப்புகளைத் திறக்கவும்.",
+  "settings.notifAlreadyEnabled": "அறிவிப்புகள் ஏற்கனவே இயக்கப்பட்டுள்ளன.",
+  "settings.privacyTitle": "தனியுரிமை மற்றும் பாதுகாப்பு",
+  "settings.privacyDesc": "ஆப் லாக், பயோமெட்ரிக்ஸ் மற்றும் தரவு தனியுரிமை",
+  "settings.devicesTitle": "இணைக்கப்பட்ட சாதனங்கள்",
+  "settings.devicesDesc": "உங்கள் கணக்கில் உள்நுழைந்துள்ள சாதனங்களை நிர்வகிக்கவும்"
 }

@@ -5,11 +5,15 @@ import { PrismaModule } from '../../prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
 import { AccessTokenGuard } from '../../common/auth';
 import { InteraktModule } from '../../integrations/interakt/interakt.module';
+import { MtalkzModule } from '../mtalkz/mtalkz.module';
+import { ZohoModule } from '../zoho/zoho.module';
 
 @Module({
   imports: [
     PrismaModule,
     InteraktModule,
+    MtalkzModule,
+    ZohoModule,
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET ?? 'development-only-change-me',

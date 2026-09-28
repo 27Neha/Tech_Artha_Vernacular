@@ -7,11 +7,17 @@ export default function GoogleTranslateWidget() {
   const [scriptLoaded, setScriptLoaded] = useState(false);
   
   useEffect(() => {
+    // Prevent Google Translate from loading on fresh visit when language is English
+    // This stops it from automatically overriding the DOM based on browser language
+    if (lang === 'en' && !document.getElementById('google-translate-script')) {
+      return;
+    }
+
     if (document.getElementById('google-translate-script')) return;
 
     (window as any).googleTranslateElementInit = () => {
       new (window as any).google.translate.TranslateElement(
-        { pageLanguage: 'en', autoDisplay: false },
+        { pageLanguage: 'en', includedLanguages: 'en,hi,mr,gu,bn,ta,te,kn,ml,pa,or,as', autoDisplay: false },
         'google_translate_element'
       );
       setScriptLoaded(true);

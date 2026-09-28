@@ -3,9 +3,9 @@ import { SafeAreaView, View, Text, TextInput, Pressable, Alert } from 'react-nat
 import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
-import { Screen } from '../types';
 import { authStore } from '../store/auth';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 
 interface LoginScreenProps {
   phone: string;
@@ -15,13 +15,14 @@ interface LoginScreenProps {
 
 export const LoginScreen = ({ phone, setPhone, apiUrl }: LoginScreenProps) => {
   const navigation = useNavigation<any>();
+  const { t } = useTranslation();
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSendOtp = async () => {
     if (!/^\d{10}$/.test(phone)) {
-      return Alert.alert('Enter a valid mobile number', 'Please enter your 10-digit mobile number.');
+      return Alert.alert(t('login.invalidNumber', 'Enter a valid mobile number'), 'Please enter your 10-digit mobile number.');
     }
     
     setLoading(true);
@@ -36,7 +37,6 @@ export const LoginScreen = ({ phone, setPhone, apiUrl }: LoginScreenProps) => {
       if (!response.ok) throw new Error(result.message || 'Failed to send OTP');
       
       setOtpSent(true);
-      Alert.alert('OTP Sent', 'An OTP has been sent to your mobile number.');
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Please try again.');
     } finally {
@@ -46,7 +46,7 @@ export const LoginScreen = ({ phone, setPhone, apiUrl }: LoginScreenProps) => {
 
   const handleVerifyOtp = async () => {
     if (otp.length < 4) {
-      return Alert.alert('Invalid OTP', 'Please enter a valid OTP.');
+      return Alert.alert(t('login.invalidOtp', 'Invalid OTP'), 'Please enter a valid OTP.');
     }
 
     setLoading(true);
@@ -60,7 +60,6 @@ export const LoginScreen = ({ phone, setPhone, apiUrl }: LoginScreenProps) => {
       
       if (!response.ok) throw new Error(result.message || 'Failed to verify OTP');
       
-      // Store credentials in memory store
       authStore.accessToken = result.access_token;
       authStore.userId = result.user?.id;
       
@@ -75,16 +74,16 @@ export const LoginScreen = ({ phone, setPhone, apiUrl }: LoginScreenProps) => {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
-      <Header title="Welcome" back={otpSent ? undefined : "welcome"} onBack={() => {
+      <Header title={t('welcome.welcomeToTechArtha', 'Welcome')} back={otpSent ? undefined : "welcome"} onBack={() => {
         if (otpSent) setOtpSent(false);
         else navigation.goBack();
       }} />
       <View style={styles.page}>
         {!otpSent ? (
           <>
-            <Text style={styles.title}>Let’s get you started</Text>
-            <Text style={styles.description}>Enter your mobile number. We’ll send a secure one-time verification code.</Text>
-            <Text style={styles.label}>Mobile number</Text>
+            <Text style={styles.title}>{t('login.title', 'Let’s get you started')}</Text>
+            <Text style={styles.description}>{t('login.desc', 'Enter your mobile number. We’ll send a secure one-time verification code.')}</Text>
+            <Text style={styles.label}>{t('login.mobileLabel', 'Mobile number')}</Text>
             <View style={styles.phoneInput}>
               <Text style={styles.country}>+91</Text>
               <TextInput 
@@ -98,15 +97,15 @@ export const LoginScreen = ({ phone, setPhone, apiUrl }: LoginScreenProps) => {
               />
             </View>
             <Pressable style={[styles.primaryButton, loading && styles.primaryDisabled]} onPress={handleSendOtp} disabled={loading}>
-              <Text style={styles.primaryText}>{loading ? 'Sending...' : 'Continue securely'}</Text>
+              <Text style={styles.primaryText}>{loading ? t('signup.sending', 'Sending...') : t('login.continue', 'Continue securely')}</Text>
               <Text style={styles.primaryText}>→</Text>
             </Pressable>
           </>
         ) : (
           <>
-            <Text style={styles.title}>Verify your number</Text>
+            <Text style={styles.title}>{t('login.verifyNumber', 'Verify your number')}</Text>
             <Text style={styles.description}>Enter the OTP sent to +91 {phone}.</Text>
-            <Text style={styles.label}>One-Time Password (OTP)</Text>
+            <Text style={styles.label}>{t('login.otpLabel', 'One-Time Password (OTP)')}</Text>
             <TextInput 
               value={otp} 
               onChangeText={setOtp} 
@@ -117,12 +116,12 @@ export const LoginScreen = ({ phone, setPhone, apiUrl }: LoginScreenProps) => {
               editable={!loading}
             />
             <Pressable style={[styles.primaryButton, loading && styles.primaryDisabled]} onPress={handleVerifyOtp} disabled={loading}>
-              <Text style={styles.primaryText}>{loading ? 'Verifying...' : 'Verify OTP'}</Text>
+              <Text style={styles.primaryText}>{loading ? t('signup.verifyingStatus', 'Verifying...') : t('login.verifyOtp', 'Verify OTP')}</Text>
               <Text style={styles.primaryText}>→</Text>
             </Pressable>
           </>
         )}
-        <Text style={styles.legal}>By continuing, you agree to our Terms and Privacy Policy.</Text>
+        <Text style={styles.legal}>{t('settings.terms', 'Terms of Service')}</Text>
       </View>
     </SafeAreaView>
   );

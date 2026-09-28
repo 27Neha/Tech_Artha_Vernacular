@@ -13,14 +13,8 @@ export class GoalController {
     return this.goalService.list(user.id);
   }
 
-  @Post('simulate')
-  simulate(@Body() body: { targetAmount: number; timePeriod: number; currentSavings?: number; inflationRate?: number }) {
-    return this.goalService.simulate(body);
-  }
-
-  @Post('select')
-  selectGoal(@CurrentUser() user: AuthenticatedUser, @Body() body: { name: string; targetAmount: number; timePeriod: number; currentSavings?: number; inflationRate?: number; bucketId?: string; bucketName?: string; sipDate?: number; consent?: boolean }) {
-    const legacyBucket = body.bucketName === 'stable' ? 'stable' : body.bucketName === 'high' ? 'growth' : 'balanced';
-    return this.goalService.selectGoal(user.id, { ...body, bucketId: body.bucketId ?? legacyBucket, sipDate: body.sipDate ?? 5, consent: Boolean(body.consent) });
+  @Post('context')
+  saveContext(@CurrentUser() user: AuthenticatedUser, @Body() body: any) {
+    return this.goalService.saveContext(user.id, body);
   }
 }
