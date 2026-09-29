@@ -12,7 +12,7 @@ interface OtpVerificationProps {
   loading: boolean;
   error: string;
   setError: (error: string) => void;
-  otpHint?: string;
+  
 }
 
 export default function OtpVerification({
@@ -25,7 +25,7 @@ export default function OtpVerification({
   loading,
   error,
   setError,
-  otpHint
+  
 }: OtpVerificationProps) {
   const { t } = useTranslation();
   const [otp, setOtp] = useState('');
@@ -34,9 +34,12 @@ export default function OtpVerification({
   useEffect(() => {
     if (initialChannel) {
       setOtpChannel(initialChannel);
-      setHasSent(false);
+      setHasSent(true);
+      if (initialChannel === 'SMS') setSmsTimer(60);
+      if (initialChannel === 'WHATSAPP') setWaTimer(60);
+      if (initialChannel === 'EMAIL') setEmailTimer(60);
     }
-  }, [initialChannel]);
+  }, []); // Run only on mount since parent already sent it
   
   const [smsTimer, setSmsTimer] = useState(0);
   const [waTimer, setWaTimer] = useState(0);
@@ -76,7 +79,7 @@ const handleSend = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL') => {
       <h1 className="page-title">{identifierType === 'EMAIL' ? (t('login.verifyEmail') || 'Verify your email') : (t('login.verifyNumber') || 'Verify your number')}</h1>
       <p className="page-desc">{t('login.otpSentTo') || 'Enter the OTP sent to'} <strong>{identifierType === 'EMAIL' ? identifierValue : `+91 ${identifierValue}`}</strong></p>
 
-      {otpHint && <p className="text-sm font-mono bg-blue-50 text-blue-800 p-2 rounded mb-4">{otpHint}</p>}
+
 
       <label className="label">{t('login.otpLabel') || 'One-Time Password (OTP)'}</label>
       

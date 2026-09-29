@@ -52,7 +52,7 @@ export default function SignupPage() {
         emailInputRef.current?.focus();
         return;
       }
-      if (!/^[^s@]+@[^s@]+.[^s@]+$/.test(email)) {
+      if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email)) {
         setValidationError(t('validation.emailInvalid', { defaultValue: 'Please enter a valid email address.' }));
         emailInputRef.current?.focus();
         return;
@@ -86,8 +86,7 @@ export default function SignupPage() {
         return;
       }
       setAuthChannel(channel);
-      setActiveChannel(channel);
-      setStep(1.5);
+      await handleSendSignupOtp(channel);
     } catch (e) {
       setError(t('common.error', { defaultValue: 'Something went wrong. Please try again.' }));
     } finally {
@@ -100,6 +99,13 @@ export default function SignupPage() {
   
   const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
+  const getStatusIcon = (isValid: boolean | null) => {
+    if (isValid === null) return <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300 flex-shrink-0"><circle cx="12" cy="12" r="5" fill="currentColor"></circle></svg>;
+    return isValid ? 
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-green-500 flex-shrink-0"><polyline points="20 6 9 17 4 12"></polyline></svg> : 
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-red-500 flex-shrink-0"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
+  };
+
   const isPasswordStrong = password.length >= 8 && /[A-Z]/.test(password) && /[a-z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password);
 
   const [otp, setOtp] = useState('');
@@ -110,8 +116,7 @@ export default function SignupPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [email, setEmail] = useState('');
   const [activeChannel, setActiveChannel] = useState<'SMS'|'WHATSAPP'|'EMAIL' | null>(null);
-  const [otpHint, setOtpHint] = useState('');
-    const [showPasswordInfo, setShowPasswordInfo] = useState(false);
+      const [showPasswordInfo, setShowPasswordInfo] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
   const passwordInfoRef = useRef<HTMLDivElement>(null);
 
@@ -136,20 +141,21 @@ export default function SignupPage() {
     setLoading(true);
     setError('');
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_URL}/auth/password`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ password })
-      });
+      const res = await fetch(`${API_URL}/auth/signup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(authChannel === 'EMAIL' ? { email, password, clientType, referralCode } : { mobile, password, clientType, referralCode })
+        });
       const data = await safeFetchJson(res);
       if (res.ok) {
-        setStep(2);
-      } else {
-        setError(data.message || 'Failed to save password');
+          localStorage.setItem('access_token', data.accessToken);
+          localStorage.setItem('user_id', data.user.id);
+          setStep(2);
+        } else {
+        setError(data.message || t('signup.failedToSavePassword') || 'Failed to save password');
       }
     } catch (e) {
-      setError('An error occurred');
+      setError(t('signup.anErrorOccurred') || 'An error occurred');
     }
     setLoading(false);
   };
@@ -188,11 +194,10 @@ export default function SignupPage() {
       });
       const data = await safeFetchJson(res);
       if (res.status === 409) {
-        throw new Error('An account already exists with this ' + (channel === 'EMAIL' ? 'email address' : 'mobile number') + '. Please Login Instead.');
+        throw new Error(channel === 'EMAIL' ? (t('signup.emailExists', { defaultValue: 'This email is already registered. Please log in instead.' })) : (t('signup.mobileExists', { defaultValue: 'This mobile number is already registered. Please log in instead.' })));
       }
-      if (!res.ok) throw new Error(data.message || 'Failed to send OTP');
-        if (data.devOtp) setOtpHint('Test OTP: ' + data.devOtp);
-      
+      if (!res.ok) throw new Error(data.message || t('login.failedToSendOtp', { defaultValue: 'Failed to send OTP' }));
+              
       if (channel === 'SMS') setSmsTimer(120);
       if (channel === 'WHATSAPP') setWaTimer(120);
       if (channel === 'EMAIL') setEmailTimer(120);
@@ -234,13 +239,12 @@ export default function SignupPage() {
         body: JSON.stringify(authChannel === 'EMAIL' ? { email, otp: currentOtp, type: 'signup' } : { mobile, otp: currentOtp, type: 'signup' })
       });
       const data = await safeFetchJson(res);
-      if (!res.ok) throw new Error(data.message || 'Invalid OTP');
+      if (!res.ok) throw new Error(data.message || t('login.invalidOtp', { defaultValue: 'Invalid OTP' }));
       
-      localStorage.setItem('access_token', data.accessToken);
-      localStorage.setItem('user_id', data.user.id);
+      // Temporarily wait for password before setting session
       
-      // Move to personal info (formerly step 2)
-      setStep(2);
+      // Move to password creation (step 1.6)
+        setStep(1.6);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -296,8 +300,7 @@ export default function SignupPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Signup failed');
       
-      localStorage.setItem('access_token', data.accessToken);
-      localStorage.setItem('user_id', data.user.id);
+      // Temporarily wait for password before setting session
       router.push('/kyc');
     } catch (e: any) {
       setError(e.message);
@@ -323,7 +326,7 @@ export default function SignupPage() {
         setPanVerified('FAILED');
         setFaceVerified('FAILED');
       } else if (data.status === 'MANUAL_REVIEW') {
-        alert('KYC is under manual review.');
+        alert(t('signup.manualReview') || 'KYC is under manual review.');
       }
     } catch (e) {
       console.error(e);
@@ -366,7 +369,7 @@ export default function SignupPage() {
 
   return (
     <div className="flex flex-col flex-1 p-6 bg-white">
-      <p className="text-gray-500 mb-8">Step {step} of 3</p>
+      <p className="text-gray-500 mb-8">{t('signup.step', { step })}</p>
       
       {error && (
         <div className="bg-red-50 text-red-500 p-4 rounded-xl mb-4 border border-red-100 flex flex-col gap-2">
@@ -384,17 +387,7 @@ export default function SignupPage() {
         <div className="flex-1 animate-fade-in flex flex-col justify-start max-w-md w-full mx-auto mt-4">
             <h1 className="text-2xl font-bold text-[var(--dark)] mb-6">{t('signup.createAccount') || 'Create your TechArtha account'}</h1>
 
-            <div className="flex justify-end mb-2">
-              {authChannel !== 'EMAIL' ? (
-                 <button onClick={() => setAuthChannel('EMAIL')} className="text-sm font-semibold text-[var(--primary)] hover:underline">
-                   {t('signup.useEmailInstead') || 'Use email instead'}
-                 </button>
-              ) : (
-                 <button onClick={() => setAuthChannel('SMS')} className="text-sm font-semibold text-[var(--primary)] hover:underline">
-                   {t('signup.useMobileInstead') || 'Use mobile number instead'}
-                 </button>
-              )}
-            </div>
+            
 
             
             {authChannel === 'EMAIL' ? (
@@ -488,11 +481,14 @@ export default function SignupPage() {
                 
                 <p className="text-xs text-center text-gray-500 mb-8">
                   {t('signup.preferWa') || 'Prefer WhatsApp? Get your OTP there instead.'}
-                </p>
-                
-                
-              </div>
-            )}
+                  </p>
+                  <div className="flex justify-center mt-2 mb-6">
+                    <button onClick={() => setAuthChannel('EMAIL')} className="text-sm font-semibold text-[var(--primary)] hover:underline">
+                      {t('signup.useEmailInstead') || 'Use email instead'}
+                    </button>
+                  </div>
+                </div>
+              )}
         </div>
       )}
 
@@ -508,8 +504,7 @@ export default function SignupPage() {
             loading={loading}
             error={error}
             setError={setError}
-            otpHint={otpHint}
-          />
+                      />
         </div>
       )}
 
@@ -526,13 +521,13 @@ export default function SignupPage() {
                 {showPasswordInfo && (
                   <div className="absolute left-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-10 text-xs text-gray-600">
                     <p className="font-bold text-[var(--dark)] mb-2">{t('signup.reqTitle') || 'Password Requirements:'}</p>
-                    <div className="flex flex-col gap-1">
-                      <span className="flex items-center gap-2"><span className="w-3 flex-shrink-0 font-bold">{password.length === 0 ? '•' : (password.length >= 8 ? '✓' : '✕')}</span> {t('signup.reqLength') || 'At least 8 characters'}</span>
-                      <span className="flex items-center gap-2"><span className="w-3 flex-shrink-0 font-bold">{password.length === 0 ? '•' : (/[A-Z]/.test(password) ? '✓' : '✕')}</span> {t('signup.reqUpper') || 'One uppercase letter'}</span>
-                      <span className="flex items-center gap-2"><span className="w-3 flex-shrink-0 font-bold">{password.length === 0 ? '•' : (/[a-z]/.test(password) ? '✓' : '✕')}</span> {t('signup.reqLower') || 'One lowercase letter'}</span>
-                      <span className="flex items-center gap-2"><span className="w-3 flex-shrink-0 font-bold">{password.length === 0 ? '•' : (/[0-9]/.test(password) ? '✓' : '✕')}</span> {t('signup.reqNumber') || 'One number'}</span>
-                      <span className="flex items-center gap-2"><span className="w-3 flex-shrink-0 font-bold">{password.length === 0 ? '•' : (/[^A-Za-z0-9]/.test(password) ? '✓' : '✕')}</span> {t('signup.reqSpecial') || 'One special character'}</span>
-                    </div>
+                    <div className="flex flex-col gap-2">
+                        <span className="flex items-center gap-2">{getStatusIcon(password.length === 0 ? null : password.length >= 8)} <span className="text-gray-700">{t('signup.reqLength') || 'At least 8 characters'}</span></span>
+                        <span className="flex items-center gap-2">{getStatusIcon(password.length === 0 ? null : /[A-Z]/.test(password))} <span className="text-gray-700">{t('signup.reqUpper') || 'One uppercase letter'}</span></span>
+                        <span className="flex items-center gap-2">{getStatusIcon(password.length === 0 ? null : /[a-z]/.test(password))} <span className="text-gray-700">{t('signup.reqLower') || 'One lowercase letter'}</span></span>
+                        <span className="flex items-center gap-2">{getStatusIcon(password.length === 0 ? null : /[0-9]/.test(password))} <span className="text-gray-700">{t('signup.reqNumber') || 'One number'}</span></span>
+                        <span className="flex items-center gap-2">{getStatusIcon(password.length === 0 ? null : /[^A-Za-z0-9]/.test(password))} <span className="text-gray-700">{t('signup.reqSpecial') || 'One special character'}</span></span>
+                      </div>
                   </div>
                 )}
               </div>
@@ -543,7 +538,7 @@ export default function SignupPage() {
                 type="button" 
                 onClick={() => setShowPassword(!showPassword)} 
                 className="absolute right-3 text-gray-400 hover:text-[var(--primary)] focus:outline-none flex items-center justify-center w-8 h-8 transition-colors"
-                title={showPassword ? "Hide password" : "Show password"}
+                title={showPassword ? (t('signup.hidePassword') || "Hide password") : (t('signup.showPassword') || "Show password")}
               >
                 {showPassword ? (
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
@@ -560,7 +555,7 @@ export default function SignupPage() {
                 type="button" 
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)} 
                 className="absolute right-3 text-gray-400 hover:text-[var(--primary)] focus:outline-none flex items-center justify-center w-8 h-8 transition-colors"
-                title={showConfirmPassword ? "Hide password" : "Show password"}
+                title={showConfirmPassword ? (t('signup.hidePassword') || "Hide password") : (t('signup.showPassword') || "Show password")}
               >
                 {showConfirmPassword ? (
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
@@ -617,16 +612,16 @@ export default function SignupPage() {
                 <div>
                   <h4 className="font-bold text-[var(--dark)]">{t('signup.panAndKyc')}</h4>
                   <p className="text-xs text-gray-500 mt-1">
-                    {panVerified === 'PENDING' && 'Verification required'}
-                    {panVerified === 'IN_PROGRESS' && 'Verification in progress'}
-                    {panVerified === 'SUCCESS' && 'Verified successfully'}
-                    {panVerified === 'FAILED' && 'Verification failed'}
+                    {panVerified === 'PENDING' && t('signup.kycRequired') || 'Verification required'}
+                    {panVerified === 'IN_PROGRESS' && t('signup.kycInProgress') || 'Verification in progress'}
+                    {panVerified === 'SUCCESS' && t('signup.kycSuccess') || 'Verified successfully'}
+                    {panVerified === 'FAILED' && t('signup.kycFailed') || 'Verification failed'}
                   </p>
                 </div>
                 <div>
                   {panVerified === 'PENDING' && (
                     <button onClick={startKycWorkflow} disabled={loading} className="px-4 py-2 bg-[var(--primary)] text-white font-bold rounded-lg text-sm">
-                      {loading ? 'Starting...' : 'Verify Now'}
+                      {loading ? t('signup.starting') || 'Starting...' : t('signup.verifyNow') || 'Verify Now'}
                     </button>
                   )}
                   {panVerified === 'IN_PROGRESS' && <span className="text-gray-500 font-bold text-sm">{t('signup.verifyingStatus')}</span>}
@@ -639,7 +634,7 @@ export default function SignupPage() {
                 <div className="bg-red-50 border border-red-100 rounded-lg p-3 mt-2">
                    <p className="text-xs text-red-600 mb-3">{error || t('signup.panInvalid')}</p>
                    <button onClick={() => setStep(2)} className="w-full py-2 bg-white border border-red-200 text-red-600 font-bold rounded-md text-xs hover:bg-red-50 transition-colors">
-                     Review Details
+                     {t('signup.reviewDetails') || 'Review Details'}
                    </button>
                 </div>
               )}
@@ -655,7 +650,7 @@ export default function SignupPage() {
                 : 'bg-gray-300 cursor-not-allowed'
             }`}
           >
-            {panVerified === 'SUCCESS' ? 'Complete Onboarding' : 'KYC Pending'}
+            {panVerified === 'SUCCESS' ? t('signup.completeOnboarding') || 'Complete Onboarding' : t('signup.kycPending') || 'KYC Pending'}
           </button>
         </div>
       )}
