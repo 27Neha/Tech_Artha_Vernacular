@@ -65,9 +65,10 @@ export class AuthController {
   }
 
   @Post('signup')
-  async signup(@Body() body: { mobile?: string; password?: string; clientType?: string; referralCode?: string; deviceId?: string }) {
+  async signup(@Body() body: { mobile?: string; email?: string; password?: string; clientType?: string; referralCode?: string; deviceId?: string }) {
     return this.authService.signup({
-      mobile: body.mobile ?? '',
+      mobile: body.mobile,
+      email: body.email,
       password: body.password,
       clientType: body.clientType,
       referralCode: body.referralCode
@@ -75,8 +76,11 @@ export class AuthController {
   }
 
   @Post('login-password')
-  async loginPassword(@Body() body: { mobile?: string; password?: string; deviceId?: string }) {
-    return this.authService.loginPassword(body.mobile ?? '', body.password ?? '', body.deviceId);
+  async loginPassword(@Body() body: { mobile?: string; email?: string; password?: string; deviceId?: string }) {
+    if (body.email) {
+      return this.authService.loginPassword(body.email, true, body.password ?? '', body.deviceId);
+    }
+    return this.authService.loginPassword(body.mobile ?? '', false, body.password ?? '', body.deviceId);
   }
 
   @Post('refresh')

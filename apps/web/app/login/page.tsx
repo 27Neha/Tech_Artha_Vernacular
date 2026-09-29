@@ -21,8 +21,7 @@ export default function LoginPage() {
   const emailInputRef = useRef<HTMLInputElement>(null);
   const [validationError, setValidationError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [otpHint, setOtpHint] = useState('');
-
+  
     const [accountNotExistsWarning, setAccountNotExistsWarning] = useState(false);
   
     
@@ -36,7 +35,7 @@ export default function LoginPage() {
         emailInputRef.current?.focus();
         return;
       }
-      if (!/^[^s@]+@[^s@]+.[^s@]+$/.test(email)) {
+      if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email)) {
         setValidationError(t('validation.emailInvalid', { defaultValue: 'Please enter a valid email address.' }));
         emailInputRef.current?.focus();
         return;
@@ -74,7 +73,7 @@ export default function LoginPage() {
           handleLogin();
         } else {
           setAuthChannel(channel);
-          setOtpSent(true);
+          await handleSendOtp(channel);
         }
       } catch (e) {
         setError(t('common.error', { defaultValue: 'Something went wrong. Please try again.' }));
@@ -91,7 +90,7 @@ export default function LoginPage() {
 
   const handleSendOtp = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL') => {
     setError('');
-    setOtpHint('');
+    
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/auth/login/start`, {
@@ -105,14 +104,13 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (res.status === 404) {
-        throw new Error('No account found. Please sign up.');
+        throw new Error(t('login.noAccountFound', { defaultValue: 'No account found. Please sign up.' }));
       }
-      if (!res.ok) throw new Error(data.message || 'Failed to send OTP');
+      if (!res.ok) throw new Error(data.message || t('login.failedToSendOtp', { defaultValue: 'Failed to send OTP' }));
 
-      if (data.devOtp) setOtpHint(`Test OTP: ${data.devOtp}`);
-        setOtpSent(true);
+              setOtpSent(true);
     } catch (e: any) {
-      setError(e.message || 'Failed to send OTP. Please try again.');
+      setError(e.message || t('login.failedToSendOtpRetry', { defaultValue: 'Failed to send OTP. Please try again.' }));
       throw e;
     } finally {
       setLoading(false);
@@ -122,7 +120,7 @@ export default function LoginPage() {
   const handleLogin = async () => {
     setError('');
     if (loginMethod === 'password') {
-      if (!password) { setError('Enter password.'); return; }
+      if (!password) { setError(t('login.enterPassword', { defaultValue: 'Enter password.' })); return; }
       setLoading(true);
       try {
         const res = await fetch(`${API_URL}/auth/login-password`, {
@@ -135,7 +133,7 @@ export default function LoginPage() {
           }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Invalid credentials');
+        if (!res.ok) throw new Error(data.message || t('login.invalidCredentials', { defaultValue: 'Invalid credentials' }));
         localStorage.setItem('access_token', data.accessToken || data.access_token);
         localStorage.setItem('user_id', data.user?.id ?? '');
         router.push('/dashboard');
@@ -164,20 +162,20 @@ export default function LoginPage() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Invalid OTP');
+      if (!res.ok) throw new Error(data.message || t('login.invalidOtp', { defaultValue: 'Invalid OTP' }));
       localStorage.setItem('access_token', data.accessToken);
       localStorage.setItem('user_id', data.user?.id ?? '');
       
       router.push('/dashboard');
     } catch (e: any) {
-      setError(e.message || 'Invalid OTP. Please try again.');
+      setError(e.message || t('login.invalidOtpRetry', { defaultValue: 'Invalid OTP. Please try again.' }));
     } finally {
       setLoading(false);
     }
   };
 
   const isContinueDisabled = identifierType === 'EMAIL' 
-    ? !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) 
+    ? !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email) 
     : phone.length !== 10;
 
   return (
@@ -187,17 +185,7 @@ export default function LoginPage() {
           <div className="animate-fade-in flex flex-col justify-start max-w-md w-full mx-auto mt-4">
             <h1 className="text-2xl font-bold text-[var(--dark)] mb-6">{t('login.welcomeBack') || 'Welcome back'}</h1>
 
-            <div className="flex justify-end mb-2">
-              {identifierType === 'MOBILE' ? (
-                 <button onClick={() => { setIdentifierType('EMAIL'); setAuthChannel('EMAIL'); }} className="text-sm font-semibold text-[var(--primary)] hover:underline">
-                   {t('signup.useEmailInstead') || 'Use email instead'}
-                 </button>
-              ) : (
-                 <button onClick={() => { setIdentifierType('MOBILE'); setAuthChannel('SMS'); }} className="text-sm font-semibold text-[var(--primary)] hover:underline">
-                   {t('signup.useMobileInstead') || 'Use mobile number instead'}
-                 </button>
-              )}
-            </div>
+            
 
             <div className="mb-6">
               <label className="label text-sm text-gray-700 font-semibold mb-2 block">
@@ -340,9 +328,14 @@ export default function LoginPage() {
                     >
                       <span className="text-xl">💬</span>
                       {t('login.useWaInstead') || 'Continue with WhatsApp'}
-                    </button>
-                  </>
-                )}
+                      </button>
+                      <div className="flex justify-center mt-2 mb-6">
+                        <button onClick={() => { setIdentifierType('EMAIL'); setAuthChannel('EMAIL'); }} className="text-sm font-semibold text-[var(--primary)] hover:underline">
+                          {t('signup.useEmailInstead') || 'Use email instead'}
+                        </button>
+                      </div>
+                    </>
+                  )}
               </div>
             )}
           </div>
@@ -360,8 +353,7 @@ export default function LoginPage() {
               loading={loading}
               error={error}
               setError={setError}
-              otpHint={otpHint}
-            />
+                          />
           </div>
         )}
 
