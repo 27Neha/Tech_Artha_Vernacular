@@ -121,14 +121,14 @@ export class AuthController {
     return this.authService.getProfile(user.id);
   }
 
-  @UseGuards(AccessTokenGuard)
-  @Put('profile')
   @Put('password')
   @UseGuards(AccessTokenGuard)
   async setPassword(@CurrentUser() user: AuthenticatedUser, @Body() body: { password: string }) {
     return this.authService.setPassword(user.id, body.password);
   }
 
+  @Put('profile')
+  @UseGuards(AccessTokenGuard)
   async updateProfile(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: { fullName?: string; dateOfBirth?: string; pan?: string; clientType?: string; referralCode?: string }

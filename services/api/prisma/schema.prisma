@@ -335,7 +335,7 @@ model Notification {
 model KYCApplication {
   id                    String             @id @default(uuid())
   userId                String             @unique
-  provider              String             @default("HYPERVERGE")
+  provider              String             @default("CYBRILLA")
   providerTransactionId String?            @unique
   workflowId            String?
   status                String             @default("NOT_STARTED")
