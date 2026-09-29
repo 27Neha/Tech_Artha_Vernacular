@@ -184,6 +184,16 @@ export default function LoginPage() {
                         {step === 1 && !otpSent && (
           <div className="animate-fade-in flex flex-col justify-start max-w-md w-full mx-auto mt-4">
             <h1 className="text-2xl font-bold text-[var(--dark)] mb-6">{t('login.welcomeBack') || 'Welcome back'}</h1>
+              {accountNotExistsWarning && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl flex flex-col items-center justify-center text-center">
+                  <p className="text-sm text-red-600 mb-2 font-medium">
+                    {identifierType === 'EMAIL' ? (t('login.emailNotExists', { defaultValue: 'This account is not registered. Please sign up first.' })) : (t('login.mobileNotExists', { defaultValue: 'This account is not registered. Please sign up first.' }))}
+                  </p>
+                  <button onClick={() => router.push('/signup')} className="text-sm font-bold text-red-700 hover:underline">
+                    {t('login.goToSignup', { defaultValue: 'Go to Sign Up' })} →
+                  </button>
+                </div>
+              )}
 
             
 
@@ -242,16 +252,7 @@ export default function LoginPage() {
             {loginMethod === 'password' ? (
               <div className="animate-fade-in">
 
-                  {accountNotExistsWarning && (
-                    <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl flex flex-col items-center justify-center text-center">
-                      <p className="text-sm text-red-600 mb-2 font-medium">
-                        {identifierType === 'EMAIL' ? (t('login.emailNotExists', { defaultValue: 'This account is not registered. Please sign up first.' })) : (t('login.mobileNotExists', { defaultValue: 'This account is not registered. Please sign up first.' }))}
-                      </p>
-                      <button onClick={() => router.push('/signup')} className="text-sm font-bold text-red-700 hover:underline">
-                        {t('login.goToSignup', { defaultValue: 'Go to Sign Up' })} →
-                      </button>
-                    </div>
-                  )}
+                  
                                                   <div className="mb-8">
                   <label className="label text-sm text-gray-700 font-semibold mb-2 block">{t('login.password') || 'Password'}</label>
                   <div className="relative flex items-center">
@@ -288,16 +289,7 @@ export default function LoginPage() {
             ) : (
               <div className="animate-fade-in">
 
-                  {accountNotExistsWarning && (
-                    <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl flex flex-col items-center justify-center text-center">
-                      <p className="text-sm text-red-600 mb-2 font-medium">
-                        {identifierType === 'EMAIL' ? (t('login.emailNotExists', { defaultValue: 'This account is not registered. Please sign up first.' })) : (t('login.mobileNotExists', { defaultValue: 'This account is not registered. Please sign up first.' }))}
-                      </p>
-                      <button onClick={() => router.push('/signup')} className="text-sm font-bold text-red-700 hover:underline">
-                        {t('login.goToSignup', { defaultValue: 'Go to Sign Up' })} →
-                      </button>
-                    </div>
-                  )}
+                  
                                     {identifierType === 'EMAIL' ? (
                   <button 
                     onClick={() => handleContinue('EMAIL')}
