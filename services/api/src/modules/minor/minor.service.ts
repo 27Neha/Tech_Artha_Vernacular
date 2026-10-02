@@ -101,7 +101,7 @@ export class MinorService {
     }
 
     const hasRiskProfile = await this.prisma.riskProfile.findUnique({ where: { userId: guardianUser.id } });
-    const session = await this.authService.createSessionForUser(guardianUser);
+    const session = await this.authService.createSession(guardianUser);
 
     return { 
       success: true,

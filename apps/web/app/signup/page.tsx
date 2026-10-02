@@ -97,7 +97,7 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   const [transactionId, setTransactionId] = useState('');
   
-  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
   const getStatusIcon = (isValid: boolean | null) => {
     if (isValid === null) return <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300 flex-shrink-0"><circle cx="12" cy="12" r="5" fill="currentColor"></circle></svg>;

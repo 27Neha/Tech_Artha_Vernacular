@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import OtpVerification from '../../components/OtpVerification';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export default function LoginPage() {
   const router = useRouter();

@@ -3,6 +3,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
+import { EmailOtpProvider } from './email.provider';
 import { AccessTokenGuard } from '../../common/auth';
 import { InteraktModule } from '../../integrations/interakt/interakt.module';
 import { MtalkzModule } from '../mtalkz/mtalkz.module';
@@ -21,7 +22,7 @@ import { ZohoModule } from '../zoho/zoho.module';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AccessTokenGuard],
+  providers: [AuthService, AccessTokenGuard, EmailOtpProvider],
   exports: [AuthService, AccessTokenGuard],
 })
 export class AuthModule {}
