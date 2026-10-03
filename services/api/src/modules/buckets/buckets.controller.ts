@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { BucketsService } from './buckets.service';
 import { CustomBucketDto } from './custom-bucket.dto';
 import { InvestInBucketDto } from './invest-in-bucket.dto';
+import { StartSipDto } from './sip-in-bucket.dto';
 
 @Controller('buckets')
 @UseGuards(AccessTokenGuard)
@@ -25,6 +26,12 @@ export class BucketsController {
   @Post(':id/invest')
   async invest(@CurrentUser() user: AuthenticatedUser, @Param('id') bucketId: string, @Body() dto: InvestInBucketDto) {
     return this.buckets.invest(user.id, bucketId, dto);
+  }
+
+  /** Registers a recurring SIP. Separate from :id/invest, which is one-time. */
+  @Post(':id/sip')
+  async startSip(@CurrentUser() user: AuthenticatedUser, @Param('id') bucketId: string, @Body() dto: StartSipDto) {
+    return this.buckets.startSip(user.id, bucketId, dto);
   }
 
   @Get('custom')

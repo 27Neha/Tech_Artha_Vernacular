@@ -7,6 +7,22 @@ import {
 } from '@nestjs/common';
 import axios from 'axios';
 
+/**
+ * Exactly the values /v2/mf_purchase_plans accepts, read off the gateway's own
+ * validation error. Case sensitive.
+ */
+export type CybrillaSipFrequency =
+  | 'calendar_day_daily'
+  | 'daily'
+  | 'day_in_a_week'
+  | 'four_times_a_month'
+  | 'day_in_a_fortnight'
+  | 'twice_a_month'
+  | 'monthly'
+  | 'quarterly'
+  | 'half_yearly'
+  | 'yearly';
+
 @Injectable()
 export class CybrillaService {
   private readonly logger = new Logger(CybrillaService.name);
@@ -382,6 +398,60 @@ export class CybrillaService {
         );
       }
       throw new InternalServerErrorException('Cybrilla purchase order failed.');
+    }
+  }
+
+  /**
+   * POST /v2/mf_purchase_plans - registers a recurring SIP.
+   *
+   * The fp-cybrillapoa gateway supports single and batch SIP creation, with UPI Autopay
+   * and e-NACH for the auto-debit mandate. The required fields and the frequency enum
+   * below were confirmed against the live sandbox tenant, not inferred from the docs:
+   *
+   *   required: user_ip, amount, scheme, number_of_installments, systematic,
+   *             mf_investment_account, frequency, installment_day
+   *
+   * `systematic` must be true - the gateway rejects a non-systematic purchase plan.
+   */
+  async createPurchasePlan(params: {
+    mfInvestmentAccount: string;
+    scheme: string;
+    amount: number;
+    frequency: CybrillaSipFrequency;
+    installmentDay: number;
+    numberOfInstallments: number;
+    userIp: string;
+    mandate?: string;
+  }) {
+    try {
+      this.logger.log(
+        `Registering Cybrilla SIP: ${params.scheme} x ₹${params.amount} ${params.frequency} on day ${params.installmentDay}`,
+      );
+      return await this.tenantPost('/v2/mf_purchase_plans', {
+        mf_investment_account: params.mfInvestmentAccount,
+        scheme: params.scheme,
+        amount: params.amount,
+        frequency: params.frequency,
+        installment_day: params.installmentDay,
+        number_of_installments: params.numberOfInstallments,
+        systematic: true,
+        user_ip: params.userIp,
+        ...(params.mandate ? { mandate: params.mandate } : {}),
+      });
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const responseData = error?.response?.data;
+      this.logger.error(
+        `Cybrilla SIP registration failed. HTTP Status: ${status || 'Unknown'} - Data: ${JSON.stringify(responseData)}`,
+      );
+      if (status === 400) {
+        throw new BadRequestException(
+          responseData?.error?.errors ??
+            responseData?.error?.message ??
+            'Could not register this SIP.',
+        );
+      }
+      throw new InternalServerErrorException('Cybrilla SIP registration failed.');
     }
   }
 
