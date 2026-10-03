@@ -34,10 +34,8 @@ type AuthStatus = 'loading' | 'authenticated' | 'anonymous';
 type AuthContextValue = {
   status: AuthStatus;
   user: AuthUser | null;
-  language: string | null;
   signIn: (session: Session) => Promise<void>;
   signOut: () => Promise<void>;
-  setLanguage: (language: string) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -45,7 +43,6 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [language, setLanguage] = useState<string | null>(null);
 
   // The client reads the token synchronously on every request, so it is kept in a ref
   // as well as state - state alone would hand out a stale token within the same tick.
@@ -119,8 +116,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, language, signIn, signOut, setLanguage }),
-    [status, user, language, signIn, signOut],
+    () => ({ status, user, signIn, signOut }),
+    [status, user, signIn, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { api } from '../services/api/client';
-import { useAuth } from '../store/AuthContext';
+import { useTranslation } from '../i18n/TranslationContext';
 import { styles } from '../theme/styles';
 
 /**
@@ -20,7 +20,7 @@ type Lesson = {
 type LearningResponse = { lessons?: Lesson[]; locale?: string } | Lesson[];
 
 export const LearnScreen = () => {
-  const { language } = useAuth();
+  const { lang } = useTranslation();
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +28,7 @@ export const LearnScreen = () => {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const response = await api.get<LearningResponse>(`/learning?locale=${language ?? 'en'}`);
+      const response = await api.get<LearningResponse>(`/learning?locale=${lang}`);
       // The endpoint has returned both a bare array and a wrapped object across versions.
       setLessons(Array.isArray(response) ? response : (response.lessons ?? []));
     } catch (e) {
@@ -36,7 +36,7 @@ export const LearnScreen = () => {
     } finally {
       setLoading(false);
     }
-  }, [language]);
+  }, [lang]);
 
   useEffect(() => {
     void load();

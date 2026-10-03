@@ -19,7 +19,17 @@ import { GoalSelectionScreen } from './src/screens/GoalSelectionScreen';
 import { InvestmentBucketsScreen } from './src/screens/InvestmentBucketsScreen';
 import { PlanSummaryScreen } from './src/screens/PlanSummaryScreen';
 import { InvestScreen } from './src/screens/InvestScreen';
+import { FundDetailScreen } from './src/screens/FundDetailScreen';
+import { CustomBucketScreen } from './src/screens/CustomBucketScreen';
+import { EditProfileScreen } from './src/screens/EditProfileScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
+import { RiskResultScreen } from './src/screens/RiskResultScreen';
+import { MinorGuardianScreen } from './src/screens/minor/MinorGuardianScreen';
+import { MinorVerifyScreen } from './src/screens/minor/MinorVerifyScreen';
+import { MinorConsentScreen } from './src/screens/minor/MinorConsentScreen';
+import { MinorReviewScreen } from './src/screens/minor/MinorReviewScreen';
 import { AuthProvider, useAuth } from './src/store/AuthContext';
+import { TranslationProvider } from './src/i18n/TranslationContext';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -97,22 +107,33 @@ function RootNavigator() {
         )}
       </Stack.Screen>
       <Stack.Screen name="RiskAssessment" component={RiskAssessmentScreen} />
-      <Stack.Screen name="RiskProfileResult" component={GoalSelectionScreen} />
+      <Stack.Screen name="RiskProfileResult" component={RiskResultScreen} />
+      <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
       <Stack.Screen name="InvestmentBuckets" component={InvestmentBucketsScreen} />
       <Stack.Screen name="PlanSummary" component={PlanSummaryScreen} />
       <Stack.Screen name="MainTabs" component={MainTabs} />
       <Stack.Screen name="Funds" component={FundsScreen} />
       <Stack.Screen name="Invest" component={InvestScreen} />
+      <Stack.Screen name="FundDetail" component={FundDetailScreen} />
+      <Stack.Screen name="CustomBucket" component={CustomBucketScreen} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="MinorGuardian" component={MinorGuardianScreen} />
+      <Stack.Screen name="MinorVerify" component={MinorVerifyScreen} />
+      <Stack.Screen name="MinorConsent" component={MinorConsentScreen} />
+      <Stack.Screen name="MinorReview" component={MinorReviewScreen} />
     </Stack.Navigator>
   );
 }
 
 export default function App() {
   return (
-    <AuthProvider>
-      <NavigationContainer ref={navigationRef}>
-        <RootNavigator />
-      </NavigationContainer>
-    </AuthProvider>
+    <TranslationProvider>
+      <AuthProvider>
+        <NavigationContainer ref={navigationRef}>
+          <RootNavigator />
+        </NavigationContainer>
+      </AuthProvider>
+    </TranslationProvider>
   );
 }

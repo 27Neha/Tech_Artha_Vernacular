@@ -2,6 +2,7 @@ import React from 'react';
 import { SafeAreaView, View, Text, Pressable } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
+import { useTranslation } from '../i18n/TranslationContext';
 import { Screen } from '../types';
 
 interface WelcomeScreenProps {
@@ -11,6 +12,7 @@ interface WelcomeScreenProps {
 import { useNavigation } from '@react-navigation/native';
 
 export const WelcomeScreen = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   return (
     <SafeAreaView style={styles.safe}>
@@ -29,18 +31,18 @@ export const WelcomeScreen = () => {
           <Text style={styles.brandTagline}>FINANCE SIMPLIFIED</Text>
         </View>
       </View>
-      <Text style={styles.hero}>Your money,{"\n"}made simple.</Text>
-      <Text style={styles.subhero}>Learn, plan and invest with confidence — in a language that feels like home.</Text>
+      <Text style={styles.hero}>{t('welcome.title')}</Text>
+      <Text style={styles.subhero}>{t('welcome.desc')}</Text>
       <View style={styles.trustRow}>
         <Text>🔒 Safe & secure</Text>
         <Text>•</Text>
         <Text>🇮🇳 Made for India</Text>
       </View>
       <Pressable style={styles.primaryButton} onPress={() => navigation.navigate('Login')}>
-        <Text style={styles.primaryText}>Start your journey</Text>
+        <Text style={styles.primaryText}>{t('welcome.start')}</Text>
         <Text style={styles.primaryText}>→</Text>
       </Pressable>
-      <Text style={styles.legal}>Mutual fund investments are subject to market risks.</Text>
+      <Text style={styles.legal}>{t('disclaimer')}</Text>
     </View>
   </SafeAreaView>
   );

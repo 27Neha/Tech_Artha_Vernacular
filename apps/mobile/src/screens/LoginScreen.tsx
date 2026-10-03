@@ -5,6 +5,7 @@ import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
 import { Screen } from '../types';
 import { api } from '../services/api/client';
+import { useTranslation } from '../i18n/TranslationContext';
 import { Session, useAuth } from '../store/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 
@@ -14,6 +15,7 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen = ({ phone, setPhone }: LoginScreenProps) => {
+  const { t } = useTranslation();
   const { signIn } = useAuth();
   const navigation = useNavigation<any>();
   const [otpSent, setOtpSent] = useState(false);
@@ -81,8 +83,8 @@ export const LoginScreen = ({ phone, setPhone }: LoginScreenProps) => {
       <View style={styles.page}>
         {!otpSent ? (
           <>
-            <Text style={styles.title}>Let’s get you started</Text>
-            <Text style={styles.description}>Enter your mobile number. We’ll send a secure one-time verification code.</Text>
+            <Text style={styles.title}>{t('login.title')}</Text>
+            <Text style={styles.description}>{t('login.desc')}</Text>
             <Text style={styles.label}>Mobile number</Text>
             <View style={styles.phoneInput}>
               <Text style={styles.country}>+91</Text>

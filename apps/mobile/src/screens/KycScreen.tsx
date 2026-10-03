@@ -68,6 +68,26 @@ export const KycScreen = ({
 
     setKycSubmitting(true);
     try {
+      // Save the profile first. AuthService.updateProfile derives investorType from the
+      // date of birth (age >= 18 ? ADULT : MINOR), so the server decides whether this is
+      // a minor rather than the app doing its own age maths and risking a mismatch.
+      const profile = await api.put<{ investorType?: string }>('/auth/profile', {
+        fullName: name.trim(),
+        dateOfBirth: dob,
+        pan,
+      });
+
+      if (profile?.investorType === 'MINOR') {
+        // A minor cannot be KYC'd on their own PAN; KycService requires a verified
+        // guardian instead, so the journey diverts before any provider call is made.
+        Alert.alert(
+          'A guardian needs to continue',
+          'Because this investor is under 18, a parent or legal guardian must provide their details and consent before KYC can be completed.',
+          [{ text: 'Continue', onPress: () => navigation.navigate('MinorGuardian') }],
+        );
+        return;
+      }
+
       // KycController is mounted at 'api/v1/kyc'. Most controllers (auth, funds, goals,
       // risk) are bare, so this prefix is easy to miss.
       //

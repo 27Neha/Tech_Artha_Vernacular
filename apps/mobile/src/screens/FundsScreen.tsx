@@ -51,13 +51,17 @@ export const FundsScreen = () => {
         </View>
         {loading && <Text style={styles.loading}>Searching funds…</Text>}
         {funds.map((fund) => (
-          <View key={fund.schemeCode} style={styles.fundCard}>
-            <View>
+          <Pressable
+            key={fund.schemeCode}
+            style={styles.fundCard}
+            onPress={() => navigation.navigate('FundDetail', { schemeCode: fund.schemeCode })}
+          >
+            <View style={{ flex: 1 }}>
               <Text style={styles.fundName}>{fund.schemeName}</Text>
               <Text style={styles.scheme}>Scheme code · {fund.schemeCode}</Text>
             </View>
             <Text style={styles.arrow}>›</Text>
-          </View>
+          </Pressable>
         ))}
       </View>
     </SafeAreaView>

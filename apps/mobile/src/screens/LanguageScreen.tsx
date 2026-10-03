@@ -3,7 +3,8 @@ import { SafeAreaView, View, Text, Pressable, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Screen } from '../types';
-import { useAuth } from '../store/AuthContext';
+import { useTranslation } from '../i18n/TranslationContext';
+import { Language } from '../i18n/translations';
 
 import { useNavigation } from '@react-navigation/native';
 
@@ -15,12 +16,12 @@ const LANGUAGES = [
 
 export const LanguageScreen = () => {
   const navigation = useNavigation<any>();
-  const { setLanguage } = useAuth();
+  const { setLang } = useTranslation();
   const [selected, setSelected] = useState<string | null>(null);
 
   const handleContinue = () => {
     if (selected) {
-      setLanguage(selected);
+      setLang(selected as Language);
       navigation.navigate('Welcome');
     }
   };
