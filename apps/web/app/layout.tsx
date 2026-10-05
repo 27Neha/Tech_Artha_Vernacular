@@ -24,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: `
           try {
-            function updateTheme() {
+            window.updateTheme = function() {
               var theme = localStorage.getItem('appTheme') || 'system';
               if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                 document.documentElement.classList.add('dark');
@@ -32,10 +32,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 document.documentElement.classList.remove('dark');
               }
             }
-            updateTheme();
+            window.updateTheme();
             window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
               if ((localStorage.getItem('appTheme') || 'system') === 'system') {
-                updateTheme();
+                window.updateTheme();
               }
             });
           } catch (e) {}

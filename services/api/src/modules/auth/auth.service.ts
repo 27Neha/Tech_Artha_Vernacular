@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -14,10 +14,11 @@ const OTP_RATE_LIMIT_COUNT = 5;
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly prisma: PrismaService, 
-    private readonly jwtService: JwtService,
-    private readonly interaktService: InteraktService,
-  ) {}
+      private readonly prisma: PrismaService, 
+      private readonly jwtService: JwtService,
+      private readonly interaktService: InteraktService,
+      private readonly emailOtpProvider: EmailOtpProvider,
+    ) {}
 
   private get otpProvider(): OtpProvider {
     const providerStr = (process.env.OTP_PROVIDER ?? 'mock').toLowerCase();
@@ -27,7 +28,7 @@ export class AuthService {
 
   private normalizeMobile(mobile: string) {
     const digits = mobile.replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '');
-    if (!/^\d{10}$/.test(digits)) throw new BadRequestException('Enter a valid 10-digit Indian mobile number.');
+    if (!/^\d{10}$/.test(digits)) { console.error('normalizeMobile failed:', new Error().stack); throw new BadRequestException('Enter a valid 10-digit Indian mobile number.'); }
     return `+91${digits}`;
   }
 
@@ -35,6 +36,23 @@ export class AuthService {
     return createHmac('sha256', process.env.OTP_HASH_SECRET ?? process.env.JWT_SECRET ?? 'development-only-change-me')
       .update(value)
       .digest('hex');
+  }
+
+  
+  async checkUserExists(identifier: string, isEmail: boolean): Promise<{ exists: boolean }> {
+    let user;
+    if (isEmail) {
+      user = await this.prisma.user.findUnique({ where: { email: identifier } });
+    } else {
+      let normalizedMobile = identifier;
+      try {
+        normalizedMobile = this.normalizeMobile(identifier);
+      } catch (e) {
+        // if normalization fails, it's not a valid number anyway, so it doesn't exist
+      }
+      user = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile } });
+    }
+    return { exists: !!user };
   }
 
   async sendOtp(mobile: string, channel: OtpChannel) {
@@ -46,22 +64,29 @@ export class AuthService {
     if (requests >= OTP_RATE_LIMIT_COUNT) throw new HttpException('Too many OTP requests. Please wait before trying again.', HttpStatus.TOO_MANY_REQUESTS);
 
     let code = randomInt(100000, 1000000).toString();
-    if (channel === 'SMS' && process.env.OTP_SMS_MODE === 'mock') {
-      code = '123456';
-    }
+    if (channel === 'SMS') {
+        code = '123456';
+      }
+
     await this.prisma.otpVerification.updateMany({
       where: { mobile: normalizedMobile, status: 'PENDING' },
       data: { status: 'SUPERSEDED' },
     });
+    
     await this.prisma.otpVerification.create({
       data: { mobile: normalizedMobile, otpHash: this.hash(`${normalizedMobile}:${code}`), expiresAt: new Date(Date.now() + OTP_TTL_MS), channel, status: 'PENDING' },
     });
-    await this.otpProvider.send({ mobile: normalizedMobile, code, channel });
+    
+    if (channel === 'SMS') {
+      await new MockOtpProvider().send({ mobile: normalizedMobile, code, channel });
+    } else {
+      await this.otpProvider.send({ mobile: normalizedMobile, code, channel });
+    }
 
     return {
       status: 'SENT',
       channel,
-      delivery: this.otpProvider.mode,
+      delivery: channel === 'SMS' ? 'MOCK' : this.otpProvider.mode,
       expiresInSeconds: OTP_TTL_MS / 1000,
       devOtp: process.env.NODE_ENV !== 'production' && process.env.AUTH_DEV_BYPASS === 'true' ? code : undefined,
     };
@@ -129,20 +154,8 @@ export class AuthService {
     await this.validateOtp(normalizedMobile, otp);
     
     if (type === 'signup') {
-      const hashedPassword = password ? this.hash(password) : undefined;
-      const user = await this.prisma.user.upsert({ 
-        where: { mobile: normalizedMobile }, 
-        update: { passwordHash: hashedPassword }, 
-        create: { mobile: normalizedMobile, passwordHash: hashedPassword } 
-      });
-      const progress = await this.prisma.onboardingProgress.upsert({
-        where: { userId: user.id },
-        update: { lastCompletedStep: 'SIGNUP', step: 'SIGNUP' },
-        create: { userId: user.id, step: 'SIGNUP', lastCompletedStep: 'SIGNUP' }
-      });
-      const sessionData = await this.createSession(user);
-      return { ...sessionData, lastCompletedStep: progress.lastCompletedStep };
-    } else {
+        return { success: true, message: 'OTP verified. Proceed to password creation.' };
+      } else {
       const user = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile }, include: { onboardingProgress: true } });
       if (!user) throw new HttpException('User not found.', HttpStatus.NOT_FOUND);
       const sessionData = await this.createSession(user);
@@ -150,31 +163,170 @@ export class AuthService {
     }
   }
 
-  async signup(input: { mobile: string; password?: string; clientType?: string; referralCode?: string }, deviceId?: string) {
-    const normalizedMobile = this.normalizeMobile(input.mobile);
-    const existing = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile } });
-    if (existing) throw new BadRequestException('An account with this mobile number already exists.');
+  async signup(input: { mobile?: string; email?: string; password?: string; clientType?: string; referralCode?: string }, deviceId?: string) {
+    let normalizedMobile;
+    let normalizedEmail;
     
-    const user = await this.prisma.user.create({
-      data: {
-        mobile: normalizedMobile,
-        passwordHash: input.password ? this.hash(input.password) : null,
-        clientType: input.clientType,
-        referralCode: input.referralCode,
+    if (input.email) {
+      normalizedEmail = this.normalizeEmail(input.email);
+      const existing = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
+      if (existing) throw new BadRequestException('An account with this email address already exists.');
+      
+      const record = await this.prisma.otpVerification.findFirst({
+        where: { email: normalizedEmail, status: 'VERIFIED' },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (!record) throw new BadRequestException('Please verify your email address first.');
+      
+      const user = await this.prisma.user.create({
+        data: {
+          email: normalizedEmail,
+          passwordHash: input.password ? this.hash(input.password) : null,
+          clientType: input.clientType,
+          referralCode: input.referralCode,
+        }
+      });
+      await this.prisma.onboardingProgress.create({ data: { userId: user.id, step: 'SIGNUP', lastCompletedStep: 'SIGNUP' } });
+      if (deviceId) {
+        await this.prisma.device.upsert({ where: { deviceId }, update: { userId: user.id, lastActiveAt: new Date() }, create: { userId: user.id, deviceId } });
       }
-    });
-    
-    if (deviceId) {
-      await this.prisma.device.upsert({ where: { deviceId }, update: { userId: user.id, lastActiveAt: new Date() }, create: { userId: user.id, deviceId } });
+      return this.createSession({ id: user.id, mobile: user.mobile || '' }, deviceId);
+    } else if (input.mobile) {
+      normalizedMobile = this.normalizeMobile(input.mobile);
+      const existing = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile } });
+      if (existing) throw new BadRequestException('An account with this mobile number already exists.');
+      
+      const record = await this.prisma.otpVerification.findFirst({
+        where: { mobile: normalizedMobile, status: 'VERIFIED' },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (!record) throw new BadRequestException('Please verify your mobile number first.');
+      
+      const user = await this.prisma.user.create({
+        data: {
+          mobile: normalizedMobile,
+          passwordHash: input.password ? this.hash(input.password) : null,
+          clientType: input.clientType,
+          referralCode: input.referralCode,
+        }
+      });
+      await this.prisma.onboardingProgress.create({ data: { userId: user.id, step: 'SIGNUP', lastCompletedStep: 'SIGNUP' } });
+      if (deviceId) {
+        await this.prisma.device.upsert({ where: { deviceId }, update: { userId: user.id, lastActiveAt: new Date() }, create: { userId: user.id, deviceId } });
+      }
+      return this.createSession(user, deviceId);
     }
-    return this.createSession(user, deviceId);
+    throw new BadRequestException('Mobile or Email is required');
   }
 
-  async loginPassword(mobile: string, password?: string, deviceId?: string) {
-    const normalizedMobile = this.normalizeMobile(mobile);
+  
+
+  private normalizeEmail(email: string) {
+    const normalized = email.trim().toLowerCase();
+    if (!/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/.test(normalized)) {
+      throw new BadRequestException('Enter a valid email address.');
+    }
+    return normalized;
+  }
+
+  async sendOtpEmail(email: string) {
+    const normalizedEmail = this.normalizeEmail(email);
+    
+    const requestedSince = new Date(Date.now() - OTP_RATE_LIMIT_WINDOW_MS);
+    const requests = await this.prisma.otpVerification.count({ where: { email: normalizedEmail, createdAt: { gte: requestedSince } } });
+    if (requests >= OTP_RATE_LIMIT_COUNT) throw new HttpException('Too many OTP requests. Please wait before trying again.', HttpStatus.TOO_MANY_REQUESTS);
+
+    let code = randomInt(100000, 1000000).toString();
+
+    // Store in OtpVerification
+    await this.prisma.otpVerification.create({
+      data: { email: normalizedEmail, otpHash: this.hash(`${normalizedEmail}:${code}`), expiresAt: new Date(Date.now() + OTP_TTL_MS), channel: 'EMAIL', status: 'PENDING' },
+    });
+    
+    // Send via ZeptoMail
+    // (email.provider expects { mobile: string } structure because we reuse OtpProvider interface, 
+    // so we map email into mobile field just for the provider function signature)
+    await this.emailOtpProvider.send({ mobile: normalizedEmail, code, channel: 'EMAIL' });
+
+    return {
+      status: 'SENT',
+      channel: 'EMAIL',
+      delivery: 'ZEPTOMAIL',
+      expiresInSeconds: OTP_TTL_MS / 1000,
+      devOtp: process.env.NODE_ENV !== 'production' && process.env.AUTH_DEV_BYPASS === 'true' ? code : undefined,
+    };
+  }
+
+  async signupStartEmail(email: string) {
+    const normalizedEmail = this.normalizeEmail(email);
+    const existing = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
+    if (existing) throw new HttpException('User already exists.', HttpStatus.CONFLICT);
+    
+    return this.sendOtpEmail(email);
+  }
+
+  async loginStartEmail(email: string) {
+    const normalizedEmail = this.normalizeEmail(email);
+    const existing = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
+    if (!existing) throw new HttpException('User not found.', HttpStatus.NOT_FOUND);
+    
+    return this.sendOtpEmail(email);
+  }
+
+  async validateOtpEmail(normalizedEmail: string, otp: string) {
+    if (!/^\d{6}$/.test(otp)) throw new BadRequestException('Enter the 6-digit code.');
+    const record = await this.prisma.otpVerification.findFirst({
+      where: { email: normalizedEmail, status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!record) throw new UnauthorizedException('Invalid or expired code.');
+    if (record.channel !== 'EMAIL') throw new UnauthorizedException('This code is not valid for email verification.');
+
+    if (record.expiresAt < new Date()) {
+      await this.prisma.otpVerification.update({ where: { id: record.id }, data: { status: 'EXPIRED' } });
+      throw new BadRequestException('This code has expired. Request a new one.');
+    }
+    if (record.attempts >= OTP_MAX_ATTEMPTS) {
+      await this.prisma.otpVerification.update({ where: { id: record.id }, data: { status: 'FAILED' } });
+      throw new HttpException('Too many invalid attempts. Request a new code.', HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    const expected = Buffer.from(record.otpHash, 'hex');
+    const actual = Buffer.from(this.hash(`${normalizedEmail}:${otp}`), 'hex');
+    if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+      await this.prisma.otpVerification.update({ where: { id: record.id }, data: { attempts: { increment: 1 } } });
+      throw new UnauthorizedException('The code is not valid.');
+    }
+
+    await this.prisma.otpVerification.update({ where: { id: record.id }, data: { status: 'VERIFIED', verifiedAt: new Date() } });
+  }
+
+  async dualFlowVerifyOtpEmail(email: string, otp: string, type: 'login' | 'signup', password?: string) {
+    const normalizedEmail = this.normalizeEmail(email);
+    await this.validateOtpEmail(normalizedEmail, otp);
+    
+    if (type === 'signup') {
+        return { success: true, message: 'OTP verified. Proceed to password creation.' };
+      } else {
+      const user = await this.prisma.user.findUnique({ where: { email: normalizedEmail }, include: { onboardingProgress: true } });
+      if (!user) throw new HttpException('User not found.', HttpStatus.NOT_FOUND);
+      const sessionData = await this.createSession({ id: user.id, mobile: user.mobile || '' });
+      return { ...sessionData, lastCompletedStep: user.onboardingProgress?.lastCompletedStep || null };
+    }
+  }
+
+async loginPassword(identifier: string, isEmail: boolean, password?: string, deviceId?: string) {
     if (!password) throw new BadRequestException('Password is required.');
     
-    const user = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile } });
+    let user;
+    if (isEmail) {
+      const normalizedEmail = this.normalizeEmail(identifier);
+      user = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
+    } else {
+      const normalizedMobile = this.normalizeMobile(identifier);
+      user = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile } });
+    }
     if (!user) throw new UnauthorizedException('Invalid credentials.');
     if (!user.passwordHash) throw new UnauthorizedException('Account has no password set. Login via OTP.');
     
@@ -204,7 +356,9 @@ export class AuthService {
     await this.prisma.session.updateMany({ where: { id: sessionId }, data: { isActive: false } });
   }
 
-  private async createSession(user: { id: string; mobile: string }, deviceId?: string, replacingSessionId?: string) {
+  
+
+  private async createSession(user: { id: string; mobile?: string | null; email?: string | null }, deviceId?: string, replacingSessionId?: string) {
     if (replacingSessionId) await this.prisma.session.update({ where: { id: replacingSessionId }, data: { isActive: false } });
     const sessionId = randomUUID();
     const refreshToken = randomUUID() + randomUUID();
@@ -224,6 +378,15 @@ export class AuthService {
     });
     if (!user) throw new Error('User not found');
     return { id: user.id, mobile: user.mobile, clientType: user.clientType, profile: user.profile, riskProfile: user.riskProfile, onboardingProgress: user.onboardingProgress };
+  }
+
+  async setPassword(userId: string, password: string) {
+    const hashedPassword = this.hash(password);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: hashedPassword }
+    });
+    return { success: true };
   }
 
   async updateProfile(userId: string, data: { fullName?: string; dateOfBirth?: string; pan?: string; clientType?: string; referralCode?: string }) {
