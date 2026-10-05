@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
+import { formatDobInput } from '../utils/date';
 import { api } from '../services/api/client';
 
 /**
@@ -31,13 +32,6 @@ type Profile = {
 };
 
 const maskPan = (pan?: string | null) => (pan ? `${pan.slice(0, 3)}${'X'.repeat(5)}${pan.slice(-2)}` : '—');
-
-const formatDobInput = (raw: string): string => {
-  const digits = raw.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 4) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
-};
 
 export const EditProfileScreen = () => {
   const navigation = useNavigation<any>();

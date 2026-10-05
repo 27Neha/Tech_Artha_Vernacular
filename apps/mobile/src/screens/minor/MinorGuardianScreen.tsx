@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Pressable, SafeAreaView, ScrollView, Text, TextInput, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
+import { formatDobInput } from '../../utils/date';
 import { api } from '../../services/api/client';
 import { minorStyles as s } from './minorStyles';
 
@@ -13,13 +14,6 @@ import { minorStyles as s } from './minorStyles';
  * PAN when investorType is MINOR, so this is the identity that actually gets verified.
  */
 const RELATIONSHIPS = ['Father', 'Mother', 'Legal guardian'];
-
-const formatDob = (raw: string) => {
-  const d = raw.replace(/\D/g, '').slice(0, 8);
-  if (d.length <= 4) return d;
-  if (d.length <= 6) return `${d.slice(0, 4)}-${d.slice(4)}`;
-  return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}`;
-};
 
 export const MinorGuardianScreen = () => {
   const navigation = useNavigation<any>();
@@ -128,7 +122,7 @@ export const MinorGuardianScreen = () => {
         <Text style={s.label}>Guardian&apos;s date of birth (optional)</Text>
         <TextInput
           value={dateOfBirth}
-          onChangeText={(v) => setDateOfBirth(formatDob(v))}
+          onChangeText={(v) => setDateOfBirth(formatDobInput(v))}
           keyboardType="number-pad"
           maxLength={10}
           placeholder="YYYY-MM-DD"

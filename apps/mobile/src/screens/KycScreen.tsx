@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
 import { Screen } from '../types';
+import { formatDobInput } from '../utils/date';
 import { api } from '../services/api/client';
 import { useNavigation } from '@react-navigation/native';
 
@@ -12,18 +13,6 @@ type KycStartResult = {
   transactionId?: string;
   status?: 'VERIFIED' | 'FAILED' | 'IN_PROGRESS' | 'PENDING' | string;
   failureReason?: string | null;
-};
-
-/**
- * Keeps the field in YYYY-MM-DD as the user types, inserting the hyphens for them.
- * Typing them by hand on a phone keyboard is the most common reason the date failed
- * validation - the web form sidesteps this entirely with <input type="date">.
- */
-const formatDobInput = (raw: string): string => {
-  const digits = raw.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 4) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
 };
 
 interface KycScreenProps {
