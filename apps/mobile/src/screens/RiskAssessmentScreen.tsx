@@ -1,82 +1,80 @@
-import React, { useState } from 'react';
-import { SafeAreaView, View, Text, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../services/api/client';
 
-const QUESTIONS = [
-  {
-    id: 'q1',
-    title: 'What is your age group?',
-    options: [
-      { id: 'A', text: 'Below 25 years', score: 4 },
-      { id: 'B', text: '25 - 35 years', score: 3 },
-      { id: 'C', text: '36 - 50 years', score: 2 },
-      { id: 'D', text: 'Above 50 years', score: 1 },
-    ]
-  },
-  {
-    id: 'q2',
-    title: 'For how long do you plan to stay invested?',
-    options: [
-      { id: 'A', text: 'Less than 1 year', score: 1 },
-      { id: 'B', text: '1 to 3 years', score: 2 },
-      { id: 'C', text: '3 to 7 years', score: 3 },
-      { id: 'D', text: 'More than 7 years', score: 4 },
-    ]
-  },
-  {
-    id: 'q3',
-    title: 'What is your monthly household income?',
-    options: [
-      { id: 'A', text: 'Below ₹15,000', score: 1 },
-      { id: 'B', text: '₹15,000 - ₹30,000', score: 2 },
-      { id: 'C', text: '₹30,000 - ₹60,000', score: 3 },
-      { id: 'D', text: 'Above ₹60,000', score: 4 },
-    ]
-  },
-  {
-    id: 'q4',
-    title: 'Imagine your ₹1 lakh investment temporarily falls to ₹85,000. What would you do?',
-    options: [
-      { id: 'A', text: 'Withdraw everything immediately', score: 1 },
-      { id: 'B', text: 'Feel worried, wait a little while', score: 2 },
-      { id: 'C', text: 'Stay calm and wait for recovery', score: 3 },
-      { id: 'D', text: 'See it as an opportunity and invest more', score: 4 },
-    ]
-  },
-  {
-    id: 'q5',
-    title: 'What is your main goal for investing?',
-    options: [
-      { id: 'A', text: 'Keep my money safe', score: 1 },
-      { id: 'B', text: 'Get regular income', score: 2 },
-      { id: 'C', text: 'Grow wealth over the long term', score: 3 },
-      { id: 'D', text: 'Maximize growth, willing to accept ups and downs', score: 4 },
-    ]
-  }
-];
+/**
+ * GET /risk/questionnaire, then POST /risk/calculate.
+ *
+ * The questions are FETCHED, not hardcoded. This screen previously carried its own set
+ * of five, while the server serves twelve (risk-questionnaire.ts, version 2026.08.12Q)
+ * and scores against the ids it serves. Three different questionnaires existed - the
+ * server's twelve, the web app's own twelve, and mobile's five - so the same person
+ * could get three different risk profiles depending on where they answered.
+ *
+ * Fetching means the profile is always scored against the questionnaire the server
+ * actually published, and a change there does not need a mobile release.
+ */
+type Question = {
+  id: string;
+  dimension?: string;
+  prompt: string;
+  options: { label: string; score: number }[];
+};
+
+type Questionnaire = { version?: string; questions?: Question[]; note?: string };
 
 export const RiskAssessmentScreen = () => {
   const navigation = useNavigation<any>();
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [note, setNote] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const question = QUESTIONS[currentQuestionIndex];
-  const selectedScore = answers[question.id];
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<Questionnaire>('/risk/questionnaire')
+      .then((data) => {
+        if (cancelled) return;
+        setQuestions(data?.questions ?? []);
+        setNote(data?.note ?? null);
+      })
+      .catch((e) => !cancelled && setLoadError(e instanceof Error ? e.message : 'Could not load the questionnaire.'))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const handleNext = async () => {
-    if (currentQuestionIndex < QUESTIONS.length - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
-    } else {
-      // Submit
-      setLoading(true);
+  const question = questions[index];
+  const answeredCount = useMemo(() => Object.keys(answers).length, [answers]);
+
+  const submit = useCallback(
+    async (finalAnswers: Record<string, number>) => {
+      setSubmitting(true);
       try {
-        // The server identifies the user from the bearer token; userId in the body was
-        // ignored. RiskController is guarded, so the header is required - without it
-        // this call 401'd and the screen still navigated on with the error body.
-        const result = await api.post('/risk/calculate', { answers: Object.values(answers) });
+        // consent:true is REQUIRED. calculateRisk throws "Explicit consent is required
+        // before a risk assessment" without it, and this screen used to omit it - so
+        // every assessment 400'd and nothing was ever saved.
+        //
+        // Answers are keyed by the server's own question ids so reasons() can name the
+        // dimension that drove the result.
+        const result = await api.post('/risk/calculate', { answers: finalAnswers, consent: true });
         navigation.navigate('RiskProfileResult', { profile: result });
       } catch (e) {
         Alert.alert(
@@ -84,73 +82,125 @@ export const RiskAssessmentScreen = () => {
           e instanceof Error ? e.message : 'Please try again.',
         );
       } finally {
-        setLoading(false);
+        setSubmitting(false);
       }
+    },
+    [navigation],
+  );
+
+  const choose = (score: number) => {
+    if (!question) return;
+    const next = { ...answers, [question.id]: score };
+    setAnswers(next);
+
+    if (index < questions.length - 1) {
+      setIndex(index + 1);
+      return;
     }
+    void submit(next);
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centre}>
+          <ActivityIndicator />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (loadError || !question) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centre}>
+          <Text style={styles.error}>{loadError ?? 'No questions are available.'}</Text>
+          <Pressable style={styles.outlineButton} onPress={() => navigation.goBack()}>
+            <Text style={styles.outlineText}>Go back</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const selected = answers[question.id];
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Risk Assessment</Text>
-        <Text style={styles.progress}>{currentQuestionIndex + 1}/{QUESTIONS.length}</Text>
+        <View style={styles.progressRow}>
+          <Text style={styles.progressText}>
+            Question {index + 1} of {questions.length}
+          </Text>
+          {question.dimension ? <Text style={styles.dimension}>{question.dimension}</Text> : null}
+        </View>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${((index + 1) / questions.length) * 100}%` }]} />
+        </View>
       </View>
 
       <ScrollView style={styles.content}>
-        <View style={styles.qBadge}>
-          <Text style={styles.qBadgeText}>Q{currentQuestionIndex + 1}</Text>
-        </View>
-        <Text style={styles.questionText}>{question.title}</Text>
+        <Text style={styles.prompt}>{question.prompt}</Text>
 
-        <View style={styles.options}>
-          {question.options.map(opt => (
-            <Pressable 
-              key={opt.id} 
-              style={[styles.optionCard, selectedScore === opt.score && styles.optionSelected]}
-              onPress={() => setAnswers(prev => ({ ...prev, [question.id]: opt.score }))}
-            >
-              <View style={[styles.letterCircle, selectedScore === opt.score && styles.letterCircleSelected]}>
-                <Text style={[styles.letterText, selectedScore === opt.score && styles.letterTextSelected]}>{opt.id}</Text>
-              </View>
-              <Text style={styles.optionText}>{opt.text}</Text>
-            </Pressable>
-          ))}
-        </View>
+        {question.options.map((option) => (
+          <Pressable
+            key={option.label}
+            style={[styles.option, selected === option.score && styles.optionSelected]}
+            onPress={() => choose(option.score)}
+            disabled={submitting}
+          >
+            <Text style={[styles.optionText, selected === option.score && styles.optionTextSelected]}>
+              {option.label}
+            </Text>
+          </Pressable>
+        ))}
+
+        {index > 0 ? (
+          <Pressable style={styles.outlineButton} onPress={() => setIndex(index - 1)} disabled={submitting}>
+            <Text style={styles.outlineText}>Back</Text>
+          </Pressable>
+        ) : null}
+
+        {submitting ? (
+          <View style={styles.submitting}>
+            <ActivityIndicator />
+            <Text style={styles.submittingText}>Saving your profile…</Text>
+          </View>
+        ) : null}
+
+        <Text style={styles.answered}>
+          {answeredCount} of {questions.length} answered
+        </Text>
+
+        {/* The server's own wording: an investor profile is a suitability assessment,
+            not a scheme Risk-o-Meter or a return prediction. */}
+        {note ? <Text style={styles.note}>{note}</Text> : null}
       </ScrollView>
-
-      <View style={styles.footer}>
-        <Pressable 
-          style={[styles.button, !selectedScore && styles.buttonDisabled]} 
-          onPress={handleNext}
-          disabled={!selectedScore || loading}
-        >
-          <Text style={styles.buttonText}>{currentQuestionIndex === QUESTIONS.length - 1 ? (loading ? 'Submitting...' : 'See My Profile') : 'Next'}</Text>
-        </Pressable>
-      </View>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FB' },
-  header: { backgroundColor: '#3C3985', padding: 20, paddingTop: 60, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerTitle: { color: 'white', fontSize: 18, fontWeight: '700' },
-  progress: { color: 'white', fontSize: 14, opacity: 0.8 },
-  content: { padding: 24 },
-  qBadge: { backgroundColor: '#EBEAF8', alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginBottom: 16 },
-  qBadgeText: { color: '#3C3985', fontWeight: '700' },
-  questionText: { fontSize: 24, fontWeight: '800', color: '#102A54', marginBottom: 32 },
-  options: { gap: 16 },
-  optionCard: { backgroundColor: 'white', padding: 16, borderRadius: 12, borderWidth: 2, borderColor: '#E2E8F0', flexDirection: 'row', alignItems: 'center' },
+  centre: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
+  header: { padding: 24, paddingTop: 60, paddingBottom: 16 },
+  progressRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  progressText: { color: '#4A5568', fontSize: 13, fontWeight: '700' },
+  dimension: { color: '#3C3985', fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
+  progressTrack: { height: 6, backgroundColor: '#E2E8F0', borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: 6, backgroundColor: '#3C3985', borderRadius: 3 },
+  content: { paddingHorizontal: 20 },
+  prompt: { color: '#102A54', fontSize: 19, fontWeight: '800', lineHeight: 27, marginBottom: 20, marginTop: 8 },
+  option: { backgroundColor: '#fff', borderWidth: 2, borderColor: '#E2E8F0', borderRadius: 14, padding: 16, marginBottom: 10 },
   optionSelected: { borderColor: '#3C3985', backgroundColor: '#EBEAF8' },
-  letterCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center', marginRight: 16 },
-  letterCircleSelected: { backgroundColor: '#3C3985' },
-  letterText: { color: '#64748B', fontWeight: '700' },
-  letterTextSelected: { color: 'white' },
-  optionText: { fontSize: 16, color: '#102A54', flex: 1, fontWeight: '500' },
-  footer: { padding: 24, paddingBottom: 40, backgroundColor: '#F8F9FB' },
-  button: { backgroundColor: '#3C3985', padding: 18, borderRadius: 12, alignItems: 'center' },
-  buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: 'white', fontSize: 16, fontWeight: '700' }
+  optionText: { color: '#2D3748', fontSize: 14, lineHeight: 20 },
+  optionTextSelected: { color: '#3C3985', fontWeight: '700' },
+  outlineButton: { padding: 14, borderRadius: 12, alignItems: 'center', borderWidth: 2, borderColor: '#3C3985', marginTop: 12 },
+  outlineText: { color: '#3C3985', fontSize: 15, fontWeight: '700' },
+  submitting: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 20, justifyContent: 'center' },
+  submittingText: { color: '#4A5568', fontSize: 13 },
+  answered: { color: '#718096', fontSize: 12, textAlign: 'center', marginTop: 20 },
+  note: { color: '#A0AEC0', fontSize: 11, lineHeight: 16, marginTop: 14, marginBottom: 40, textAlign: 'center' },
+  error: { color: '#C53030', fontSize: 14, textAlign: 'center' },
 });

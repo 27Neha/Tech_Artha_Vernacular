@@ -27,7 +27,10 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "dev": "EXPO_PUBLIC_API_URL=http://$(./scripts/dev-ip.sh):3000 expo start --clear",
+    "dev:localhost": "EXPO_PUBLIC_API_URL=http://localhost:3000 expo start --clear",
+    "dev:ip": "./scripts/dev-ip.sh"
   },
   "private": true
 }
