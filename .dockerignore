@@ -1,0 +1,40 @@
+# Both Dockerfiles build from the REPO ROOT (npm workspaces needs the root lockfile),
+# so everything below would otherwise be shipped to the daemon on every build.
+
+# Dependencies and build output - reinstalled/rebuilt inside the image.
+**/node_modules
+**/.next
+**/dist
+**/build
+**/.expo
+**/coverage
+**/*.tsbuildinfo
+
+# Secrets. .env is gitignored but still sits in the working tree, and a COPY of the
+# repo root would otherwise bake it into a layer.
+.env
+**/.env
+**/.env.*
+!**/.env.example
+
+# VCS and local tooling.
+.git
+.gitignore
+.claude/
+.agents/
+.windsurf/
+.vscode/
+.idea/
+
+# Local-only infrastructure and scratch files.
+docker-compose.yml
+preview.html
+remove_sms_toggle.js
+**/*.log
+**/.DS_Store
+dev.db
+
+# Docs - not needed to build or run either service.
+*.md
+docs/
+**/README.md

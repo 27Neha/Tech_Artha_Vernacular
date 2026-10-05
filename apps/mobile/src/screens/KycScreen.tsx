@@ -23,20 +23,28 @@ export const KycScreen = ({
 }: KycScreenProps) => {
   const navigation = useNavigation<any>();
   const [kycSubmitting, setKycSubmitting] = useState(false);
+  // Required by KycService.startKyc for non-minors. Kept local because nothing else
+  // in the navigator needs it, unlike name/pan which are lifted into App.tsx.
+  const [dob, setDob] = useState('');
 
   const startKyc = async () => {
-    if (!consent || !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan) || !name.trim()) {
-      return Alert.alert('Complete your details', 'Enter your name, valid PAN, and accept the consent to continue.');
+    if (!consent || !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan) || !name.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+      return Alert.alert('Complete your details', 'Enter your name, valid PAN, date of birth, and accept the consent to continue.');
     }
     setKycSubmitting(true);
     try {
-      const response = await fetch(`${apiUrl}/kyc/start`, { 
-        method: 'POST', 
-        headers: { 
+      // KycController is mounted at 'api/v1/kyc'. Most controllers (auth, funds, goals,
+      // risk) are bare, so this prefix is easy to miss - it is the only reason this
+      // call used to 404.
+      const response = await fetch(`${apiUrl}/api/v1/kyc/start`, {
+        method: 'POST',
+        headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authStore.accessToken}` 
-        }, 
-        body: JSON.stringify({ userId: authStore.userId, fullName: name.trim(), pan, mobile: phone, consent }) 
+          'Authorization': `Bearer ${authStore.accessToken}`
+        },
+        // The server identifies the user from the bearer token and reads only these
+        // three fields; userId/mobile/consent in the body were silently ignored.
+        body: JSON.stringify({ fullName: name.trim(), pan, dob })
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message ?? 'KYC could not be started.');
@@ -79,9 +87,19 @@ export const KycScreen = ({
           placeholder="ABCDE1234F" 
           style={styles.field} 
           autoCapitalize="characters" 
-          maxLength={10} 
+          maxLength={10}
         />
-        
+
+        <Text style={styles.label}>Date of birth</Text>
+        <TextInput
+          value={dob}
+          onChangeText={setDob}
+          placeholder="YYYY-MM-DD"
+          style={styles.field}
+          maxLength={10}
+          keyboardType="numbers-and-punctuation"
+        />
+
         <Pressable style={styles.consent} onPress={() => setConsent(!consent)}>
           <View style={[styles.checkbox, consent && styles.checkboxChecked]}>
             {consent && <Text style={styles.check}>✓</Text>}
