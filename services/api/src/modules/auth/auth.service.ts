@@ -19,10 +19,29 @@ export class AuthService {
     private readonly interaktService: InteraktService,
   ) {}
 
+  /**
+   * Routes by CHANNEL, not by a single configured provider.
+   *
+   * Previously this returned InteraktOtpProvider for every request when
+   * OTP_PROVIDER=interakt - and that provider silently returns without sending for any
+   * channel other than WHATSAPP. So an SMS request answered 202 while delivering
+   * nothing, which is why the web app's "Send via SMS" button and the minor guardian
+   * OTP both appeared to work and never arrived.
+   *
+   * ChannelRoutingOtpProvider already handled this correctly; it was written, imported
+   * and never instantiated. It sends WHATSAPP via Interakt, EMAIL via ZeptoMail, and
+   * SMS via msg91 or the dev mock depending on OTP_SMS_MODE - and throws, rather than
+   * silently succeeding, when a channel has no provider configured.
+   */
   private get otpProvider(): OtpProvider {
     const providerStr = (process.env.OTP_PROVIDER ?? 'mock').toLowerCase();
-    if (providerStr === 'interakt') return new InteraktOtpProvider(this.interaktService);
-    return new MockOtpProvider();
+    if (providerStr === 'mock') return new MockOtpProvider();
+
+    return new ChannelRoutingOtpProvider(
+      new InteraktOtpProvider(this.interaktService),
+      new MockOtpProvider(),
+      new EmailOtpProvider(),
+    );
   }
 
   private normalizeMobile(mobile: string) {

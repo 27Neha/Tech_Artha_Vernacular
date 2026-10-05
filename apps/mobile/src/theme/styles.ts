@@ -76,5 +76,7 @@ export const styles = StyleSheet.create({
   badge:{backgroundColor:'#EBEAF8',borderRadius:8,paddingHorizontal:8,paddingVertical:3,alignSelf:'flex-start'},
   badgeText:{color:'#3C3985',fontWeight:'800',fontSize:11},
   errorText:{color:'#C53030',fontSize:13,marginTop:8},
-  rowBetween:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'}
+  rowBetween:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},
+  altButton:{marginTop:12,paddingVertical:14,alignItems:'center',borderRadius:16,borderWidth:1.5,borderColor:'#3C3985'},
+  altButtonText:{color:'#3C3985',fontWeight:'700',fontSize:14}
 });
