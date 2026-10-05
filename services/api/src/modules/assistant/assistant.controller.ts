@@ -1,15 +1,21 @@
-﻿import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { AssistantService } from './assistant.service';
 import { AccessTokenGuard, CurrentUser } from '../../common/auth';
 import type { AuthenticatedUser } from '../../common/auth';
-import { AssistantService } from './assistant.service';
 
 @Controller('assistant')
-@UseGuards(AccessTokenGuard)
 export class AssistantController {
-  constructor(private readonly assistant: AssistantService) {}
+  constructor(private readonly assistantService: AssistantService) {}
 
   @Post('messages')
-  reply(@CurrentUser() user: AuthenticatedUser, @Body() body: { message?: string; locale?: string }) {
-    return this.assistant.respond(user.id, body.message ?? '', body.locale ?? 'en');
+  @UseGuards(AccessTokenGuard)
+  async handleMessage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body('message') message: string,
+    @Body('history') history: any[],
+    @Body('locale') locale: string,
+  ) {
+    const text = await this.assistantService.getAIResponse(user.id, message, history, locale);
+    return { text };
   }
 }

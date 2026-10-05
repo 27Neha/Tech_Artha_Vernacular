@@ -2,8 +2,7 @@ import { BadRequestException, HttpException, HttpStatus, Injectable, Unauthorize
 import { JwtService } from '@nestjs/jwt';
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { InteraktService } from '../../integrations/interakt/interakt.service';
-import { MockOtpProvider, InteraktOtpProvider, OtpChannel, OtpProvider, ChannelRoutingOtpProvider } from './otp.provider';
+import { MockOtpProvider, OtpChannel, OtpProvider, ChannelRoutingOtpProvider } from './otp.provider';
 import { EmailOtpProvider } from './email.provider';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
@@ -16,13 +15,10 @@ export class AuthService {
   constructor(
       private readonly prisma: PrismaService, 
       private readonly jwtService: JwtService,
-      private readonly interaktService: InteraktService,
       private readonly emailOtpProvider: EmailOtpProvider,
     ) {}
 
   private get otpProvider(): OtpProvider {
-    const providerStr = (process.env.OTP_PROVIDER ?? 'mock').toLowerCase();
-    if (providerStr === 'interakt') return new InteraktOtpProvider(this.interaktService);
     return new MockOtpProvider();
   }
 

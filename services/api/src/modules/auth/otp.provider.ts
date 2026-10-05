@@ -73,28 +73,11 @@ export class Msg91OtpProvider implements OtpProvider {
   }
 }
 
-/** Live Integration for Interakt WhatsApp API. */
-export class InteraktOtpProvider implements OtpProvider {
-  readonly mode = 'CONNECTED' as const;
-
-  constructor(private readonly interaktService: any) {}
-
-  async send(input: { mobile: string; code: string; channel: OtpChannel }): Promise<void> {
-    if (input.channel !== 'WHATSAPP') {
-      console.log(`[InteraktOtpProvider] Skipping OTP delivery. Requested channel is ${input.channel}.`);
-      return;
-    }
-    await this.interaktService.sendAuthenticationOtp(input.mobile, input.code);
-    console.log(`[OTP] channel=WHATSAPP provider=INTERAKT send=success`);
-  }
-}
-
 /** Router that selects provider based on the channel. */
 export class ChannelRoutingOtpProvider implements OtpProvider {
   readonly mode = 'ROUTED' as const;
 
   constructor(
-    private readonly interaktProvider: InteraktOtpProvider,
     private readonly mockProvider: MockOtpProvider,
     private readonly emailProvider: EmailOtpProvider,
     private readonly msg91Provider: Msg91OtpProvider = new Msg91OtpProvider(),
@@ -102,7 +85,7 @@ export class ChannelRoutingOtpProvider implements OtpProvider {
 
   async send(input: { mobile: string; code: string; channel: OtpChannel }): Promise<void> {
     if (input.channel === 'WHATSAPP') {
-      return this.interaktProvider.send(input);
+      return this.mockProvider.send(input);
     }
     
     if (input.channel === 'EMAIL') {

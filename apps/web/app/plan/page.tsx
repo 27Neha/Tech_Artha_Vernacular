@@ -1,5 +1,5 @@
 'use client';
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 
@@ -31,9 +31,24 @@ function PlanContent() {
   const timePeriod = parseInt(periodParam, 10) || 8;
   
   // Calculate a mock SIP purely for visual representation: Assuming 12% returns roughly
-  const rate = 0.12;
-  const months = timePeriod * 12;
-  const monthlySIP = Math.round(targetAmount * (rate / 12) / (Math.pow(1 + rate / 12, months) - 1));
+  const inflationParam = searchParams.get('inflation') ?? '6';
+  const inflationRate = parseFloat(inflationParam) || 6;
+  const [simulation, setSimulation] = useState<any>(null);
+  useEffect(() => {
+    const fetchSimulation = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        const res = await fetch(`${API_URL}/goals/simulate`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ targetAmount, timePeriod, inflationRate }) });
+        if (res.ok) {
+          const data = await res.json();
+          setSimulation(data);
+        }
+      } catch (err) {}
+    };
+    fetchSimulation();
+  }, [targetAmount, timePeriod, inflationRate]);
+  const monthlySIP = simulation ? simulation.scenarios.find((s: any) => s.label === 'Base illustration')?.monthlyContribution : 0;
+  const adjustedTarget = simulation ? simulation.adjustedTargetAmount : targetAmount;
 
   const [sipDate, setSipDate] = useState(10);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -83,7 +98,8 @@ function PlanContent() {
         <div className="card mb-6">
           {[
             { label: 'GOAL', value: GOAL_NAMES[goal] ?? goal },
-            { label: 'Target Amount', value: `₹${targetAmount.toLocaleString('en-IN')}` },
+            { label: "Today's Target Amount", value: `₹${targetAmount.toLocaleString('en-IN')}` },
+            { label: 'Inflation Adjusted Target', value: `₹${Math.round(adjustedTarget).toLocaleString('en-IN')}` },
             { label: 'Time Period', value: `${timePeriod} years` },
             { label: 'Investment Bucket', value: BUCKET_NAMES[bucket] },
           ].map((row, i, arr) => (
@@ -191,7 +207,9 @@ function PlanContent() {
   );
 }
 
+import KycProtector from '../../components/KycProtector';
+
 export default function PlanPage() {
   const { t } = useTranslation('common');
-  return <Suspense><PlanContent /></Suspense>;
+  return <Suspense><KycProtector><PlanContent /></KycProtector></Suspense>;
 }

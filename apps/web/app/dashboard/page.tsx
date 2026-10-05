@@ -1,5 +1,6 @@
 'use client';
 import { useRouter } from 'next/navigation';
+import { useKyc } from '../../hooks/useKyc';
 import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 
@@ -15,14 +16,34 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 export default function DashboardPage() {
   const { t } = useTranslation('common');
   const router = useRouter();
+  const { requireKyc, isCheckingKyc } = useKyc();
   const [profile, setProfile] = useState('');
   const [recommendedFunds, setRecommendedFunds] = useState<any[]>([]);
   const [portfolio, setPortfolio] = useState({ totalInvested: 0, currentValue: 0, holdings: [] });
   const [fetchingPortfolio, setFetchingPortfolio] = useState(true);
   const [sipPlans, setSipPlans] = useState<any[]>([]);
   const [fetchingSips, setFetchingSips] = useState(true);
+  const [goals, setGoals] = useState<any[]>([]);
+  const [fetchingGoals, setFetchingGoals] = useState(true);
 
   useEffect(() => {
+    const fetchGoalsData = async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_URL}/goals`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          setGoals(data || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch goals', err);
+      } finally {
+        setFetchingGoals(false);
+      }
+    };
+    fetchGoalsData();
+
     const fetchInvestments = async () => {
       const token = localStorage.getItem('access_token');
       if (!token) return;
@@ -119,21 +140,98 @@ export default function DashboardPage() {
         <p className="text-[#EBEAF8] text-sm mt-1">
             {portfolio.totalInvested === 0 ? t('dash.noInvestmentsYet') : t('dash.verifiedVia')}
           </p>
+        
         <div className="flex gap-3 mt-4">
-          <button
-            onClick={() => router.push('/funds')}
-            className="bg-white text-[var(--primary)] font-bold text-sm px-5 py-2.5 rounded-xl"
-          >
-            {t('dash.browseFunds')}
-          </button>
-          <button 
-            onClick={() => router.push('/dashboard/analytics')}
-            className="bg-white/20 text-white font-bold text-sm px-5 py-2.5 rounded-xl"
-          >
-            {t('dash.viewDetails')}
-          </button>
+          {portfolio.totalInvested === 0 ? (
+            <button
+              onClick={() => requireKyc('/goals')}
+              disabled={isCheckingKyc}
+              className="bg-white text-[var(--primary)] font-bold text-sm px-5 py-2.5 rounded-xl disabled:opacity-70"
+            >
+              {isCheckingKyc ? "Checking your verification status..." : "Start My Onboarding Journey"}
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => router.push('/funds')}
+                className="bg-white text-[var(--primary)] font-bold text-sm px-5 py-2.5 rounded-xl"
+              >
+                {t('dash.browseFunds', { defaultValue: 'Browse Funds' })}
+              </button>
+              <button 
+                onClick={() => router.push('/dashboard/analytics')}
+                className="bg-white/20 text-white font-bold text-sm px-5 py-2.5 rounded-xl"
+              >
+                {t('dash.viewDetails', { defaultValue: 'View Details' })}
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      
+      {/* My Goals Progress Section */}
+            {/* My Goals Progress Section */}
+      {!fetchingGoals && (
+        <div className="mb-6">
+          <div className="flex justify-between items-end mb-3">
+            <h2 className="text-lg font-extrabold text-[var(--dark)]">My Goals</h2>
+            {goals.length > 0 && (
+              <button onClick={() => router.push('/goals')} className="text-[var(--primary)] text-xs font-bold mb-0.5">Add New</button>
+            )}
+          </div>
+          <div className="flex flex-col gap-4">
+            {goals.length === 0 ? (
+              <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center text-center">
+                <span className="text-4xl mb-3">🎯</span>
+                <h3 className="font-bold text-[var(--dark)] text-sm mb-1">No goals created yet</h3>
+                <p className="text-xs text-gray-500 mb-4">Start planning for your future by setting a financial goal.</p>
+                <button 
+                  onClick={() => router.push('/goals')}
+                  className="bg-[var(--primary-light)] text-[var(--primary)] font-bold text-sm px-6 py-2.5 rounded-full"
+                >
+                  Plan a Goal
+                </button>
+              </div>
+            ) : (
+              goals.map((g) => {
+                const p = g.progressPercentage || 0;
+                return (
+                  <div key={g.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h3 className="font-bold text-[var(--dark)] text-sm">{g.name}</h3>
+                        <p className="text-xs text-gray-500 font-medium">{g.timePeriod} Years · {g.bucketName === 'stable' ? 'Conservative' : g.bucketName === 'growth' ? 'Aggressive' : 'Moderate'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-extrabold text-[var(--primary)] text-sm">₹{g.targetAmount?.toLocaleString('en-IN')}</p>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">Future Target: ₹{g.inflationAdjustedAmount ? Math.round(g.inflationAdjustedAmount).toLocaleString('en-IN') : g.targetAmount?.toLocaleString('en-IN')}</p>
+                      </div>
+                    </div>
+                    
+                    {/* Progress Bar */}
+                    <div className="mt-4 mb-2">
+                      <div className="flex justify-between text-[11px] font-bold mb-1.5">
+                        <span className="text-[var(--primary)]">₹{g.currentInvestmentValue?.toLocaleString('en-IN')} Saved</span>
+                        <span className="text-gray-500">{p.toFixed(1)}%</span>
+                      </div>
+                      <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-[var(--primary)] rounded-full transition-all duration-1000 ease-out" style={{ width: `${p}%` }}></div>
+                      </div>
+                      {g.remainingAmount > 0 && (
+                        <div className="flex justify-between items-center mt-2">
+                          <p className="text-[10px] text-gray-500 font-bold">₹{g.remainingAmount?.toLocaleString('en-IN')} left</p>
+                          <p className="text-[10px] text-[var(--primary)] font-bold">SIP: ₹{g.monthlySip?.toLocaleString('en-IN')}/mo</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Active orders / SIPs from bucket investments */}
       {!fetchingSips && sipPlans.length > 0 && (

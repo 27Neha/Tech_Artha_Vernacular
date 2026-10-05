@@ -4,6 +4,7 @@ import { AppService } from './app.service';
 import { KycModule } from './modules/kyc/kyc.module';
 import { FundsModule } from './modules/funds/funds.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { DevicesModule } from './modules/devices/devices.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RiskModule } from './modules/risk/risk.module';
 import { GoalModule } from './modules/goal/goal.module';
@@ -18,15 +19,16 @@ import { VoiceModule } from './modules/voice/voice.module';
 import { ApiHealthModule } from './modules/api-health/api-health.module';
 import { WhatsappModule } from './integrations/whatsapp/whatsapp.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
-import { InteraktModule } from './integrations/interakt/interakt.module';
 import { CybrillaModule } from './modules/cybrilla/cybrilla.module';
 import { MinorModule } from './modules/minor/minor.module';
+import { FamilyModule } from './modules/family/family.module';
 
 @Module({
   imports: [
     KycModule,
     FundsModule,
     AuthModule,
+    DevicesModule,
     PrismaModule,
     RiskModule,
     GoalModule,
@@ -41,9 +43,9 @@ import { MinorModule } from './modules/minor/minor.module';
     ApiHealthModule,
     WhatsappModule,
     RecommendationsModule,
-    InteraktModule,
     CybrillaModule,
     MinorModule,
+    FamilyModule,
   ],
   controllers: [AppController],
   providers: [AppService],

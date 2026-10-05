@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
+import { useKyc } from '../../../hooks/useKyc';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -23,6 +24,8 @@ const autoBalance = (funds: any[]) => {
 export default function FundDetailsPage({ params }: { params: { id: string } }) {
   const { t } = useTranslation('common');
   const router = useRouter();
+  const { requireKyc, isCheckingKyc } = useKyc();
+  const pathname = usePathname();
   const [details, setDetails] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -157,7 +160,11 @@ export default function FundDetailsPage({ params }: { params: { id: string } }) 
         }} className="flex-1 py-3 px-4 bg-white border-2 border-[var(--primary)] text-[var(--primary)] rounded-xl font-bold hover:bg-[var(--primary-light)] transition-colors text-center">
           Add to Bucket
         </button>
-        <button onClick={() => router.push('/dashboard/portfolio')} className="flex-1 btn-primary text-center">
+        <button 
+      onClick={() => requireKyc('/dashboard/portfolio')} 
+      disabled={isCheckingKyc}
+      className="flex-1 btn-primary text-center disabled:opacity-70"
+    >
           Invest Now →
         </button>
       </div>

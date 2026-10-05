@@ -13,7 +13,7 @@ const SUGGESTED_QUESTIONS = [
 
 export default function ChatbotPage() {
   const router = useRouter();
-  const { lang, setLang } = useTranslation();
+  const { lang, setLang, t } = useTranslation();
   
   const [messages, setMessages] = useState<Message[]>([
     { id: '1', sender: 'ai', text: 'Hello! I am the TechArtha AI Assistant. How can I help you with your investments today?' }
@@ -27,22 +27,25 @@ export default function ChatbotPage() {
   }, [messages, isTyping]);
 
   const handleSend = async (text: string) => {
-    if (!text.trim()) return;
+    if (!text.trim() || isTyping) return;
     
     const newMsg: Message = { id: Date.now().toString(), sender: 'user', text };
+    
+    // Capture the history before updating state
+    const history = messages.map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }));
+    
     setMessages(prev => [...prev, newMsg]);
     setInput('');
     setIsTyping(true);
 
     try {
-      // In a real env, this calls the NestJS backend
       const res = await fetch('http://localhost:3000/assistant/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}` // Assumes token is stored
+          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
         },
-        body: JSON.stringify({ message: text, locale: lang })
+        body: JSON.stringify({ message: text, history, locale: lang })
       });
 
       if (!res.ok) throw new Error('Failed to fetch AI response');
@@ -53,7 +56,7 @@ export default function ChatbotPage() {
       setMessages(prev => [...prev, { 
         id: Date.now().toString(), 
         sender: 'ai', 
-        text: 'I am currently unable to connect to my local AI engine. Please try again later or refer to the FAQs.',
+        text: t('support.aiError') || 'I am currently unable to connect to the AI engine. Please try again later or escalate to our team.',
         isError: true
       }]);
     } finally {
@@ -66,28 +69,22 @@ export default function ChatbotPage() {
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-white border-b border-gray-100 shrink-0 shadow-sm z-10 pt-[max(1rem,env(safe-area-inset-top))]">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.back()} className="text-3xl leading-none text-[var(--dark)]">‹</button>
+          <button onClick={() => router.back()} className="text-3xl leading-none text-[var(--dark)]">←</button>
           <div className="flex flex-col">
             <h1 className="text-lg font-extrabold text-[var(--dark)] flex items-center gap-2">
               TechArtha AI <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
             </h1>
-            <p className="text-[10px] text-green-600 font-bold uppercase tracking-wider">Local Engine Active</p>
+            <p className="text-[10px] text-green-600 font-bold uppercase tracking-wider">Online</p>
           </div>
         </div>
         
-        {/* Language Selector */}
-        <select 
-          value={lang} 
-          onChange={(e) => {
-            setLang(e.target.value as any);
-            localStorage.setItem('language', e.target.value);
-          }}
-          className="bg-gray-100 text-[var(--dark)] text-xs font-bold py-1 px-2 rounded-lg outline-none border-none"
+        {/* Escalation Button */}
+        <button 
+          onClick={() => alert("Redirecting to WhatsApp to talk to our team...")} 
+          className="text-[10px] font-bold bg-gray-100 text-[var(--dark)] px-2 py-1 rounded-md"
         >
-          <option value="en">EN</option>
-          <option value="hi">HI</option>
-          <option value="mr">MR</option>
-        </select>
+          Talk to our team
+        </button>
       </div>
 
       {/* Chat History */}
@@ -142,8 +139,8 @@ export default function ChatbotPage() {
           />
           <button 
             onClick={() => handleSend(input)}
-            disabled={!input.trim()}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0 ${input.trim() ? 'bg-[var(--primary)] text-white' : 'bg-gray-200 text-gray-400'}`}
+            disabled={!input.trim() || isTyping}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0 ${input.trim() && !isTyping ? 'bg-[var(--primary)] text-white' : 'bg-gray-200 text-gray-400'}`}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
           </button>

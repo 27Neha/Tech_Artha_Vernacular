@@ -1,13 +1,15 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
-export default function KycPage() {
+function KycPageContent() {
   const { t } = useTranslation('common');
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = searchParams.get('next') || '/profile-setup';
   const [name, setName] = useState('');
   const [pan, setPan] = useState('');
   const [dob, setDob] = useState('');
@@ -34,7 +36,7 @@ export default function KycPage() {
           if (data && data.status) {
             setExistingStatus(data.status);
             if (data.status === 'VERIFIED' || data.status === 'IN_PROGRESS') {
-              router.push('/profile-setup');
+              router.push(nextPath);
               return;
             }
           }
@@ -76,7 +78,7 @@ export default function KycPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'KYC failed');
-      router.push('/profile-setup');
+      router.push(nextPath);
     } catch (e: any) {
       setError(e.message || 'Something went wrong. Please try again.');
     } finally {
@@ -175,5 +177,14 @@ export default function KycPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+
+export default function KycPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-white"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)]"></div></div>}>
+      <KycPageContent />
+    </Suspense>
   );
 }

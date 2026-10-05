@@ -5,7 +5,7 @@ import { useTranslation, SUPPORTED_LANGUAGES } from './TranslationProvider';
 
 export default function LanguagePage() {
   const router = useRouter();
-  const { t, setLang } = useTranslation('common');
+  const { t, setLang } = useTranslation();
   const [selected, setSelected] = useState<string | null>(null);
 
   const handleContinue = () => {
@@ -35,7 +35,10 @@ export default function LanguagePage() {
           {SUPPORTED_LANGUAGES.map((lang) => (
             <button
               key={lang.code}
-              onClick={() => setSelected(lang.code)}
+              onClick={() => {
+                setSelected(lang.code);
+                setLang(lang.code as any);
+              }}
               className={`flex flex-col items-center gap-1.5 p-4 rounded-2xl border-2 transition-all text-center relative ${
                 selected === lang.code
                   ? 'border-[var(--primary)] bg-[var(--primary-light)]'
@@ -62,7 +65,7 @@ export default function LanguagePage() {
           disabled={!selected}
           className="btn-primary w-full"
         >
-          <span>{t('common.continue') || 'Continue'}</span>
+          <span>{t('signup.continue') || 'Continue'}</span>
           <span>→</span>
         </button>
       </div>

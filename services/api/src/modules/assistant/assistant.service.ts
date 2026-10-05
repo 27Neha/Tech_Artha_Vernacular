@@ -1,71 +1,72 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import axios from 'axios';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ConsentService } from '../consent/consent.service';
-import { AIProvider } from './ai.provider';
-
-type AssistantReply = { text: string; intent: string; data?: unknown; requiresConfirmation?: boolean; dataStatus?: string };
 
 @Injectable()
 export class AssistantService {
-  constructor(
-    private readonly prisma: PrismaService, 
-    private readonly consents: ConsentService,
-    private readonly ai: AIProvider
-  ) {}
+  private readonly apiKey = process.env.OPENAI_API_KEY;
+  private readonly apiUrl = 'https://api.openai.com/v1/chat/completions';
 
-  async respond(userId: string, message: string, locale = 'en'): Promise<AssistantReply> {
-    const text = message.trim();
-    if (!text) return { text: this.copy(locale, 'Ask me about SIPs, goals, expenses, or a financial term.'), intent: 'EMPTY' };
-    
-    // Attempt to gather context for the AI
-    let contextData: any = {};
-    if (await this.consents.hasActiveConsent(userId, 'AI_DATA')) {
-      const portfolio = await this.prisma.portfolio.findUnique({ where: { userId }, include: { holdings: true } });
-      const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
-      const expenses = await this.prisma.expense.findMany({ where: { userId, occurredAt: { gte: monthStart } } });
-      contextData = { portfolio, expenses };
+  constructor(private readonly prisma: PrismaService) {}
+
+  private readonly systemPrompt = `You are the TechArtha Support Assistant. 
+TechArtha is a WealthTech and investment platform specifically designed for first-time investors. 
+
+Your guidelines:
+1. Explain financial concepts simply and clearly for beginners.
+2. Answer questions about TechArtha features, onboarding, KYC, investments, SIPs (Systematic Investment Plans), goals, risk assessment, and portfolio tracking.
+3. NEVER provide personalized financial advice, recommend specific stocks/funds, or make investment decisions for the user.
+4. DO NOT invent or hallucinate TechArtha policies, fees, investment facts, transaction status, or account information. If you do not know, clearly state that you do not have enough information and advise the user to contact the support team.
+5. NEVER ask the user for passwords, OTPs, API keys, or any other sensitive credentials.
+6. Keep your responses concise, helpful, and friendly.
+7. Be encouraging to first-time investors to help them feel confident.
+
+Always respond in the user's preferred language if possible.`;
+
+  async getAIResponse(userId: string, message: string, history: any[] = [], locale: string = 'en'): Promise<string> {
+    if (!this.apiKey) {
+      console.error('OPENAI_API_KEY is not configured in environment variables.');
+      throw new InternalServerErrorException('AI provider is not configured on the server.');
     }
 
     try {
-      const aiResponseText = await this.ai.chat(text, contextData, locale);
-      return { text: aiResponseText, intent: 'AI_GENERATED', data: contextData };
-    } catch (e) {
-      // Fallback to rule-based logic if Ollama is unavailable
-      return this.ruleBasedFallback(userId, text, locale);
+      // Get user's risk profile to provide contextual answers
+      const profile = await this.prisma.riskProfile.findUnique({ where: { userId } });
+      let contextPrompt = this.systemPrompt;
+      
+      if (profile && profile.category) {
+        contextPrompt += `\n\nUSER CONTEXT:\nThe user has completed their risk assessment and their risk profile is "${profile.category}". You can use this context to explain how it relates to general investment concepts, but do not provide personalized financial advice based on it.`;
+      }
+
+      const messages = [
+        { role: 'system', content: contextPrompt },
+        ...history.map(msg => ({
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        })),
+        { role: 'user', content: message }
+      ];
+
+      const response = await axios.post(
+        this.apiUrl,
+        {
+          model: 'gpt-3.5-turbo',
+          messages,
+          temperature: 0.3,
+          max_tokens: 500
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.apiKey}`,
+          },
+        },
+      );
+
+      return response.data.choices[0].message.content.trim();
+    } catch (error: any) {
+      console.error('Error communicating with OpenAI:', error.response?.data || error.message);
+      throw new InternalServerErrorException('Failed to get response from AI assistant');
     }
-  }
-
-  private async ruleBasedFallback(userId: string, text: string, locale: string): Promise<AssistantReply> {
-    const lower = text.toLowerCase();
-    if (/(invest|redeem|withdraw|buy|sell|change bank|nominee)/.test(lower)) {
-      return { text: this.copy(locale, 'I can explain or help you review this action. I cannot execute or approve investments, redemptions, bank changes, KYC changes, nominees, or risk-profile changes. Please review the action in the app and confirm with the required authentication and consent.'), intent: 'SENSITIVE_ACTION', requiresConfirmation: true };
-    }
-    if (/(sip|systematic investment)/.test(lower)) return { text: this.copy(locale, 'SIP means investing a fixed amount at a regular interval. It does not guarantee returns, and its value can rise or fall with the market.'), intent: 'EXPLAIN_SIP' };
-    if (/(nav)/.test(lower)) return { text: this.copy(locale, 'NAV is the per-unit value of a mutual fund. It is not a guaranteed future price or a measure of whether a fund is suitable for you.'), intent: 'EXPLAIN_NAV' };
-    if (/(portfolio|holding|return)/.test(lower)) return this.portfolio(userId, locale);
-    if (/(expense|spend|kharch|खर्च)/.test(lower)) return this.expenses(userId, locale);
-    return { text: this.copy(locale, 'I can explain financial terms in simple language. If verified information is not available, I will tell you instead of guessing.'), intent: 'GENERAL_HELP' };
-  }
-
-  private async portfolio(userId: string, locale: string): Promise<AssistantReply> {
-    if (!(await this.consents.hasActiveConsent(userId, 'AI_DATA'))) return { text: this.copy(locale, 'To discuss your portfolio, please first give consent for the assistant to use your authorised financial data. I will not access it without that consent.'), intent: 'PORTFOLIO_CONSENT_REQUIRED' };
-    const portfolio = await this.prisma.portfolio.findUnique({ where: { userId }, include: { holdings: true } });
-    if (!portfolio || portfolio.status !== 'CONNECTED') return { text: this.copy(locale, 'I do not have enough verified portfolio information to answer that. Portfolio data is not connected yet.'), intent: 'PORTFOLIO_UNAVAILABLE', dataStatus: 'NOT_CONNECTED' };
-    return { text: this.copy(locale, `Your verified portfolio value is ₹${portfolio.currentValue.toLocaleString('en-IN')}. This is information, not investment advice.`), intent: 'PORTFOLIO_SUMMARY', data: portfolio, dataStatus: portfolio.status };
-  }
-
-  private async expenses(userId: string, locale: string): Promise<AssistantReply> {
-    if (!(await this.consents.hasActiveConsent(userId, 'AI_DATA'))) return { text: this.copy(locale, 'To discuss expenses, please first give consent for the assistant to use your authorised financial data.'), intent: 'EXPENSE_CONSENT_REQUIRED' };
-    const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
-    const expenses = await this.prisma.expense.findMany({ where: { userId, occurredAt: { gte: monthStart } } });
-    if (!expenses.length) return { text: this.copy(locale, 'I do not have enough verified expense information to answer that yet.'), intent: 'EXPENSE_UNAVAILABLE' };
-    const total = expenses.reduce((sum, item) => sum + item.amount, 0);
-    return { text: this.copy(locale, `Your recorded expenses this month total ₹${total.toLocaleString('en-IN')}. This is based only on the expenses you entered or authorised.`), intent: 'EXPENSE_SUMMARY', data: { total, source: 'MANUAL' } };
-  }
-
-  private copy(locale: string, english: string) {
-    if (locale === 'hi') return english; // Content translation provider is intentionally not fabricated.
-    if (locale === 'mr') return english;
-    return english;
   }
 }

@@ -5,7 +5,7 @@ import { useTranslation, SUPPORTED_LANGUAGES } from '../../TranslationProvider';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { t, lang, setLang } = useTranslation('common');
+  const { t, lang, setLang } = useTranslation();
   
   const [expanded, setExpanded] = useState<string | null>(null);
   const [theme, setTheme] = useState('system');
@@ -32,21 +32,33 @@ export default function SettingsPage() {
     };
   }, []);
 
-  const handleManageDeviceNotif = async () => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      alert(t('settings.notifNotSupported') || 'Notifications not supported on this device.');
-      return;
-    }
-    if (deviceNotifStatus === 'default' || deviceNotifStatus === 'unknown') {
+    const handleManageDeviceNotif = async () => {
+    if (typeof window === 'undefined') return;
+
+    // If permission is completely unrequested, attempt the standard web prompt first
+    // (This is required by some webviews before allowing intent fallback)
+    if ('Notification' in window && (deviceNotifStatus === 'default' || deviceNotifStatus === 'unknown')) {
       const perm = await Notification.requestPermission();
       setDeviceNotifStatus(perm);
-    } else if (deviceNotifStatus === 'denied') {
-      alert(t('settings.notifEnableInstructions') || 'Please open your app or device settings to enable notifications.');
+      if (perm === 'granted') return;
+    }
+
+    const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+    const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !(window as any).MSStream;
+    const isAndroid = /android/i.test(userAgent);
+
+    if (isIOS) {
+      // iOS: deep-link to app-specific settings
+      window.location.href = 'app-settings:';
+    } else if (isAndroid) {
+      // Android: Intent to open app-specific notification settings
+      const packageName = 'com.techartha.app'; // Standard placeholder
+      window.location.href = `intent://#Intent;action=android.settings.APP_NOTIFICATION_SETTINGS;S.android.provider.extra.APP_PACKAGE=${packageName};end`;
     } else {
-      alert(t('settings.notifAlreadyEnabled') || 'Notifications are already enabled. You can manage them in your device settings.');
+      // Fallback for non-mobile web
+      alert(t('settings.notifEnableInstructions') || 'Please open your app or device settings to manage notifications.');
     }
   };
-
   const handleThemeChange = (newTheme: string) => {
     setTheme(newTheme);
     localStorage.setItem('appTheme', newTheme);

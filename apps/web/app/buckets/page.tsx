@@ -33,6 +33,9 @@ function BucketsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const goal = searchParams.get('goal') ?? 'wealth';
+  const amount = searchParams.get('amount') ?? '1500000';
+  const period = searchParams.get('period') ?? '8';
+  const inflation = searchParams.get('inflation') ?? '6';
 
   const [buckets, setBuckets] = useState<any[]>([]);
   const [investorProfile, setInvestorProfile] = useState<string | null>(null);
@@ -221,7 +224,7 @@ function BucketsContent() {
                 >
                   Edit Bucket
                 </button>
-                <button onClick={() => router.push(`/plan?goal=${goal}&bucket=${b.id}`)} className="flex-1 py-3 bg-[var(--primary)] hover:opacity-90 text-white rounded-xl font-bold">
+                <button onClick={() => router.push(`/plan?goal=${goal}&bucket=${b.id}&amount=${amount}&period=${period}&inflation=${inflation}`)} className="flex-1 py-3 bg-[var(--primary)] hover:opacity-90 text-white rounded-xl font-bold">
                   Select
                 </button>
               </div>

@@ -43,6 +43,9 @@ model User {
   supportTickets     SupportTicket[]
   profile            UserProfile?
   minorProfileResult MinorInvestorProfileResult?
+
+  familyHeadPortfolio FamilyPortfolio?    @relation("FamilyHead")
+  familyMemberships   FamilyMember[]
 }
 
 model UserProfile {
@@ -67,6 +70,7 @@ model Device {
   deviceId     String   @unique
   deviceType   String?
   fcmToken     String?
+    expoPushToken String?
   createdAt    DateTime @default(now())
   lastActiveAt DateTime @updatedAt
   user         User     @relation(fields: [userId], references: [id])
@@ -554,4 +558,29 @@ model MinorInvestorProfileResult {
   calculatedAt        DateTime @default(now())
   
   user                User     @relation(fields: [userId], references: [id])
+}
+
+
+model FamilyPortfolio {
+  id          String         @id @default(uuid())
+  creatorId   String         @unique
+  name        String         @default("Family Portfolio")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  
+  creator     User           @relation("FamilyHead", fields: [creatorId], references: [id])
+  members     FamilyMember[]
+}
+
+model FamilyMember {
+  id                String          @id @default(uuid())
+  familyPortfolioId String
+  userId            String
+  role              String          @default("MEMBER")
+  joinedAt          DateTime        @default(now())
+  
+  familyPortfolio   FamilyPortfolio @relation(fields: [familyPortfolioId], references: [id], onDelete: Cascade)
+  user              User            @relation(fields: [userId], references: [id])
+  
+  @@unique([familyPortfolioId, userId])
 }

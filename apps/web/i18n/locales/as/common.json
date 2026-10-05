@@ -345,7 +345,7 @@
   "profile.itrDesc": "For Income Tax (ITR) filing",
   "profile.elss": "ELSS Tax Proof (80C)",
   "profile.elssDesc": "Investment proof for tax deductions",
-  "profile.footer": "TechArtha v1.0.0 · SEBI Registered MFD",
+  "profile.footer": "TechArtha v1.0.0 · AMFI Registered MFD",
   "profile.addNominee": "Add Nominee",
   "profile.nomineeName": "Nominee Name *",
   "profile.relationship": "Relationship *",
@@ -701,5 +701,15 @@
   "signup.showPassword": "পাছৱৰ্ড দেখুৱাওক",
   "signup.failedToSavePassword": "পাছৱৰ্ড সংৰক্ষণ কৰাত বিফল",
   "signup.anErrorOccurred": "এটা ত্ৰুটি ঘটিছে",
-  "signup.passwordMismatch": "পাছৱৰ্ড মিলি থকা নাই"
+  "signup.passwordMismatch": "পাছৱৰ্ড মিলি থকা নাই",
+  "profile.familyPortfolio": "Family Portfolio",
+  "profile.familyDesc": "Manage wealth together",
+  "profile.accountSettings": "Account Settings",
+  "profile.settingsDesc": "Language, themes, notifications",
+  "profile.aiAssistant": "AI / Client Assistance",
+  "profile.aiDesc": "24/7 AI chat support",
+  "profile.contact": "Contact Us",
+  "profile.contactDesc": "Get in touch with support",
+  "profile.terms": "Terms & Conditions",
+  "profile.termsDesc": "Legal agreements and policies"
 }

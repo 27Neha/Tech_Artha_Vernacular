@@ -612,10 +612,10 @@ export default function SignupPage() {
                 <div>
                   <h4 className="font-bold text-[var(--dark)]">{t('signup.panAndKyc')}</h4>
                   <p className="text-xs text-gray-500 mt-1">
-                    {panVerified === 'PENDING' && t('signup.kycRequired') || 'Verification required'}
-                    {panVerified === 'IN_PROGRESS' && t('signup.kycInProgress') || 'Verification in progress'}
-                    {panVerified === 'SUCCESS' && t('signup.kycSuccess') || 'Verified successfully'}
-                    {panVerified === 'FAILED' && t('signup.kycFailed') || 'Verification failed'}
+                    {panVerified === 'PENDING' && (t('signup.kycRequired') || 'Verification required')}
+                    {panVerified === 'IN_PROGRESS' && (t('signup.kycInProgress') || 'Verification in progress')}
+                    {panVerified === 'SUCCESS' && (t('signup.kycSuccess') || 'Verified successfully')}
+                    {panVerified === 'FAILED' && (t('signup.kycFailed') || 'Verification failed')}
                   </p>
                 </div>
                 <div>

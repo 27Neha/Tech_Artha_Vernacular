@@ -1,4 +1,4 @@
-﻿import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Patch, Param, UseGuards } from '@nestjs/common';
 import { AccessTokenGuard, CurrentUser } from '../../common/auth';
 import type { AuthenticatedUser } from '../../common/auth';
 import { GoalService } from './goal.service';
@@ -22,5 +22,10 @@ export class GoalController {
   selectGoal(@CurrentUser() user: AuthenticatedUser, @Body() body: { name: string; targetAmount: number; timePeriod: number; currentSavings?: number; inflationRate?: number; bucketId?: string; bucketName?: string; sipDate?: number; consent?: boolean }) {
     const legacyBucket = body.bucketName === 'stable' ? 'stable' : body.bucketName === 'high' ? 'growth' : 'balanced';
     return this.goalService.selectGoal(user.id, { ...body, bucketId: body.bucketId ?? legacyBucket, sipDate: body.sipDate ?? 5, consent: Boolean(body.consent) });
+  }
+
+  @Patch(':id')
+  updateGoal(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: { targetAmount?: number; timePeriod?: number; inflationRate?: number; name?: string; currentSavings?: number }) {
+    return this.goalService.updateGoal(user.id, id, body);
   }
 }

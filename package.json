@@ -16,5 +16,8 @@
     "db:seed": "npm run db:seed --workspace=api",
     "test": "npm run test --workspaces",
     "lint": "npm run lint --workspaces"
+  },
+  "dependencies": {
+    "user-agents": "^2.1.191"
   }
 }

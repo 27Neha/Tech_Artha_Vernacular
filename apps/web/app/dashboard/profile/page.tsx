@@ -265,6 +265,67 @@ export default function ProfilePage() {
 
       {/* Menu */}
 
+        {/* FAMILY PORTFOLIO */}
+        <div className="bg-white rounded-2xl border border-gray-100 transition-all shadow-sm overflow-hidden mb-3">
+          <button onClick={() => router.push('/dashboard/family')} className="w-full p-4 flex items-center gap-4 text-left hover:bg-gray-50">
+            <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-xl shrink-0">👨‍👩‍👧‍👦</div>
+            <div className="flex-1">
+              <p className="font-bold text-[var(--dark)] text-sm">{t('profile.familyPortfolio') || 'Family Portfolio'}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t('profile.familyDesc') || 'Manage wealth together'}</p>
+            </div>
+            <span className="text-gray-300 text-xl">›</span>
+          </button>
+        </div>
+
+        {/* ACCOUNT SETTINGS */}
+        <div className="bg-white rounded-2xl border border-gray-100 transition-all shadow-sm overflow-hidden mb-3">
+          <button onClick={() => router.push('/dashboard/settings')} className="w-full p-4 flex items-center gap-4 text-left hover:bg-gray-50">
+            <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-xl shrink-0">⚙️</div>
+            <div className="flex-1">
+              <p className="font-bold text-[var(--dark)] text-sm">{t('profile.accountSettings') || 'Account Settings'}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t('profile.settingsDesc') || 'Language, themes, notifications'}</p>
+            </div>
+            <span className="text-gray-300 text-xl">›</span>
+          </button>
+        </div>
+
+        {/* AI / CLIENT ASSISTANCE */}
+        <div className="bg-white rounded-2xl border border-gray-100 transition-all shadow-sm overflow-hidden mb-3">
+          <button onClick={() => router.push('/dashboard/support/chat')} className="w-full p-4 flex items-center gap-4 text-left hover:bg-gray-50">
+            <div className="w-10 h-10 rounded-full bg-cyan-50 flex items-center justify-center text-xl shrink-0">🤖</div>
+            <div className="flex-1">
+              <p className="font-bold text-[var(--dark)] text-sm">{t('profile.aiAssistant') || 'AI / Client Assistance'}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t('profile.aiDesc') || '24/7 AI chat support'}</p>
+            </div>
+            <span className="text-gray-300 text-xl">›</span>
+          </button>
+        </div>
+
+        {/* CONTACT */}
+        <div className="bg-white rounded-2xl border border-gray-100 transition-all shadow-sm overflow-hidden mb-3">
+          <button onClick={() => alert('Contact module structure exists. Awaiting verified contact details from project owners.')} className="w-full p-4 flex items-center gap-4 text-left hover:bg-gray-50">
+            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-xl shrink-0">📞</div>
+            <div className="flex-1">
+              <p className="font-bold text-[var(--dark)] text-sm">{t('profile.contact') || 'Contact Us'}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t('profile.contactDesc') || 'Get in touch with support'}</p>
+            </div>
+            <span className="text-gray-300 text-xl">›</span>
+          </button>
+        </div>
+
+        {/* TERMS & CONDITIONS */}
+        <div className="bg-white rounded-2xl border border-gray-100 transition-all shadow-sm overflow-hidden mb-3">
+          <button onClick={() => alert('Terms & Conditions structure exists. Awaiting approved legal text.')} className="w-full p-4 flex items-center gap-4 text-left hover:bg-gray-50">
+            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">📄</div>
+            <div className="flex-1">
+              <p className="font-bold text-[var(--dark)] text-sm">{t('profile.terms') || 'Terms & Conditions'}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t('profile.termsDesc') || 'Legal agreements and policies'}</p>
+            </div>
+            <span className="text-gray-300 text-xl">›</span>
+          </button>
+        </div>
+
+
       <div className="flex flex-col gap-3 mb-6">
 
         {/* MY GOALS */}

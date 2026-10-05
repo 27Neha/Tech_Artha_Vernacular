@@ -96,13 +96,38 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 export default function FullPortfolioPage() {
   const { t } = useTranslation('common');
   const router = useRouter();
-  const [tab, setTab] = useState<'overview' | 'holdings' | 'transactions' | 'sips' | 'statements'>('overview');
+  const [tab, setTab] = useState<'overview' | 'holdings' | 'transactions' | 'sips' | 'statements' | 'goals'>('overview');
 
   const [investorProfile, setInvestorProfile] = useState('');
   const [portfolio, setPortfolio] = useState({ totalInvested: 0, currentValue: 0, totalReturns: 0, holdings: [] });
   const [fetchingPortfolio, setFetchingPortfolio] = useState(true);
+  const [goals, setGoals] = useState<any[]>([]);
+  const [fetchingGoals, setFetchingGoals] = useState(true);
+  const [editingGoal, setEditingGoal] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ targetAmount: 0, timePeriod: 0, inflationRate: 6, name: '' });
+  const [savingGoal, setSavingGoal] = useState(false);
+
+  
+  const fetchGoalsData = async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_URL}/goals`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setGoals(data || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch goals', err);
+    } finally {
+      setFetchingGoals(false);
+    }
+  };
 
   useEffect(() => {
+    // Call it inside useEffect
+    fetchGoalsData();
+
     const fetchProfile = async () => {
       try {
         const token = localStorage.getItem('access_token');
@@ -119,6 +144,8 @@ export default function FullPortfolioPage() {
     };
     fetchProfile();
     
+    
+
     const fetchPortfolio = async () => {
       const token = localStorage.getItem('access_token');
       if (!token) return;
@@ -146,6 +173,27 @@ export default function FullPortfolioPage() {
   const handleSipAction = (action: string, fund: string) => {
     // Requirements: Must NOT execute immediately. Use Confirmation/Authentication/Consent.
     alert(`Initiating ${action} for ${fund} SIP. Redirecting to authentication & consent flow...`);
+  };
+
+  
+  const handleSaveGoal = async () => {
+    setSavingGoal(true);
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_URL}/goals/${editingGoal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(editForm)
+      });
+      if (res.ok) {
+        await fetchGoalsData();
+        setEditingGoal(null);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingGoal(false);
+    }
   };
 
   return (
@@ -384,6 +432,114 @@ export default function FullPortfolioPage() {
           </div>
         )}
       </div>
+
+      
+        {/* 6. GOALS TAB */}
+        {tab === 'goals' && (
+          <div className="flex flex-col gap-4">
+            {!fetchingGoals && (
+              <div className="flex justify-between items-end mb-2">
+                <h2 className="text-lg font-extrabold text-[var(--dark)]">My Goals</h2>
+                {goals.length > 0 && (
+                  <button onClick={() => router.push('/goals')} className="text-[var(--primary)] text-xs font-bold mb-0.5">Create New Goal</button>
+                )}
+              </div>
+            )}
+            
+            {fetchingGoals ? (
+              <div className="text-center p-6"><p className="text-sm font-bold text-gray-400">Loading goals...</p></div>
+            ) : goals.length === 0 ? (
+              <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center text-center">
+                <span className="text-5xl mb-4">🎯</span>
+                <h3 className="font-bold text-[var(--dark)] text-lg mb-2">No goals created yet</h3>
+                <p className="text-xs text-gray-500 mb-6 leading-relaxed">Start planning for your future by setting a financial goal. We will help you track your progress automatically based on your investments.</p>
+                <button 
+                  onClick={() => router.push('/goals')}
+                  className="bg-[var(--primary)] text-white font-bold text-sm px-8 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all"
+                >
+                  Plan a Goal
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {goals.map((g) => {
+                  const p = g.progressPercentage || 0;
+                  return (
+                    <div key={g.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h3 className="font-bold text-[var(--dark)] text-[15px]">{g.name}</h3>
+                          <p className="text-xs text-gray-500 font-medium">{g.timePeriod} Years · {g.bucketName === 'stable' ? 'Conservative' : g.bucketName === 'growth' ? 'Aggressive' : 'Moderate'}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-extrabold text-[var(--primary)] text-sm">₹{g.targetAmount?.toLocaleString('en-IN')}</p>
+                          <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">Future Target: ₹{g.inflationAdjustedAmount ? Math.round(g.inflationAdjustedAmount).toLocaleString('en-IN') : g.targetAmount?.toLocaleString('en-IN')}</p>
+                        </div>
+                      </div>
+                      
+                      {/* Progress Bar */}
+                      <div className="mt-5 mb-2">
+                        <div className="flex justify-between text-[11px] font-bold mb-2">
+                          <span className="text-[var(--primary)]">₹{g.currentInvestmentValue?.toLocaleString('en-IN')} Saved</span>
+                          <span className="text-gray-500">{p.toFixed(1)}%</span>
+                        </div>
+                        <div className="h-3 w-full bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-[var(--primary)] rounded-full transition-all duration-1000 ease-out" style={{ width: `${p}%` }}></div>
+                        </div>
+                        <div className="flex justify-between items-center mt-3">
+                          <div className="flex gap-4">
+    <p className="text-[11px] font-bold text-gray-500">₹{g.remainingAmount?.toLocaleString('en-IN')} left</p>
+    <p className="text-[11px] font-bold text-[var(--primary)]">SIP: ₹{g.monthlySip?.toLocaleString('en-IN')}/mo</p>
+  </div>
+                          <button onClick={() => {
+    setEditingGoal(g);
+    setEditForm({ targetAmount: g.targetAmount, timePeriod: g.timePeriod, inflationRate: g.inflationRate, name: g.name });
+  }} className="text-[10px] font-bold text-[var(--primary)] bg-[var(--primary-light)] px-3 py-1.5 rounded-md shadow-sm border border-[var(--primary)]/10 hover:bg-[var(--primary)] hover:text-white transition-all">Edit Goal</button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      
+      {/* MODAL: Edit Goal */}
+      {editingGoal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-5 animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-sm flex flex-col shadow-2xl overflow-hidden p-6">
+            <h3 className="font-extrabold text-[var(--dark)] text-lg mb-4">Edit Goal: {editingGoal.name}</h3>
+            
+            <div className="mb-4">
+              <label className="block text-xs font-bold text-gray-500 mb-1">Goal Name</label>
+              <input type="text" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm font-bold" />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-xs font-bold text-gray-500 mb-1">Today's Target Amount (₹)</label>
+              <input type="number" value={editForm.targetAmount} onChange={e => setEditForm({...editForm, targetAmount: Number(e.target.value)})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm font-bold" />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-xs font-bold text-gray-500 mb-1">Time Horizon (Years)</label>
+              <input type="number" value={editForm.timePeriod} onChange={e => setEditForm({...editForm, timePeriod: Number(e.target.value)})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm font-bold" />
+            </div>
+
+            <div className="mb-5">
+              <label className="block text-xs font-bold text-gray-500 mb-1">Inflation Rate (% p.a.)</label>
+              <input type="number" step="0.1" value={editForm.inflationRate} onChange={e => setEditForm({...editForm, inflationRate: Number(e.target.value)})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm font-bold" />
+            </div>
+
+            <div className="flex gap-3 mt-2">
+              <button onClick={() => setEditingGoal(null)} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm">Cancel</button>
+              <button onClick={handleSaveGoal} disabled={savingGoal} className="flex-1 py-3 bg-[var(--primary)] text-white rounded-xl font-bold text-sm shadow-md">
+                {savingGoal ? 'Saving...' : 'Save Updates'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: Statement Viewer */}
       {viewingStatement && (

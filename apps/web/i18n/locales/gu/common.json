@@ -345,7 +345,7 @@
   "profile.itrDesc": "આવકવેરા (ITR) ફાઇલિંગ માટે",
   "profile.elss": "ELSS ટેક્સ પ્રૂફ (80C)",
   "profile.elssDesc": "કર કપાત માટે રોકાણનો પુરાવો",
-  "profile.footer": "TechArtha v1.0.0 · SEBI Registered MFD",
+  "profile.footer": "TechArtha v1.0.0 · AMFI Registered MFD",
   "profile.addNominee": "નોમિની ઉમેરો",
   "profile.nomineeName": "નોમિનીનું નામ *",
   "profile.relationship": "સંબંધ *",
@@ -689,5 +689,15 @@
   "signup.showPassword": "પાસવર્ડ બતાવો",
   "signup.failedToSavePassword": "પાસવર્ડ સાચવવામાં નિષ્ફળ",
   "signup.anErrorOccurred": "એક ભૂલ આવી",
-  "signup.passwordMismatch": "પાસવર્ડ મેળ ખાતા નથી"
+  "signup.passwordMismatch": "પાસવર્ડ મેળ ખાતા નથી",
+  "profile.familyPortfolio": "Family Portfolio",
+  "profile.familyDesc": "Manage wealth together",
+  "profile.accountSettings": "Account Settings",
+  "profile.settingsDesc": "Language, themes, notifications",
+  "profile.aiAssistant": "AI / Client Assistance",
+  "profile.aiDesc": "24/7 AI chat support",
+  "profile.contact": "Contact Us",
+  "profile.contactDesc": "Get in touch with support",
+  "profile.terms": "Terms & Conditions",
+  "profile.termsDesc": "Legal agreements and policies"
 }
