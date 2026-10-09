@@ -79,7 +79,9 @@ export const InvestScreen = () => {
   const bucketName: string | undefined = route.params?.bucketName;
 
   const [amount, setAmount] = useState('');
-  const [gender, setGender] = useState<Gender>('male');
+  // Not defaulted. Defaulting gender puts an unverified personal attribute onto a
+  // KYC-bearing record that the investor never actively chose.
+  const [gender, setGender] = useState<Gender | null>(null);
   const [email, setEmail] = useState('');
   const [bankAccountHolderName, setBankAccountHolderName] = useState('');
   const [bankAccountNumber, setBankAccountNumber] = useState('');
@@ -90,13 +92,14 @@ export const InvestScreen = () => {
 
   const [mode, setMode] = useState<Mode>('lumpsum');
   const [frequency, setFrequency] = useState(FREQUENCIES[0].value);
-  const [installmentDay, setInstallmentDay] = useState(INSTALLMENT_DAYS[2]);
-  const [numberOfInstallments, setNumberOfInstallments] = useState('12');
+  const [installmentDay, setInstallmentDay] = useState<number | null>(null);
+  const [numberOfInstallments, setNumberOfInstallments] = useState('');
 
   /** Mirrors InvestInBucketDto. One message per field, in form order. */
   const validate = (): string | null => {
     const value = Number(amount);
     if (!Number.isFinite(value) || value < MIN_AMOUNT) return `Enter an amount of at least ₹${MIN_AMOUNT}.`;
+    if (gender === null) return 'Select your gender.';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Enter a valid email address.';
     if (bankAccountHolderName.trim().length < 3) return "Enter the bank account holder's full name.";
     if (bankAccountNumber.trim().length < 5) return 'Enter a valid bank account number.';
@@ -104,6 +107,7 @@ export const InvestScreen = () => {
     if (addressLine1.trim().length < 3) return 'Enter your address.';
     if (!/^\d{6}$/.test(postalCode)) return 'Enter a valid 6-digit PIN code.';
     if (mode === 'sip') {
+      if (installmentDay === null) return 'Choose the day of the month for your instalment.';
       const installments = Number(numberOfInstallments);
       if (!Number.isInteger(installments) || installments < 1) {
         return 'Enter how many instalments this SIP should run for.';

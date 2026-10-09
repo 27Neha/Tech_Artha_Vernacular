@@ -44,9 +44,12 @@ export const PlanSummaryScreen = () => {
 
   // Previously these were literals - ₹15,00,000 over 8 years - displayed as though the
   // user had chosen them. They are inputs, so the user supplies them.
-  const [targetAmount, setTargetAmount] = useState('1500000');
-  const [timePeriod, setTimePeriod] = useState('8');
-  const [selectedDate, setSelectedDate] = useState<number>(10);
+  // Nothing is pre-filled. Cybrilla's compliance checklist requires that no values are
+  // auto-populated or defaulted for any customer - a prefilled amount or SIP date is an
+  // assumption about the investor that they may not notice they are accepting.
+  const [targetAmount, setTargetAmount] = useState('');
+  const [timePeriod, setTimePeriod] = useState('');
+  const [selectedDate, setSelectedDate] = useState<number | null>(null);
   const [consent, setConsent] = useState(false);
 
   const [simulation, setSimulation] = useState<Simulation | null>(null);
@@ -64,6 +67,12 @@ export const PlanSummaryScreen = () => {
   }, []);
 
   const runSimulation = useCallback(async () => {
+    if (targetAmount.trim() === '' || timePeriod.trim() === '') {
+      // Not an error - the user simply has not filled the form yet.
+      setSimulation(null);
+      setSimulationError(null);
+      return;
+    }
     const amount = Number(targetAmount);
     const years = Number(timePeriod);
     if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(years) || years < 1 || years > 50) {
@@ -89,6 +98,9 @@ export const PlanSummaryScreen = () => {
   }, [runSimulation]);
 
   const savePlan = async () => {
+    if (selectedDate === null) {
+      return Alert.alert('Choose a SIP date', 'Select the day of the month you would like to invest on.');
+    }
     setLoading(true);
     try {
       const result = await api.post<GoalResult>('/goals/select', {
@@ -223,9 +235,9 @@ export const PlanSummaryScreen = () => {
         </Pressable>
 
         <Pressable
-          style={[styles.button, (!consent || loading || !simulation) && styles.buttonDisabled]}
+          style={[styles.button, (!consent || loading || !simulation || selectedDate === null) && styles.buttonDisabled]}
           onPress={savePlan}
-          disabled={!consent || loading || !simulation}
+          disabled={!consent || loading || !simulation || selectedDate === null}
         >
           {/* Was "Confirm & Start SIP 🚀" - which no part of this flow does. */}
           <Text style={styles.buttonText}>{loading ? 'Saving…' : 'Save my plan'}</Text>

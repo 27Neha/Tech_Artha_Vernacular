@@ -260,6 +260,25 @@ export class CybrillaService {
     }
   }
 
+  /**
+   * PATCH against a tenant-scoped collection. Note the shape Cybrilla uses: the record
+   * id goes in the BODY, not the path - `PATCH /v2/mf_purchases` with `{ id, state }`.
+   */
+  private async tenantPatch(path: string, body: any) {
+    if (!this.accessToken) {
+      await this.authenticate();
+    }
+    const tenantId = process.env.CYBRILLA_TENANT_ID;
+    const response = await axios.patch(`${this.sandboxBaseUrl}${path}`, body, {
+      headers: {
+        Authorization: `Bearer ${this.accessToken}`,
+        'x-tenant-id': tenantId,
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.data;
+  }
+
   private async tenantPost(path: string, body: any) {
     if (!this.accessToken) {
       await this.authenticate();
@@ -421,7 +440,10 @@ export class CybrillaService {
     installmentDay: number;
     numberOfInstallments: number;
     userIp: string;
+    /** An APPROVED mandate id. Without it the plan cannot collect an instalment. */
     mandate?: string;
+    consent?: { email: string; mobile: string; isdCode?: string };
+    generateFirstInstallmentNow?: boolean;
   }) {
     try {
       this.logger.log(
@@ -436,7 +458,20 @@ export class CybrillaService {
         number_of_installments: params.numberOfInstallments,
         systematic: true,
         user_ip: params.userIp,
-        ...(params.mandate ? { mandate: params.mandate } : {}),
+        // A SIP collects by mandate; payment_source is the approved mandate's id.
+        // Omitting these is why our earlier plans came back with payment_method: null.
+        ...(params.mandate ? { payment_method: 'mandate', payment_source: params.mandate } : {}),
+        // Consent is recorded on the plan itself, not only on the order.
+        ...(params.consent
+          ? {
+              consent: {
+                email: params.consent.email,
+                isd_code: params.consent.isdCode ?? '91',
+                mobile: params.consent.mobile,
+              },
+            }
+          : {}),
+        ...(params.generateFirstInstallmentNow ? { generate_first_installment_now: true } : {}),
       });
     } catch (error: any) {
       const status = error?.response?.status;
@@ -452,6 +487,103 @@ export class CybrillaService {
         );
       }
       throw new InternalServerErrorException('Cybrilla SIP registration failed.');
+    }
+  }
+
+  /**
+   * PATCH /v2/mf_purchases - step 2 of the purchase flow.
+   *
+   * Creating an order is NOT enough. A newly created purchase sits in `under_review`
+   * and must be explicitly confirmed, with the investor's consent details, before it
+   * progresses. Every order this integration had placed was stuck unconfirmed
+   * (`confirmed_at: null`, `consent` all null) and ultimately failed.
+   */
+  async confirmPurchaseOrder(params: {
+    fpOrderId: string;
+    email: string;
+    mobile: string;
+    isdCode?: string;
+  }) {
+    try {
+      return await this.tenantPatch('/v2/mf_purchases', {
+        id: params.fpOrderId,
+        state: 'confirmed',
+        consent: {
+          email: params.email,
+          isd_code: params.isdCode ?? '91',
+          mobile: params.mobile,
+        },
+      });
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const responseData = error?.response?.data;
+      this.logger.error(
+        `Cybrilla order confirmation failed for ${params.fpOrderId}. HTTP ${status ?? 'unknown'} - ${JSON.stringify(responseData)}`,
+      );
+      if (status === 400) {
+        throw new BadRequestException(
+          responseData?.error?.errors ?? responseData?.error?.message ?? 'Could not confirm this order.',
+        );
+      }
+      throw new InternalServerErrorException('Cybrilla order confirmation failed.');
+    }
+  }
+
+  /** PATCH /v2/mf_purchase_plans - the same confirmation step for a SIP plan. */
+  async confirmPurchasePlan(fpPlanId: string) {
+    try {
+      return await this.tenantPatch('/v2/mf_purchase_plans', { id: fpPlanId, state: 'confirmed' });
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const responseData = error?.response?.data;
+      this.logger.error(
+        `Cybrilla plan confirmation failed for ${fpPlanId}. HTTP ${status ?? 'unknown'} - ${JSON.stringify(responseData)}`,
+      );
+      if (status === 400) {
+        throw new BadRequestException(
+          responseData?.error?.errors ?? responseData?.error?.message ?? 'Could not confirm this SIP.',
+        );
+      }
+      throw new InternalServerErrorException('Cybrilla SIP confirmation failed.');
+    }
+  }
+
+  /**
+   * POST /api/pg/payments/netbanking - the step that actually collects money.
+   *
+   * Returns a `token_url`: the investor-facing page where they complete payment (UPI or
+   * net banking). This is the external handoff the app has to send them to, and
+   * `paymentPostbackUrl` is where the gateway returns them afterwards - our deep link.
+   *
+   * `amcOrderIds` takes the order's NUMERIC `old_id`, not the `mfp_...` string id.
+   */
+  async createPayment(params: {
+    amcOrderIds: number[];
+    bankAccountId: number;
+    paymentPostbackUrl: string;
+    method?: 'UPI' | 'NETBANKING';
+    providerName?: string;
+  }): Promise<{ id: number; token_url: string }> {
+    try {
+      return await this.tenantPost('/api/pg/payments/netbanking', {
+        amc_order_ids: params.amcOrderIds,
+        bank_account_id: params.bankAccountId,
+        method: params.method ?? 'UPI',
+        payment_postback_url: params.paymentPostbackUrl,
+        provider_name: params.providerName ?? 'ONDC',
+      });
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const responseData = error?.response?.data;
+      this.logger.error(
+        `Cybrilla payment creation failed. HTTP ${status ?? 'unknown'} - ${JSON.stringify(responseData)}`,
+      );
+      if (status === 400) {
+        throw new BadRequestException(
+          responseData?.error?.errors ?? responseData?.error?.message ?? 'Could not start this payment.',
+        );
+      }
+      throw new InternalServerErrorException('Cybrilla payment creation failed.');
     }
   }
 

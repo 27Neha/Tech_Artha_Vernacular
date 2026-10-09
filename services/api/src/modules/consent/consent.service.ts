@@ -7,6 +7,11 @@ export const CONSENT_VERSIONS: Record<string, { version: string; purpose: string
   INVESTMENT_PROPOSAL: { version: '2026.08', purpose: 'Generating a personalised investment proposal.' },
   FINANCIAL_DATA: { version: '2026.08', purpose: 'Processing authorised financial data for insights.' },
   AI_DATA: { version: '2026.08', purpose: 'Using authorised data to answer financial questions.' },
+  // Required by the distributor compliance checklist: the investor's acceptance of the
+  // terms must be an explicit, recorded act with a version - not passive text on a
+  // screen. Bump the version whenever the terms change; a new version means every
+  // investor must accept again, which hasActiveConsent will surface.
+  TERMS_AND_CONDITIONS: { version: '2026.10', purpose: 'Acceptance of the TechArtha terms of service and privacy policy.' },
 };
 
 @Injectable()

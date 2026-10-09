@@ -21,6 +21,9 @@ export const LoginScreen = ({ phone, setPhone }: LoginScreenProps) => {
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
+  // Explicit acceptance, not the passive "by continuing you agree" line this replaces.
+  // The compliance checklist requires acceptance to be an act the investor performs.
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   // Matches the web login's channel choice. WhatsApp first because that is the
   // provider actually configured; SMS is the fallback when a code does not arrive.
   const [channel, setChannel] = useState<'WHATSAPP' | 'SMS'>('WHATSAPP');
@@ -28,6 +31,9 @@ export const LoginScreen = ({ phone, setPhone }: LoginScreenProps) => {
   const handleSendOtp = async (via: 'WHATSAPP' | 'SMS' = channel) => {
     if (!/^\d{10}$/.test(phone)) {
       return Alert.alert('Enter a valid mobile number', 'Please enter your 10-digit mobile number.');
+    }
+    if (!acceptedTerms) {
+      return Alert.alert('Accept the terms', 'Please accept the terms of service and privacy policy to continue.');
     }
 
     setLoading(true);
@@ -83,6 +89,14 @@ export const LoginScreen = ({ phone, setPhone }: LoginScreenProps) => {
       // stack; the old code only assigned to an in-memory object, so the session was
       // lost on every restart and no component re-rendered.
       await signIn(session);
+
+      // Recorded against the user with its version, IP and an audit event. Failure must
+      // not block sign-in - the acceptance is re-asserted on the next login if missing.
+      try {
+        await api.post('/consents', { type: 'TERMS_AND_CONDITIONS' });
+      } catch {
+        // Logged server-side; nothing actionable for the user here.
+      }
 
       navigation.navigate('KYC');
     } catch (error) {
@@ -174,7 +188,17 @@ export const LoginScreen = ({ phone, setPhone }: LoginScreenProps) => {
             ) : null}
           </>
         )}
-        <Text style={styles.legal}>By continuing, you agree to our Terms and Privacy Policy.</Text>
+        {!otpSent ? (
+          <Pressable style={styles.consent} onPress={() => setAcceptedTerms(!acceptedTerms)}>
+            <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
+              {acceptedTerms && <Text style={styles.check}>✓</Text>}
+            </View>
+            <Text style={styles.consentText}>
+              I have read and accept the Terms of Service and Privacy Policy, and I understand that
+              mutual fund investments are subject to market risks.
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     </SafeAreaView>
   );
