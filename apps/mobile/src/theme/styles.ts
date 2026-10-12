@@ -67,5 +67,14 @@ export const styles = StyleSheet.create({
   loading:{color:'#4A5568',marginTop:20},
   fundCard:{borderBottomWidth:1,borderBottomColor:'#E2E8F0',paddingVertical:18,flexDirection:'row',alignItems:'center',backgroundColor:'#fff',borderRadius:16,padding:16,marginBottom:10,elevation:2,shadowColor:'#000',shadowOpacity:0.05,shadowOffset:{width:0,height:2},shadowRadius:4},
   fundName:{color:'#2D3748',fontSize:15,fontWeight:'700',maxWidth:290,lineHeight:21},
-  scheme:{color:'#718096',fontSize:12,marginTop:4}
+  scheme:{color:'#718096',fontSize:12,marginTop:4},
+  // Selectable pills - expense categories, bucket choices, lesson filters.
+  chip:{backgroundColor:'#fff',borderWidth:1,borderColor:'#E2E8F0',borderRadius:20,paddingHorizontal:14,paddingVertical:8},
+  chipSelected:{backgroundColor:'#3C3985',borderColor:'#3C3985'},
+  chipText:{color:'#4A5568',fontWeight:'700',fontSize:13},
+  chipTextSelected:{color:'#fff',fontWeight:'700',fontSize:13},
+  badge:{backgroundColor:'#EBEAF8',borderRadius:8,paddingHorizontal:8,paddingVertical:3,alignSelf:'flex-start'},
+  badgeText:{color:'#3C3985',fontWeight:'800',fontSize:11},
+  errorText:{color:'#C53030',fontSize:13,marginTop:8},
+  rowBetween:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'}
 });

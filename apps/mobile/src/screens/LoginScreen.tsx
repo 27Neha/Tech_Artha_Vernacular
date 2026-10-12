@@ -1,42 +1,48 @@
 import React, { useState } from 'react';
-import { SafeAreaView, View, Text, TextInput, Pressable, Alert } from 'react-native';
+import { SafeAreaView, View, Text, TextInput, Pressable, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
-import { authStore } from '../store/auth';
+import { api } from '../services/api/client';
+import { Session, useAuth } from '../store/AuthContext';
 import { useNavigation } from '@react-navigation/native';
-import { useTranslation } from 'react-i18next';
 
 interface LoginScreenProps {
   phone: string;
   setPhone: (phone: string) => void;
-  apiUrl: string;
 }
 
-export const LoginScreen = ({ phone, setPhone, apiUrl }: LoginScreenProps) => {
+export const LoginScreen = ({ phone, setPhone }: LoginScreenProps) => {
+  const { signIn } = useAuth();
   const navigation = useNavigation<any>();
-  const { t } = useTranslation();
-  const [otpSent, setOtpSent] = useState(false);
+  const [step, setStep] = useState<'contact' | 'otp' | 'password'>('contact');
+  const [authType, setAuthType] = useState<'login' | 'signup' | null>(null);
   const [otp, setOtp] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSendOtp = async () => {
-    if (!/^\d{10}$/.test(phone)) {
-      return Alert.alert(t('login.invalidNumber', 'Enter a valid mobile number'), 'Please enter your 10-digit mobile number.');
+  const handleContinue = async () => {
+    if (!phone) {
+      return Alert.alert('Enter contact', 'Please enter your mobile number or email.');
     }
     
     setLoading(true);
     try {
-      const response = await fetch(`${apiUrl}/auth/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: phone })
-      });
-      const result = await response.json();
+      // 1. Check if user exists
+      const isEmail = phone.includes('@');
+      const payload = isEmail ? { email: phone } : { mobile: phone };
       
-      if (!response.ok) throw new Error(result.message || 'Failed to send OTP');
+      const checkRes = await api.post<{ exists: boolean }>('/auth/check', payload, { anonymous: true });
+      const type = checkRes.exists ? 'login' : 'signup';
+      setAuthType(type);
+
+      // 2. Start flow
+      const channel = isEmail ? 'EMAIL' : 'SMS';
+      const endpoint = type === 'login' ? '/auth/login/start' : '/auth/signup/start';
       
-      setOtpSent(true);
+      await api.post(endpoint, { ...payload, channel }, { anonymous: true });
+
+      setStep('otp');
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Please try again.');
     } finally {
@@ -46,24 +52,25 @@ export const LoginScreen = ({ phone, setPhone, apiUrl }: LoginScreenProps) => {
 
   const handleVerifyOtp = async () => {
     if (otp.length < 4) {
-      return Alert.alert(t('login.invalidOtp', 'Invalid OTP'), 'Please enter a valid OTP.');
+      return Alert.alert('Invalid OTP', 'Please enter a valid OTP.');
+    }
+    if (authType === 'signup' && password.length < 8) {
+      return Alert.alert('Weak Password', 'Please create a password of at least 8 characters.');
     }
 
     setLoading(true);
     try {
-      const response = await fetch(`${apiUrl}/auth/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: phone, otp })
-      });
-      const result = await response.json();
+      const isEmail = phone.includes('@');
+      const payload = isEmail ? { email: phone } : { mobile: phone };
       
-      if (!response.ok) throw new Error(result.message || 'Failed to verify OTP');
-      
-      authStore.accessToken = result.access_token;
-      authStore.userId = result.user?.id;
-      
-      navigation.navigate('KYC');
+      const session = await api.post<Session>(
+        '/auth/otp/verify',
+        { ...payload, otp, type: authType!, password: password || undefined },
+        { anonymous: true }
+      );
+
+      await signIn(session);
+      navigation.navigate('ProfileSetup');
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Invalid OTP. Please try again.');
     } finally {
@@ -74,55 +81,74 @@ export const LoginScreen = ({ phone, setPhone, apiUrl }: LoginScreenProps) => {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
-      <Header title={t('welcome.welcomeToTechArtha', 'Welcome')} back={otpSent ? undefined : "welcome"} onBack={() => {
-        if (otpSent) setOtpSent(false);
-        else navigation.goBack();
+      <Header title="Welcome" back={step === 'otp' ? undefined : "welcome"} onBack={() => {
+        if (step === 'otp') {
+          setStep('contact');
+          setOtp('');
+          setPassword('');
+        } else {
+          navigation.goBack();
+        }
       }} />
-      <View style={styles.page}>
-        {!otpSent ? (
-          <>
-            <Text style={styles.title}>{t('login.title', 'Let’s get you started')}</Text>
-            <Text style={styles.description}>{t('login.desc', 'Enter your mobile number. We’ll send a secure one-time verification code.')}</Text>
-            <Text style={styles.label}>{t('login.mobileLabel', 'Mobile number')}</Text>
-            <View style={styles.phoneInput}>
-              <Text style={styles.country}>+91</Text>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <View style={styles.page}>
+          {step === 'contact' ? (
+            <>
+              <Text style={styles.title}>Let's get you started</Text>
+              <Text style={styles.description}>Enter your mobile number or email address.</Text>
+              <Text style={styles.label}>Mobile or Email</Text>
+              <View style={styles.phoneInput}>
+                {!phone.includes('@') && <Text style={styles.country}>+91</Text>}
+                <TextInput 
+                  value={phone} 
+                  onChangeText={setPhone} 
+                  keyboardType={phone.includes('@') ? "email-address" : "phone-pad"}
+                  placeholder="Mobile number or Email" 
+                  style={{flex: 1, fontSize: 16, color: '#102A54', fontWeight: 'bold'}}
+                  autoCapitalize="none"
+                />
+              </View>
+              <Pressable style={[styles.primaryButton, loading && {opacity: 0.7}]} onPress={handleContinue} disabled={loading}>
+                <Text style={styles.primaryText}>{loading ? 'Checking...' : 'Continue'}</Text>
+                {!loading && <Text style={styles.primaryText}>→</Text>}
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={styles.title}>{authType === 'login' ? 'Welcome back' : 'Create an account'}</Text>
+              <Text style={styles.description}>We sent a verification code to {phone}</Text>
+              
+              <Text style={styles.label}>Enter OTP</Text>
               <TextInput 
-                value={phone} 
-                onChangeText={setPhone} 
-                keyboardType="phone-pad" 
-                maxLength={10} 
-                placeholder="10-digit number" 
-                style={styles.input} 
-                editable={!loading}
+                value={otp} 
+                onChangeText={setOtp} 
+                keyboardType="number-pad" 
+                maxLength={6} 
+                placeholder="000000" 
+                style={styles.input}
               />
-            </View>
-            <Pressable style={[styles.primaryButton, loading && styles.primaryDisabled]} onPress={handleSendOtp} disabled={loading}>
-              <Text style={styles.primaryText}>{loading ? t('signup.sending', 'Sending...') : t('login.continue', 'Continue securely')}</Text>
-              <Text style={styles.primaryText}>→</Text>
-            </Pressable>
-          </>
-        ) : (
-          <>
-            <Text style={styles.title}>{t('login.verifyNumber', 'Verify your number')}</Text>
-            <Text style={styles.description}>Enter the OTP sent to +91 {phone}.</Text>
-            <Text style={styles.label}>{t('login.otpLabel', 'One-Time Password (OTP)')}</Text>
-            <TextInput 
-              value={otp} 
-              onChangeText={setOtp} 
-              keyboardType="number-pad" 
-              maxLength={6} 
-              placeholder="Enter OTP" 
-              style={styles.field} 
-              editable={!loading}
-            />
-            <Pressable style={[styles.primaryButton, loading && styles.primaryDisabled]} onPress={handleVerifyOtp} disabled={loading}>
-              <Text style={styles.primaryText}>{loading ? t('signup.verifyingStatus', 'Verifying...') : t('login.verifyOtp', 'Verify OTP')}</Text>
-              <Text style={styles.primaryText}>→</Text>
-            </Pressable>
-          </>
-        )}
-        <Text style={styles.legal}>{t('settings.terms', 'Terms of Service')}</Text>
-      </View>
+
+              {authType === 'signup' && (
+                <>
+                  <Text style={[styles.label, {marginTop: 20}]}>Create a Password</Text>
+                  <TextInput 
+                    value={password} 
+                    onChangeText={setPassword} 
+                    secureTextEntry 
+                    placeholder="Minimum 8 characters" 
+                    style={styles.input}
+                  />
+                </>
+              )}
+
+              <Pressable style={[styles.primaryButton, loading && {opacity: 0.7}]} onPress={handleVerifyOtp} disabled={loading}>
+                <Text style={styles.primaryText}>{loading ? 'Verifying...' : 'Verify & Continue'}</Text>
+                {!loading && <Text style={styles.primaryText}>→</Text>}
+              </Pressable>
+            </>
+          )}
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

@@ -3,11 +3,9 @@ import { SafeAreaView, View, Text, Pressable, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Screen } from '../types';
-import { authStore } from '../store/auth';
+import { useAuth } from '../store/AuthContext';
 
 import { useNavigation } from '@react-navigation/native';
-import { useTranslation } from 'react-i18next';
-import i18next from '../i18n';
 
 const LANGUAGES = [
   { code: 'en', label: 'English', native: 'English' },
@@ -17,12 +15,12 @@ const LANGUAGES = [
 
 export const LanguageScreen = () => {
   const navigation = useNavigation<any>();
+  const { setLanguage } = useAuth();
   const [selected, setSelected] = useState<string | null>(null);
 
   const handleContinue = () => {
     if (selected) {
-      authStore.language = selected;
-      i18next.changeLanguage(selected);
+      setLanguage(selected);
       navigation.navigate('Welcome');
     }
   };
@@ -31,7 +29,8 @@ export const LanguageScreen = () => {
     <SafeAreaView style={[styles.safe, { backgroundColor: '#F8F9FB' }]}>
       <StatusBar style="dark" />
       <View style={langStyles.container}>
-        <Text style={langStyles.title}>आपली गुंतवणूक, आपल्या भाषेत</Text>
+        <Text style={langStyles.title}>TECH ARTHA</Text>
+        <Text style={{textAlign:'center', color:'#E87731', fontWeight:'bold', marginBottom: 10}}>Mobile Build: CURRENT-SYNC</Text>
         <Text style={langStyles.subtitle}>Choose your preferred language</Text>
         
         <View style={langStyles.optionsContainer}>

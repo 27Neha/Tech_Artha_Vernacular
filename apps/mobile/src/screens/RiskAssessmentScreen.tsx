@@ -1,158 +1,274 @@
-import React, { useState } from 'react';
-import { SafeAreaView, View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { SafeAreaView, View, Text, Pressable, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
-import { authStore } from '../store/auth';
+import { styles } from '../theme/styles';
+import { api } from '../services/api/client';
 
 const QUESTIONS = [
   {
-    id: 'q1',
-    title: 'What is your age group?',
+    id: 1,
+    question: "Current market value of net worth (Assets - Liabilities)",
     options: [
-      { id: 'A', text: 'Below 25 years', score: 4 },
-      { id: 'B', text: '25 - 35 years', score: 3 },
-      { id: 'C', text: '36 - 50 years', score: 2 },
-      { id: 'D', text: 'Above 50 years', score: 1 },
-    ]
+      { label: "Negative/0", score: 1 },
+      { label: "< 10L", score: 2 },
+      { label: "10L-50L", score: 3 },
+      { label: "> 50L", score: 4 },
+      { label: "> 1Cr", score: 5 },
+    ],
   },
   {
-    id: 'q2',
-    title: 'For how long do you plan to stay invested?',
+    id: 2,
+    question: "How familiar are you with financial markets?",
     options: [
-      { id: 'A', text: 'Less than 1 year', score: 1 },
-      { id: 'B', text: '1 to 3 years', score: 2 },
-      { id: 'C', text: '3 to 7 years', score: 3 },
-      { id: 'D', text: 'More than 7 years', score: 4 },
-    ]
+      { label: "Not at all", score: 1 },
+      { label: "Somewhat", score: 2 },
+      { label: "Good", score: 3 },
+      { label: "Very familiar", score: 4 },
+      { label: "Expert", score: 5 },
+    ],
   },
   {
-    id: 'q3',
-    title: 'What is your monthly household income?',
+    id: 3,
+    question: "Describe your risk range (losses vs profits)",
     options: [
-      { id: 'A', text: 'Below ₹15,000', score: 1 },
-      { id: 'B', text: '₹15,000 - ₹30,000', score: 2 },
-      { id: 'C', text: '₹30,000 - ₹60,000', score: 3 },
-      { id: 'D', text: 'Above ₹60,000', score: 4 },
-    ]
+      { label: "Hate losses", score: 1 },
+      { label: "Accept small losses for small gains", score: 2 },
+      { label: "Accept moderate", score: 3 },
+      { label: "Accept high for high gains", score: 4 },
+      { label: "Maximum risk", score: 5 },
+    ],
   },
   {
-    id: 'q4',
-    title: 'Imagine your ₹1 lakh investment temporarily falls to ₹85,000. What would you do?',
+    id: 4,
+    question: "Reaction if portfolio drops 20%",
     options: [
-      { id: 'A', text: 'Withdraw everything immediately', score: 1 },
-      { id: 'B', text: 'Feel worried, wait a little while', score: 2 },
-      { id: 'C', text: 'Stay calm and wait for recovery', score: 3 },
-      { id: 'D', text: 'See it as an opportunity and invest more', score: 4 },
-    ]
+      { label: "Sell all", score: 1 },
+      { label: "Sell some", score: 2 },
+      { label: "Do nothing", score: 3 },
+      { label: "Buy more", score: 4 },
+      { label: "Buy aggressively", score: 5 },
+    ],
   },
   {
-    id: 'q5',
-    title: 'What is your main goal for investing?',
+    id: 5,
+    question: "Desired balance (Volatility vs Returns)",
     options: [
-      { id: 'A', text: 'Keep my money safe', score: 1 },
-      { id: 'B', text: 'Get regular income', score: 2 },
-      { id: 'C', text: 'Grow wealth over the long term', score: 3 },
-      { id: 'D', text: 'Maximize growth, willing to accept ups and downs', score: 4 },
-    ]
+      { label: "100% stable", score: 1 },
+      { label: "Mostly stable", score: 2 },
+      { label: "Balanced", score: 3 },
+      { label: "Mostly volatile", score: 4 },
+      { label: "100% volatile", score: 5 },
+    ],
+  },
+  {
+    id: 6,
+    question: "Current and future income stability",
+    options: [
+      { label: "Very unstable", score: 1 },
+      { label: "Unstable", score: 2 },
+      { label: "Stable", score: 3 },
+      { label: "Very stable", score: 4 },
+      { label: "Guaranteed", score: 5 },
+    ],
+  },
+  {
+    id: 7,
+    question: "Preferred investment objective",
+    options: [
+      { label: "Preserve capital", score: 1 },
+      { label: "Regular income", score: 2 },
+      { label: "Balanced growth", score: 3 },
+      { label: "High growth", score: 4 },
+      { label: "Maximum speculation", score: 5 },
+    ],
+  },
+  {
+    id: 8,
+    question: "Years away is your nearest goal?",
+    options: [
+      { label: "< 1 yr", score: 1 },
+      { label: "1-3 yrs", score: 2 },
+      { label: "3-5 yrs", score: 3 },
+      { label: "5-10 yrs", score: 4 },
+      { label: "> 10 yrs", score: 5 },
+    ],
+  },
+  {
+    id: 9,
+    question: "How long will you hold a poorly performing portfolio?",
+    options: [
+      { label: "< 3 months", score: 1 },
+      { label: "3-6 months", score: 2 },
+      { label: "6-12 months", score: 3 },
+      { label: "1-3 years", score: 4 },
+      { label: "> 3 years", score: 5 },
+    ],
+  },
+  {
+    id: 10,
+    question: "Percentage of net worth you plan to invest",
+    options: [
+      { label: "< 10%", score: 1 },
+      { label: "10-25%", score: 2 },
+      { label: "25-50%", score: 3 },
+      { label: "50-75%", score: 4 },
+      { label: "> 75%", score: 5 },
+    ],
+  },
+  {
+    id: 11,
+    question: "Ability to save money consistently",
+    options: [
+      { label: "Very poor", score: 1 },
+      { label: "Poor", score: 2 },
+      { label: "Average", score: 3 },
+      { label: "Good", score: 4 },
+      { label: "Excellent", score: 5 },
+    ],
+  },
+  {
+    id: 12,
+    question: "What is your overall attitude towards the stock market?",
+    options: [
+      { label: "It is a casino, highly dangerous", score: 1 },
+      { label: "A place for experts only", score: 2 },
+      { label: "A good place to invest, with some caution", score: 3 },
+      { label: "An excellent wealth-building opportunity", score: 4 },
+      { label: "The only place to beat inflation and maximize returns", score: 5 },
+    ],
   }
 ];
 
 export const RiskAssessmentScreen = () => {
   const navigation = useNavigation<any>();
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [current, setCurrent] = useState(0);
+  const [answers, setAnswers] = useState<number[]>([]);
+  const [selectedScore, setSelectedScore] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const question = QUESTIONS[currentQuestionIndex];
-  const selectedScore = answers[question.id];
+  const q = QUESTIONS[current];
+
+  useEffect(() => {
+    if (answers[current] !== undefined) {
+      setSelectedScore(answers[current]);
+    } else {
+      setSelectedScore(null);
+    }
+  }, [current, answers]);
 
   const handleNext = async () => {
-    if (currentQuestionIndex < QUESTIONS.length - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
+    if (selectedScore === null) return;
+    
+    const newAnswers = [...answers.slice(0, current), selectedScore];
+    setAnswers(newAnswers);
+
+    if (current < QUESTIONS.length - 1) {
+      setCurrent(current + 1);
     } else {
-      // Submit
       setLoading(true);
       try {
-        const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'}/risk/calculate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: authStore.userId,
-            answers: Object.values(answers)
-          })
-        });
-        const result = await response.json();
-        navigation.navigate('RiskProfileResult', { profile: result });
-      } catch (e) {
-        console.error(e);
+        const data = await api.post<any>('/risk/calculate', { answers: newAnswers, consent: true });
+        const cat = data?.data?.category || 'MODERATE';
+        const finalScore = data?.data?.score || newAnswers.reduce((a, b) => a + b, 0);
+        
+        navigation.navigate('RiskResult', { category: cat, score: finalScore });
+      } catch (err: any) {
+        Alert.alert('Error', err?.message || 'Failed to calculate risk profile. Please try again.');
       } finally {
         setLoading(false);
       }
     }
   };
 
+  const handleBack = () => {
+    if (current > 0) {
+      setCurrent(current - 1);
+    } else {
+      navigation.goBack();
+    }
+  };
+
+  const progress = ((current + 1) / QUESTIONS.length) * 100;
+
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="light" />
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Risk Assessment</Text>
-        <Text style={styles.progress}>{currentQuestionIndex + 1}/{QUESTIONS.length}</Text>
-      </View>
+    <SafeAreaView style={[styles.safe, { backgroundColor: '#F8F9FB' }]}>
+      <StatusBar style="dark" />
+      <ScrollView contentContainerStyle={{ padding: 24, paddingTop: 40, flexGrow: 1 }}>
+        <Pressable onPress={handleBack} style={{ marginBottom: 20 }}>
+          <Text style={{ color: '#1653B0', fontWeight: 'bold' }}>← Back</Text>
+        </Pressable>
 
-      <ScrollView style={styles.content}>
-        <View style={styles.qBadge}>
-          <Text style={styles.qBadgeText}>Q{currentQuestionIndex + 1}</Text>
+        <View style={localStyles.progressBarBg}>
+          <View style={[localStyles.progressBarFill, { width: `${progress}%` }]} />
         </View>
-        <Text style={styles.questionText}>{question.title}</Text>
+        <Text style={{ textAlign: 'right', fontSize: 12, color: '#718096', marginBottom: 32 }}>
+          Question {current + 1} of {QUESTIONS.length}
+        </Text>
 
-        <View style={styles.options}>
-          {question.options.map(opt => (
+        <Text style={{ fontSize: 24, fontWeight: '800', color: '#102A54', marginBottom: 24 }}>
+          {q.question}
+        </Text>
+
+        <View style={{ gap: 12 }}>
+          {q.options.map((opt, i) => (
             <Pressable 
-              key={opt.id} 
-              style={[styles.optionCard, selectedScore === opt.score && styles.optionSelected]}
-              onPress={() => setAnswers(prev => ({ ...prev, [question.id]: opt.score }))}
+              key={i}
+              style={[localStyles.optionCard, selectedScore === opt.score && localStyles.optionSelected]}
+              onPress={() => setSelectedScore(opt.score)}
             >
-              <View style={[styles.letterCircle, selectedScore === opt.score && styles.letterCircleSelected]}>
-                <Text style={[styles.letterText, selectedScore === opt.score && styles.letterTextSelected]}>{opt.id}</Text>
-              </View>
-              <Text style={styles.optionText}>{opt.text}</Text>
+              <Text style={[localStyles.optionText, selectedScore === opt.score && localStyles.optionTextSelected]}>
+                {opt.label}
+              </Text>
             </Pressable>
           ))}
         </View>
-      </ScrollView>
 
-      <View style={styles.footer}>
         <Pressable 
-          style={[styles.button, !selectedScore && styles.buttonDisabled]} 
-          onPress={handleNext}
+          style={[styles.primaryButton, (!selectedScore || loading) && styles.primaryDisabled, { marginTop: 'auto' }]} 
+          onPress={handleNext} 
           disabled={!selectedScore || loading}
         >
-          <Text style={styles.buttonText}>{currentQuestionIndex === QUESTIONS.length - 1 ? (loading ? 'Submitting...' : 'See My Profile') : 'Next'}</Text>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.primaryText}>{current === QUESTIONS.length - 1 ? 'Submit' : 'Next'}</Text>
+          )}
         </Pressable>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FB' },
-  header: { backgroundColor: '#3C3985', padding: 20, paddingTop: 60, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerTitle: { color: 'white', fontSize: 18, fontWeight: '700' },
-  progress: { color: 'white', fontSize: 14, opacity: 0.8 },
-  content: { padding: 24 },
-  qBadge: { backgroundColor: '#EBEAF8', alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginBottom: 16 },
-  qBadgeText: { color: '#3C3985', fontWeight: '700' },
-  questionText: { fontSize: 24, fontWeight: '800', color: '#102A54', marginBottom: 32 },
-  options: { gap: 16 },
-  optionCard: { backgroundColor: 'white', padding: 16, borderRadius: 12, borderWidth: 2, borderColor: '#E2E8F0', flexDirection: 'row', alignItems: 'center' },
-  optionSelected: { borderColor: '#3C3985', backgroundColor: '#EBEAF8' },
-  letterCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center', marginRight: 16 },
-  letterCircleSelected: { backgroundColor: '#3C3985' },
-  letterText: { color: '#64748B', fontWeight: '700' },
-  letterTextSelected: { color: 'white' },
-  optionText: { fontSize: 16, color: '#102A54', flex: 1, fontWeight: '500' },
-  footer: { padding: 24, paddingBottom: 40, backgroundColor: '#F8F9FB' },
-  button: { backgroundColor: '#3C3985', padding: 18, borderRadius: 12, alignItems: 'center' },
-  buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: 'white', fontSize: 16, fontWeight: '700' }
+const localStyles = StyleSheet.create({
+  progressBarBg: {
+    height: 8,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 4,
+    marginBottom: 8,
+  },
+  progressBarFill: {
+    height: 8,
+    backgroundColor: '#1653B0',
+    borderRadius: 4,
+  },
+  optionCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#fff',
+  },
+  optionSelected: {
+    borderColor: '#1653B0',
+    backgroundColor: '#EEF2FF',
+  },
+  optionText: {
+    fontSize: 16,
+    color: '#4A5568',
+    fontWeight: '600',
+  },
+  optionTextSelected: {
+    color: '#1653B0',
+  }
 });

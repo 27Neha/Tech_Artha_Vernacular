@@ -8,27 +8,27 @@ datasource db {
 }
 
 model User {
-  id                 String                @id @default(uuid())
-  mobile             String?               @unique
-  email              String?               @unique
-  preferredLanguage  String                @default("en")
-  passwordHash       String?
-  referralCode       String?
-  clientType         String?
-  isActive           Boolean               @default(true)
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
-  auditLogs          AuditLog[]
-  customBuckets      CustomBucket[]
-  bseClient          BseClient?
-  consents           Consent[]
-  devices            Device[]
-  expenses           Expense[]
-  FpInvestorProfile  FpInvestorProfile?
-  FpMandate          FpMandate[]
-  goals              Goal[]
-  guardian           Guardian?
-  guardianConsents   GuardianConsent[]
+  id                String         @id @default(uuid())
+  mobile            String?        @unique
+  email             String?        @unique
+  preferredLanguage String         @default("en")
+  passwordHash      String?
+  referralCode      String?
+  clientType        String?
+  isActive          Boolean        @default(true)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  auditLogs         AuditLog[]
+  customBuckets     CustomBucket[]
+
+  consents          Consent[]
+  devices           Device[]
+  expenses          Expense[]
+  FpInvestorProfile FpInvestorProfile?
+  FpMandate         FpMandate[]
+  goals             Goal[]
+  guardian          Guardian?
+  guardianConsents  GuardianConsent[]
 
   kycApplication     KYCApplication?
   kycRecords         KycRecord[]
@@ -41,7 +41,6 @@ model User {
   sessions           Session[]
   supportTickets     SupportTicket[]
   profile            UserProfile?
-
 }
 
 model UserProfile {
@@ -382,17 +381,6 @@ model KYCProviderEvent {
   application   KYCApplication @relation(fields: [applicationId], references: [id])
 }
 
-model BseClient {
-  id         String   @id @default(uuid())
-  userId     String   @unique
-  clientCode String   @unique
-  status     String   @default("PENDING")
-  bseRemarks String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  user       User     @relation(fields: [userId], references: [id])
-}
-
 model FpInvestorProfile {
   id             String                  @id @default(uuid())
   userId         String                  @unique
@@ -496,8 +484,3 @@ model GuardianConsent {
   createdAt          DateTime  @default(now())
   minorUser          User      @relation(fields: [minorUserId], references: [id])
 }
-
-
-
-
-
