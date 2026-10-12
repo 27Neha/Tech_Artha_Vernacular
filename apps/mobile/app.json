@@ -1,20 +1,13 @@
 {
   "expo": {
-    "name": "TechArtha",
-    "slug": "techartha",
+    "name": "mobile",
+    "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.techartha.app",
-      "infoPlist": {
-        "NSLocalNetworkUsageDescription": "TechArtha uses your local network to connect to a development server while testing.",
-        "NSAppTransportSecurity": {
-          "NSAllowsLocalNetworking": true
-        }
-      }
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
@@ -23,19 +16,16 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false,
-      "package": "com.techartha.app",
-      "permissions": [
-        "INTERNET"
-      ]
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store",
-      "expo-status-bar"
+      "expo-status-bar",
+      "@react-native-community/datetimepicker",
+      "expo-sharing"
     ],
-    "scheme": "techartha"
+    "sdkVersion": "57.0.0"
   }
 }

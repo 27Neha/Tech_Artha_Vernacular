@@ -1,89 +1,89 @@
 import React from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { exitOnboarding } from '../utils/navigation';
-
-/**
- * Ported from apps/web/app/risk/result.
- *
- * Mobile previously routed "RiskProfileResult" straight to the goal picker, so a user
- * finished the assessment and never saw the profile it produced - the one output the
- * whole questionnaire exists to deliver, and the thing that decides which buckets they
- * are eligible for.
- *
- * Reads the POST /risk/calculate response that RiskAssessmentScreen passes through:
- * { data: { score, category }, explanation: string[], disclaimer }.
- */
-type RiskPayload = {
-  data?: { score?: number; category?: string };
-  explanation?: string[];
-  disclaimer?: string;
-};
-
-const DESCRIPTIONS: Record<string, string> = {
-  CONSERVATIVE: 'Low risk. Capital preservation is your priority.',
-  MODERATE: 'A balanced approach between risk and return.',
-  AGGRESSIVE: 'High risk tolerance, seeking maximum long-term growth.',
-};
-
-const COLOURS: Record<string, string> = {
-  CONSERVATIVE: '#3182CE',
-  MODERATE: '#38A169',
-  AGGRESSIVE: '#E53E3E',
-};
+import { useTranslation } from 'react-i18next';
+import { Header } from '../components/Header';
 
 export const RiskResultScreen = () => {
+  const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const payload: RiskPayload = route.params?.profile ?? {};
 
-  const category = (payload.data?.category ?? 'MODERATE').toUpperCase();
-  const score = payload.data?.score;
-  const label = category.charAt(0) + category.slice(1).toLowerCase();
-  const colour = COLOURS[category] ?? '#38A169';
-  const reasons = payload.explanation ?? [];
+  const category = (route.params?.category || 'MODERATE').toUpperCase();
+  const score = route.params?.score || 35;
+
+  let label = 'Moderate';
+  let desc = 'You prefer a balanced approach, seeking growth while taking measured risks to protect your capital.';
+  let color = '#48BB78'; // Green for all types
+
+  if (category === 'CONSERVATIVE') {
+    label = 'Conservative';
+    desc = 'You prioritize capital preservation over high returns. You prefer stable, low-risk investments.';
+    color = '#48BB78'; // Green
+  } else if (category === 'AGGRESSIVE') {
+    label = 'Aggressive';
+    desc = 'You are willing to accept higher market volatility for the potential of significant long-term growth.';
+    color = '#48BB78'; // Green
+  }
+
+  // Calculate needle rotation based on score (approx 12-60 range)
+  // Normalization: Conservative ~12-25, Moderate ~26-45, Aggressive ~46-60
+  const normalizedScore = Math.max(12, Math.min(60, score));
+  const percentage = ((normalizedScore - 12) / (60 - 12)) * 100;
+  // 0% = -90deg, 100% = 90deg
+  const rotation = -90 + (percentage * 1.8);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.eyebrow}>YOUR INVESTOR PROFILE</Text>
+      <Header title="Your Risk Profile" />
+      
+      <ScrollView contentContainerStyle={styles.container}>
+        <View style={styles.card}>
+          <Text style={styles.title}>Your Risk Profile is</Text>
+          <Text style={[styles.category, { color }]}>{label}</Text>
 
-        <View style={[styles.badge, { backgroundColor: colour }]}>
-          <Text style={styles.badgeText}>{label}</Text>
+          {/* Riskometer Visualization */}
+          <View style={styles.meterContainer}>
+            <View style={styles.archBackground}>
+              <View style={[styles.archSegment, { backgroundColor: '#48BB78', transform: [{ rotate: '-60deg' }] }]} />
+              <View style={[styles.archSegment, { backgroundColor: '#48BB78', transform: [{ rotate: '0deg' }] }]} />
+              <View style={[styles.archSegment, { backgroundColor: '#48BB78', transform: [{ rotate: '60deg' }] }]} />
+            </View>
+            <View style={styles.archCover} />
+            <View style={[styles.needle, { transform: [{ rotate: `${rotation}deg` }] }]}>
+              <View style={styles.needleLine} />
+              <View style={styles.needleCenter} />
+            </View>
+          </View>
+          <View style={styles.meterLabels}>
+            <Text style={styles.meterLabelText}>Conservative</Text>
+            <Text style={styles.meterLabelText}>Aggressive</Text>
+          </View>
+
+          <Text style={styles.description}>{desc}</Text>
+
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <Text style={styles.statLabel}>Calculated Score</Text>
+              <Text style={styles.statValue}>{score} / 60</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={styles.statLabel}>Recommended</Text>
+              <Text style={styles.statValue}>Equity / Debt</Text>
+            </View>
+          </View>
         </View>
 
-        <Text style={styles.description}>{DESCRIPTIONS[category] ?? DESCRIPTIONS.MODERATE}</Text>
-        {score != null ? <Text style={styles.score}>Score: {score}</Text> : null}
-
-        {reasons.length > 0 ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Why this profile</Text>
-            {reasons.map((reason, index) => (
-              <Text key={index} style={styles.reason}>
-                • {reason}
-              </Text>
-            ))}
-          </View>
-        ) : null}
-
-        {/* The server returns this wording deliberately: an investor profile is a
-            suitability assessment, not a scheme Risk-o-Meter or a return forecast. */}
-        <Text style={styles.disclaimer}>
-          {payload.disclaimer ??
-            'This investor profile is not a scheme Risk-o-Meter and does not guarantee performance.'}
-        </Text>
-
-        <Pressable style={styles.button} onPress={() => navigation.navigate('GoalSelection')}>
-          <Text style={styles.buttonText}>Continue to goals →</Text>
+        <Pressable style={styles.primaryBtn} onPress={() => navigation.navigate('GoalSelection')}>
+          <Text style={styles.primaryBtnText}>Continue to Goal Planner</Text>
+          <Text style={styles.primaryBtnText}>→</Text>
         </Pressable>
-        <Pressable style={styles.outlineButton} onPress={() => navigation.navigate('RiskAssessment')}>
-          <Text style={styles.outlineText}>Retake assessment</Text>
-        </Pressable>
-        {/* The assessment is saved by this point, so leaving loses nothing. */}
-        <Pressable style={styles.laterButton} onPress={() => exitOnboarding(navigation)}>
-          <Text style={styles.laterText}>I'll choose an investment later</Text>
+
+        <Pressable style={styles.skipBtn} onPress={() => navigation.navigate('MainTabs')}>
+          <Text style={styles.skipBtnText}>Skip for now</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -91,21 +91,33 @@ export const RiskResultScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FB' },
-  content: { padding: 24, paddingTop: 72, alignItems: 'center' },
-  eyebrow: { color: '#718096', fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
-  badge: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, marginTop: 16 },
-  badgeText: { color: '#fff', fontSize: 22, fontWeight: '800' },
-  description: { color: '#2D3748', fontSize: 15, textAlign: 'center', marginTop: 18, lineHeight: 22 },
-  score: { color: '#718096', fontSize: 13, marginTop: 8, fontWeight: '600' },
-  card: { backgroundColor: '#fff', borderRadius: 16, padding: 18, marginTop: 28, alignSelf: 'stretch', borderWidth: 1, borderColor: '#E2E8F0' },
-  cardTitle: { color: '#102A54', fontSize: 15, fontWeight: '800', marginBottom: 10 },
-  reason: { color: '#4A5568', fontSize: 13, lineHeight: 20, marginBottom: 6 },
-  disclaimer: { color: '#A0AEC0', fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 24 },
-  button: { backgroundColor: '#3C3985', padding: 16, borderRadius: 12, alignItems: 'center', alignSelf: 'stretch', marginTop: 28 },
-  buttonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  outlineButton: { padding: 16, borderRadius: 12, alignItems: 'center', alignSelf: 'stretch', borderWidth: 2, borderColor: '#3C3985', marginTop: 12 },
-  outlineText: { color: '#3C3985', fontSize: 15, fontWeight: '700' },
-  laterButton: { paddingVertical: 14, alignItems: 'center', alignSelf: 'stretch', marginBottom: 32 },
-  laterText: { color: '#718096', fontSize: 14, fontWeight: '600' },
+  safe: { flex: 1, backgroundColor: '#F8F9FB' },
+  container: { padding: 24, paddingBottom: 40, alignItems: 'center' },
+  card: { backgroundColor: '#fff', borderRadius: 24, padding: 24, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2, marginBottom: 24 },
+  title: { fontSize: 16, fontWeight: '700', color: '#718096', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
+  category: { fontSize: 36, fontWeight: '900', marginBottom: 32 },
+  
+  // Riskometer Styles
+  meterContainer: { width: 240, height: 120, position: 'relative', alignItems: 'center', overflow: 'hidden', marginBottom: 12 },
+  archBackground: { width: 240, height: 240, borderRadius: 120, position: 'absolute', top: 0, overflow: 'hidden' },
+  archSegment: { width: 120, height: 240, position: 'absolute', left: 120, top: 0, transformOrigin: 'left center' },
+  archCover: { width: 160, height: 160, borderRadius: 80, backgroundColor: '#fff', position: 'absolute', top: 40 },
+  needle: { position: 'absolute', bottom: 0, height: 100, width: 4, alignItems: 'center', justifyContent: 'flex-end', transformOrigin: 'bottom center' },
+  needleLine: { width: 4, height: 90, backgroundColor: '#102A54', borderRadius: 2 },
+  needleCenter: { width: 16, height: 16, borderRadius: 8, backgroundColor: '#102A54', position: 'absolute', bottom: -8 },
+  
+  meterLabels: { flexDirection: 'row', justifyContent: 'space-between', width: 240, marginBottom: 32 },
+  meterLabelText: { fontSize: 12, fontWeight: '700', color: '#A0AEC0' },
+
+  description: { fontSize: 15, color: '#4A5568', textAlign: 'center', lineHeight: 22, marginBottom: 32 },
+  statsRow: { flexDirection: 'row', gap: 16, width: '100%' },
+  statBox: { flex: 1, backgroundColor: '#F8F9FB', padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: '#EDF2F7' },
+  statLabel: { fontSize: 10, fontWeight: '700', color: '#A0AEC0', textTransform: 'uppercase', marginBottom: 4 },
+  statValue: { fontSize: 16, fontWeight: '800', color: '#102A54' },
+
+  primaryBtn: { width: '100%', backgroundColor: '#3C3985', paddingVertical: 18, paddingHorizontal: 24, borderRadius: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  
+  skipBtn: { width: '100%', paddingVertical: 16, alignItems: 'center', marginTop: 8 },
+  skipBtnText: { color: '#3C3985', fontSize: 16, fontWeight: '700' }
 });

@@ -1,126 +1,49 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { api } from '../services/api/client';
-import { styles } from '../theme/styles';
-
-/**
- * GET /expenses returns the current month's summary; POST /expenses adds one.
- * The service only ever reports what the user entered themselves, which is why the
- * copy avoids implying any bank or statement connection.
- */
-type ExpenseSummary = {
-  monthStart: string;
-  total: number;
-  categories: { category: string; amount: number; percentage: number }[];
-  expenses: { id: string; amount: number; category: string; description?: string; occurredAt: string }[];
-  source: string;
-  insight: string;
-};
-
-const CATEGORIES = ['Food', 'Travel', 'Bills', 'Health', 'Shopping', 'Other'];
-
-const money = (value: number) => `₹${Number(value ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+import React from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { Header } from '../components/Header';
+import { useTranslation } from 'react-i18next';
+import { useNavigation } from '@react-navigation/native';
 
 export const ExpensesScreen = () => {
-  const [summary, setSummary] = useState<ExpenseSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState(CATEGORIES[0]);
-  const [saving, setSaving] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      setSummary(await api.get<ExpenseSummary>('/expenses'));
-    } catch (e) {
-      Alert.alert('Could not load expenses', e instanceof Error ? e.message : 'Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const addExpense = async () => {
-    const value = Number(amount);
-    if (!Number.isFinite(value) || value <= 0) {
-      return Alert.alert('Enter an amount', 'Please enter a valid amount greater than zero.');
-    }
-    setSaving(true);
-    try {
-      await api.post('/expenses', { amount: value, category });
-      setAmount('');
-      await load();
-    } catch (e) {
-      Alert.alert('Could not add expense', e instanceof Error ? e.message : 'Please try again.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.page}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  const { t } = useTranslation('common');
+  const navigation = useNavigation<any>();
 
   return (
-    <ScrollView contentContainerStyle={styles.page}>
-      <Text style={styles.title}>Expenses</Text>
+    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+      <StatusBar style="light" />
+      <Header title={t('exp.title', { defaultValue: 'Expenses' })} />
+      <View style={styles.container}>
+        <Text style={styles.title}>{t('exp.title', { defaultValue: 'Expenses' })}</Text>
+        <Text style={styles.subtitle}>{t('exp.desc', { defaultValue: 'Track and manage your regular expenses.' })}</Text>
 
-      <View style={styles.balanceCard}>
-        <Text style={styles.balanceLabel}>THIS MONTH</Text>
-        <Text style={styles.balance}>{money(summary?.total ?? 0)}</Text>
-        <Text style={styles.balanceSub}>{summary?.insight}</Text>
-      </View>
-
-      <Text style={styles.label}>Amount</Text>
-      <TextInput
-        value={amount}
-        onChangeText={setAmount}
-        placeholder="0"
-        keyboardType="number-pad"
-        style={styles.field}
-      />
-
-      <Text style={styles.label}>Category</Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-        {CATEGORIES.map((item) => (
-          <Pressable
-            key={item}
-            onPress={() => setCategory(item)}
-            style={[styles.chip, category === item && styles.chipSelected]}
+        <View style={styles.card}>
+          <View style={styles.iconWrapper}><Text style={styles.icon}>🏦</Text></View>
+          <Text style={styles.cardTitle}>{t('exp.noBank', { defaultValue: 'No Bank Account Linked' })}</Text>
+          <Text style={styles.cardDesc}>{t('exp.noBankDesc', { defaultValue: 'Link your primary bank account securely to start tracking expenses and automate SIP deductions.' })}</Text>
+          <Pressable 
+            style={styles.btn} 
+            onPress={() => navigation.navigate('Profile')}
           >
-            <Text style={category === item ? styles.chipTextSelected : styles.chipText}>{item}</Text>
+            <Text style={styles.btnText}>{t('exp.linkBankAccount', { defaultValue: '+ Link Bank Account' })}</Text>
           </Pressable>
-        ))}
+        </View>
       </View>
-
-      <Pressable
-        style={[styles.primaryButton, saving && styles.primaryDisabled]}
-        onPress={addExpense}
-        disabled={saving}
-      >
-        <Text style={styles.primaryText}>{saving ? 'Adding…' : 'Add expense'}</Text>
-      </Pressable>
-
-      {summary?.categories?.length ? (
-        <>
-          <Text style={styles.sectionTitle}>By category</Text>
-          {summary.categories.map((item) => (
-            <View key={item.category} style={styles.learningCard}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{item.category}</Text>
-                <Text style={styles.cardSub}>{item.percentage}% of this month</Text>
-              </View>
-              <Text style={styles.cardTitle}>{money(item.amount)}</Text>
-            </View>
-          ))}
-        </>
-      ) : null}
-    </ScrollView>
+    </SafeAreaView>
   );
 };
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: '#F8F9FB' },
+  container: { flex: 1, padding: 24 },
+  title: { fontSize: 28, fontWeight: '800', color: '#102A54', textTransform: 'capitalize', marginBottom: 4 },
+  subtitle: { fontSize: 14, color: '#718096', marginBottom: 24 },
+  card: { backgroundColor: '#fff', borderRadius: 16, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  iconWrapper: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#F8F9FB', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  icon: { fontSize: 32 },
+  cardTitle: { fontSize: 16, fontWeight: '800', color: '#102A54', marginBottom: 8 },
+  cardDesc: { fontSize: 12, color: '#718096', textAlign: 'center', lineHeight: 18, marginBottom: 24 },
+  btn: { backgroundColor: '#EBEBFA', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: '#3C3985', borderStyle: 'dashed' },
+  btnText: { color: '#3C3985', fontWeight: '800', fontSize: 12 }
+});

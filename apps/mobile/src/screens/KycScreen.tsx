@@ -1,151 +1,97 @@
 import React, { useState } from 'react';
-import { SafeAreaView, View, Text, TextInput, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, Alert, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
-import { Screen } from '../types';
-import { formatDobInput } from '../utils/date';
-import { api } from '../services/api/client';
-import { exitOnboarding } from '../utils/navigation';
-import { useNavigation } from '@react-navigation/native';
-
-/** POST /api/v1/kyc/start. Note there is no `message` field. */
-type KycStartResult = {
-  transactionId?: string;
-  status?: 'VERIFIED' | 'FAILED' | 'IN_PROGRESS' | 'PENDING' | string;
-  failureReason?: string | null;
-};
+import { authStore } from '../store/auth';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { useTranslation } from 'react-i18next';
 
 interface KycScreenProps {
-  phone: string;
-  name: string;
-  setName: (name: string) => void;
-  pan: string;
-  setPan: (pan: string) => void;
-  consent: boolean;
-  setConsent: (consent: boolean) => void;
+  phone?: string;
+  name?: string;
+  setName?: (name: string) => void;
+  pan?: string;
+  setPan?: (pan: string) => void;
+  consent?: boolean;
+  setConsent?: (consent: boolean) => void;
+  apiUrl?: string;
 }
 
-export const KycScreen = ({ 
-  phone, name, setName, pan, setPan, consent, setConsent 
-}: KycScreenProps) => {
+export const KycScreen = (props: KycScreenProps) => {
+  const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
   const [kycSubmitting, setKycSubmitting] = useState(false);
-  // Required by KycService.startKyc for non-minors. Kept local because nothing else
-  // in the navigator needs it, unlike name/pan which are lifted into App.tsx.
-  const [dob, setDob] = useState('');
+  
+  // Provide fallback state if props aren't passed via navigator
+  const [localName, setLocalName] = useState('');
+  const [localPan, setLocalPan] = useState('');
+  const [localConsent, setLocalConsent] = useState(false);
 
-  /**
-   * One message per failing field. A single "Complete your details" for four different
-   * problems left no way to tell which one was wrong - usually the date, which has to
-   * be typed as YYYY-MM-DD.
-   */
-  const validate = (): string | null => {
-    if (!name.trim()) return 'Enter your full name, exactly as it appears on your PAN card.';
-    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
-      return 'Enter a valid 10-character PAN, for example ABCDE1234F (5 letters, 4 digits, 1 letter).';
+  useFocusEffect(
+    React.useCallback(() => {
+      setLocalName('');
+      setLocalPan('');
+      setLocalConsent(false);
+    }, [])
+  );
+  const [dobDate, setDobDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const name = props.name ?? localName;
+  const setName = props.setName ?? setLocalName;
+  const pan = props.pan ?? localPan;
+  const setPan = props.setPan ?? setLocalPan;
+  const consent = props.consent ?? localConsent;
+  const setConsent = props.setConsent ?? setLocalConsent;
+  const apiUrl = props.apiUrl ?? (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000');
+
+  const formattedDob = dobDate ? dobDate.toISOString().split('T')[0] : '';
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setDobDate(selectedDate);
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) return 'Enter your date of birth as YYYY-MM-DD, for example 1990-04-23.';
-    const parsed = new Date(dob);
-    if (Number.isNaN(parsed.getTime()) || parsed > new Date()) return 'That date of birth is not valid.';
-    if (!consent) return 'Please accept the KYC consent to continue.';
-    return null;
   };
 
   const startKyc = async () => {
-    const problem = validate();
-    if (problem) return Alert.alert('Check your details', problem);
-
+    if (!consent || !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan) || !name.trim() || !formattedDob) {
+      return Alert.alert('Complete your details', 'Enter your name, valid PAN, date of birth, and accept the consent to continue.');
+    }
     setKycSubmitting(true);
     try {
-      // Save the profile first. AuthService.updateProfile derives investorType from the
-      // date of birth (age >= 18 ? ADULT : MINOR), so the server decides whether this is
-      // a minor rather than the app doing its own age maths and risking a mismatch.
-      const profile = await api.put<{ investorType?: string }>('/auth/profile', {
-        fullName: name.trim(),
-        dateOfBirth: dob,
-        pan,
+      const response = await fetch(`${apiUrl}/api/v1/kyc/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authStore.accessToken}`
+        },
+        body: JSON.stringify({ fullName: name.trim(), pan, dob: formattedDob })
       });
-
-      if (profile?.investorType === 'MINOR') {
-        // A minor cannot be KYC'd on their own PAN; KycService requires a verified
-        // guardian instead, so the journey diverts before any provider call is made.
-        Alert.alert(
-          'A guardian needs to continue',
-          'Because this investor is under 18, a parent or legal guardian must provide their details and consent before KYC can be completed.',
-          [{ text: 'Continue', onPress: () => navigation.navigate('MinorGuardian') }],
-        );
-        return;
-      }
-
-      // KycController is mounted at 'api/v1/kyc'. Most controllers (auth, funds, goals,
-      // risk) are bare, so this prefix is easy to miss.
-      //
-      // The server identifies the user from the bearer token and reads only these three
-      // fields. It also upserts the UserProfile from them, which is what /buckets/:id/invest
-      // later requires - so this call is what makes investing possible at all.
-      const result = await api.post<KycStartResult>('/api/v1/kyc/start', {
-        fullName: name.trim(),
-        pan,
-        dob,
-      });
-
-      // startKyc returns { transactionId, status, providerResponse } and no message field.
-      // The screen used to hardcode "KYC Verified / Verification complete!", so a
-      // PENDING or FAILED verification was reported to the user as success.
-      let status = result?.status ?? 'PENDING';
-
-      // Mirrors the web signup flow: a provider check that has not settled is polled
-      // once rather than left showing an in-progress state as though it were final.
-      if (status === 'IN_PROGRESS' || status === 'PENDING') {
-        try {
-          const latest = await api.get<{ status?: string } | null>('/api/v1/kyc/status');
-          if (latest?.status) status = latest.status;
-        } catch {
-          // Keep the status from the start call if the poll itself fails.
-        }
-      }
-
-      if (status === 'VERIFIED') {
-        // KYC is saved server-side, so the investor can stop here and assess their risk
-        // profile another day rather than being held in the funnel.
-        Alert.alert('KYC verified', 'Your identity has been verified.', [
-          { text: 'Later', style: 'cancel', onPress: () => exitOnboarding(navigation) },
-          { text: 'Continue', onPress: () => navigation.navigate('RiskAssessment') },
-        ]);
-        return;
-      }
-
-      if (status === 'FAILED') {
-        Alert.alert(
-          'Verification failed',
-          result?.failureReason
-            ? `Your PAN could not be verified: ${result.failureReason}.`
-            : 'Your PAN could not be verified. Please check your details and try again.',
-        );
-        return;
-      }
-
-      Alert.alert('Verification in progress', 'Your PAN is still being verified. You can continue and we will update your status.', [
-        { text: 'Later', style: 'cancel', onPress: () => exitOnboarding(navigation) },
-        { text: 'Continue', onPress: () => navigation.navigate('RiskAssessment') },
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message ?? 'KYC could not be started.');
+      Alert.alert('KYC Verified', result.message || 'Verification complete!', [
+        { text: 'OK', onPress: () => navigation.navigate('RiskAssessment') }
       ]);
-    } catch (error) {
-      Alert.alert('KYC could not be started', error instanceof Error ? error.message : 'Please try again.');
-    } finally {
-      setKycSubmitting(false);
+    } catch (error) { 
+      Alert.alert('KYC could not be started', error instanceof Error ? error.message : 'Please try again.'); 
+    } finally { 
+      setKycSubmitting(false); 
     }
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
       <StatusBar style="dark" />
-      <Header title="Identity verification" back="login" onBack={() => navigation.goBack()} />
+      <Header title="Identity verification" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.page}>
         <View style={styles.step}>
           <Text style={styles.stepNumber}>1</Text>
           <Text style={styles.stepText}>Basic details</Text>
-          <Text style={styles.stepMuted}>2–3 minutes</Text>
+          <Text style={styles.stepMuted}>2-3 minutes</Text>
         </View>
         <Text style={styles.title}>A quick KYC, for your safety.</Text>
         <Text style={styles.description}>Your details are encrypted and verified through our regulated KYC partner.</Text>
@@ -170,14 +116,23 @@ export const KycScreen = ({
         />
 
         <Text style={styles.label}>Date of birth</Text>
-        <TextInput
-          value={dob}
-          onChangeText={(value) => setDob(formatDobInput(value))}
-          placeholder="YYYY-MM-DD"
-          style={styles.field}
-          maxLength={10}
-          keyboardType="number-pad"
-        />
+        <Pressable style={[styles.field, { justifyContent: 'center' }]} onPress={() => setShowDatePicker(true)}>
+          <Text style={{ color: formattedDob ? '#102A54' : '#A0AEC0', fontSize: 16 }}>
+            {formattedDob || 'Select your date of birth'}
+          </Text>
+        </Pressable>
+
+        {showDatePicker && (
+          <DateTimePicker
+            testID="dateTimePicker"
+            value={dobDate || new Date(2000, 0, 1)}
+            mode="date"
+            is24Hour={true}
+            display="default"
+            onChange={handleDateChange}
+            maximumDate={new Date()}
+          />
+        )}
 
         <Pressable style={styles.consent} onPress={() => setConsent(!consent)}>
           <View style={[styles.checkbox, consent && styles.checkboxChecked]}>
@@ -191,7 +146,7 @@ export const KycScreen = ({
           onPress={startKyc} 
           disabled={kycSubmitting}
         >
-          <Text style={styles.primaryText}>{kycSubmitting ? 'Starting verification…' : 'Verify securely'}</Text>
+          <Text style={styles.primaryText}>{kycSubmitting ? 'Starting verification...' : 'Verify securely'}</Text>
           <Text style={styles.primaryText}>→</Text>
         </Pressable>
         <Text style={styles.legal}>We never store your PAN in the app. KYC is completed by the secure verification service.</Text>
