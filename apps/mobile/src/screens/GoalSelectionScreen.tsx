@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { SafeAreaView, View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
+import { exitOnboarding } from '../utils/navigation';
 
 const GOALS = [
   { id: 'education', icon: '🎓', name: 'Child Education' },
@@ -50,6 +51,10 @@ export const GoalSelectionScreen = () => {
         >
           <Text style={styles.buttonText}>Continue</Text>
         </Pressable>
+        {/* Nothing here has been committed yet, so leaving discards only the selection. */}
+        <Pressable style={styles.laterButton} onPress={() => exitOnboarding(navigation)}>
+          <Text style={styles.laterText}>Skip for now</Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
@@ -57,6 +62,8 @@ export const GoalSelectionScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FB' },
+  laterButton: { paddingVertical: 12, alignItems: 'center' },
+  laterText: { color: '#718096', fontSize: 14, fontWeight: '600' },
   header: { backgroundColor: '#3C3985', padding: 24, paddingTop: 60, paddingBottom: 40 },
   headerTitle: { color: 'white', fontSize: 24, fontWeight: '800', marginBottom: 8 },
   subtitle: { color: 'white', fontSize: 16, opacity: 0.9 },

@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Tex
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../services/api/client';
+import { exitOnboarding } from '../utils/navigation';
 
 /**
  * GET /buckets - the buckets eligible for this user's risk profile, with the funds the
@@ -163,6 +164,12 @@ export const InvestmentBucketsScreen = () => {
           );
         })}
 
+        {/* The last step of the funnel, and the one most worth being able to defer:
+            choosing a bucket is the decision that costs money. */}
+        <Pressable style={styles.laterButton} onPress={() => exitOnboarding(navigation)}>
+          <Text style={styles.laterText}>Decide later - take me to my profile</Text>
+        </Pressable>
+
         <Text style={styles.disclaimer}>
           Mutual fund investments are subject to market risks. Read all scheme related documents carefully.
           Past performance is not indicative of future returns.
@@ -178,6 +185,8 @@ const styles = StyleSheet.create({
   headerTitle: { color: '#102A54', fontSize: 24, fontWeight: '800', marginBottom: 8 },
   subtitle: { color: '#4A5568', fontSize: 14, lineHeight: 20 },
   content: { padding: 20 },
+  laterButton: { paddingVertical: 14, alignItems: 'center', marginTop: 4 },
+  laterText: { color: '#3C3985', fontSize: 14, fontWeight: '700' },
   card: { backgroundColor: 'white', padding: 20, borderRadius: 16, marginBottom: 16, borderWidth: 2, borderColor: 'transparent', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   cardSelected: { borderColor: '#3C3985', backgroundColor: '#EBEAF8' },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },

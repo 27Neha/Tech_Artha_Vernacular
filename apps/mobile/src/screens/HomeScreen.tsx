@@ -51,8 +51,11 @@ export const HomeScreen = ({ name }: HomeScreenProps) => {
           <Text style={styles.balanceLabel}>YOUR INVESTMENT JOURNEY</Text>
           <Text style={styles.balance}>₹0</Text>
           <Text style={styles.balanceSub}>Start with as little as ₹100</Text>
-          <Pressable style={styles.lightButton} onPress={() => navigation.navigate('Funds')}>
-            <Text style={styles.lightButtonText}>Explore investments</Text>
+          {/* The way back into the onboarding funnel for anyone who chose "later" on it.
+              Without this the deferral is one-way: nothing else in the main app routes to
+              GoalSelection or InvestmentBuckets, so the bucket choice would be lost. */}
+          <Pressable style={styles.lightButton} onPress={() => navigation.navigate('GoalSelection')}>
+            <Text style={styles.lightButtonText}>Choose an investment plan</Text>
           </Pressable>
         </View>
         

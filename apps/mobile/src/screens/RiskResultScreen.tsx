@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { exitOnboarding } from '../utils/navigation';
 
 /**
  * Ported from apps/web/app/risk/result.
@@ -80,6 +81,10 @@ export const RiskResultScreen = () => {
         <Pressable style={styles.outlineButton} onPress={() => navigation.navigate('RiskAssessment')}>
           <Text style={styles.outlineText}>Retake assessment</Text>
         </Pressable>
+        {/* The assessment is saved by this point, so leaving loses nothing. */}
+        <Pressable style={styles.laterButton} onPress={() => exitOnboarding(navigation)}>
+          <Text style={styles.laterText}>I'll choose an investment later</Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -99,6 +104,8 @@ const styles = StyleSheet.create({
   disclaimer: { color: '#A0AEC0', fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 24 },
   button: { backgroundColor: '#3C3985', padding: 16, borderRadius: 12, alignItems: 'center', alignSelf: 'stretch', marginTop: 28 },
   buttonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  outlineButton: { padding: 16, borderRadius: 12, alignItems: 'center', alignSelf: 'stretch', borderWidth: 2, borderColor: '#3C3985', marginTop: 12, marginBottom: 40 },
+  outlineButton: { padding: 16, borderRadius: 12, alignItems: 'center', alignSelf: 'stretch', borderWidth: 2, borderColor: '#3C3985', marginTop: 12 },
   outlineText: { color: '#3C3985', fontSize: 15, fontWeight: '700' },
+  laterButton: { paddingVertical: 14, alignItems: 'center', alignSelf: 'stretch', marginBottom: 32 },
+  laterText: { color: '#718096', fontSize: 14, fontWeight: '600' },
 });

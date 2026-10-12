@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../services/api/client';
 
 /**
@@ -82,7 +82,10 @@ export const InvestScreen = () => {
   // Not defaulted. Defaulting gender puts an unverified personal attribute onto a
   // KYC-bearing record that the investor never actively chose.
   const [gender, setGender] = useState<Gender | null>(null);
-  const [email, setEmail] = useState('');
+  // Taken from the profile, never typed here: Cybrilla requires the investor's email to
+  // have been verified, and a free-text field at order time cannot be. It is null until
+  // the profile loads, so the form does not briefly claim an email is missing.
+  const [email, setEmail] = useState<string | null>(null);
   const [bankAccountHolderName, setBankAccountHolderName] = useState('');
   const [bankAccountNumber, setBankAccountNumber] = useState('');
   const [ifscCode, setIfscCode] = useState('');
@@ -95,12 +98,33 @@ export const InvestScreen = () => {
   const [installmentDay, setInstallmentDay] = useState<number | null>(null);
   const [numberOfInstallments, setNumberOfInstallments] = useState('');
 
+  // Re-read on every focus so returning from EditProfile after verifying picks the
+  // address up without the investor having to restart the order.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      api
+        .get<{ email?: string | null }>('/auth/profile')
+        .then((data) => {
+          if (active) setEmail(data?.email ?? null);
+        })
+        .catch(() => {
+          // Leave the field empty; validate() then sends the investor to EditProfile
+          // rather than silently posting the order without an email.
+          if (active) setEmail(null);
+        });
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
+
   /** Mirrors InvestInBucketDto. One message per field, in form order. */
   const validate = (): string | null => {
     const value = Number(amount);
     if (!Number.isFinite(value) || value < MIN_AMOUNT) return `Enter an amount of at least ₹${MIN_AMOUNT}.`;
     if (gender === null) return 'Select your gender.';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Enter a valid email address.';
+    if (!email) return 'Verify your email address before investing.';
     if (bankAccountHolderName.trim().length < 3) return "Enter the bank account holder's full name.";
     if (bankAccountNumber.trim().length < 5) return 'Enter a valid bank account number.';
     if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscCode)) return 'Enter a valid 11-character IFSC code, for example HDFC0000001.';
@@ -142,7 +166,7 @@ export const InvestScreen = () => {
         const sip = await api.post<SipResult>(`/buckets/${encodeURIComponent(bucketId)}/sip`, {
           amount: Number(amount),
           gender,
-          email: email.trim(),
+          email,
           bankAccountHolderName: bankAccountHolderName.trim(),
           bankAccountNumber: bankAccountNumber.trim(),
           ifscCode: ifscCode.trim(),
@@ -167,7 +191,7 @@ export const InvestScreen = () => {
       const result = await api.post<InvestResult>(`/buckets/${encodeURIComponent(bucketId)}/invest`, {
         amount: Number(amount),
         gender,
-        email: email.trim(),
+        email,
         bankAccountHolderName: bankAccountHolderName.trim(),
         bankAccountNumber: bankAccountNumber.trim(),
         ifscCode: ifscCode.trim(),
@@ -286,14 +310,29 @@ export const InvestScreen = () => {
         </View>
 
         <Text style={styles.label}>Email</Text>
-        <TextInput
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          placeholder="you@example.com"
-          style={styles.input}
-        />
+        {email ? (
+          <>
+            <View style={styles.readonly}>
+              <Text style={styles.readonlyText}>{email}</Text>
+            </View>
+            <Text style={styles.hint}>
+              Your verified email address. Order confirmations and statements are sent here.
+            </Text>
+          </>
+        ) : (
+          <>
+            <View style={styles.readonly}>
+              <Text style={styles.readonlyMuted}>No verified email address</Text>
+            </View>
+            <Pressable style={styles.verifyButton} onPress={() => navigation.navigate('EditProfile')}>
+              <Text style={styles.verifyButtonText}>Verify my email</Text>
+            </Pressable>
+            <Text style={styles.hint}>
+              We can only place an order once your email address is verified, because the AMC
+              sends your confirmations and statements to it.
+            </Text>
+          </>
+        )}
 
         <Text style={styles.sectionTitle}>Bank account</Text>
         <Text style={styles.label}>Account holder name</Text>
@@ -389,6 +428,11 @@ const styles = StyleSheet.create({
   dayText: { color: '#4A5568', fontWeight: '600', fontSize: 14 },
   dayTextSelected: { color: '#fff', fontWeight: '700', fontSize: 14 },
   hint: { color: '#718096', fontSize: 11, marginTop: 6 },
+  readonly: { backgroundColor: '#EDF2F7', borderRadius: 12, minHeight: 52, paddingHorizontal: 16, justifyContent: 'center' },
+  readonlyText: { color: '#102A54', fontSize: 15, fontWeight: '600' },
+  readonlyMuted: { color: '#718096', fontSize: 15, fontStyle: 'italic' },
+  verifyButton: { backgroundColor: '#3C3985', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center', marginTop: 12 },
+  verifyButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   genderChip: { flex: 1, backgroundColor: 'white', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
   genderChipSelected: { backgroundColor: '#3C3985', borderColor: '#3C3985' },
   genderText: { color: '#4A5568', fontWeight: '700', fontSize: 13 },

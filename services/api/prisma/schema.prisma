@@ -10,6 +10,9 @@ datasource db {
 model User {
   id                 String                @id @default(uuid())
   mobile             String                @unique
+  // Written only after a verified email OTP, so a non-null value IS the verification
+  // flag - there is no separate boolean that can drift out of sync with it.
+  email              String?               @unique
   preferredLanguage  String                @default("en")
   passwordHash       String?
   referralCode       String?

@@ -14,8 +14,17 @@ export class InvestInBucketDto {
   @IsIn(['male', 'female', 'transgender'])
   gender: 'male' | 'female' | 'transgender';
 
+  /**
+   * Ignored. The order is placed against the email address verified on the User record,
+   * because Cybrilla requires a verified address for folio communications and a value
+   * supplied in the request body cannot be one. Kept optional so older clients that
+   * still send it are not rejected.
+   *
+   * @deprecated
+   */
   @IsEmail()
-  email: string;
+  @IsOptional()
+  email?: string;
 
   @IsString()
   @MinLength(3)

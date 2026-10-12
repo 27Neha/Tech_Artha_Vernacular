@@ -93,7 +93,27 @@ export const ProfileScreen = () => {
         </View>
       </View>
 
-      <Pressable style={[styles.learningCard, { marginTop: 24 }]} onPress={() => navigation.navigate('EditProfile')}>
+      {/* This is where exitOnboarding lands, so the deferred step has to be resumable
+          from here. Risk assessment first when it was skipped too - the buckets a user
+          is eligible for are derived from their risk category. */}
+      <Pressable
+        style={[styles.learningCard, { marginTop: 24 }]}
+        onPress={() => navigation.navigate(profile?.riskProfile ? 'GoalSelection' : 'RiskAssessment')}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardTitle}>
+            {profile?.riskProfile ? 'Choose an investment plan' : 'Complete your risk assessment'}
+          </Text>
+          <Text style={styles.cardSub}>
+            {profile?.riskProfile
+              ? 'Pick a goal and an investment bucket'
+              : 'Needed before we can recommend investments'}
+          </Text>
+        </View>
+        <Text style={styles.arrow}>›</Text>
+      </Pressable>
+
+      <Pressable style={styles.learningCard} onPress={() => navigation.navigate('EditProfile')}>
         <View style={{ flex: 1 }}>
           <Text style={styles.cardTitle}>Edit profile</Text>
           <Text style={styles.cardSub}>Update your name and date of birth</Text>

@@ -6,6 +6,7 @@ import { Header } from '../components/Header';
 import { Screen } from '../types';
 import { formatDobInput } from '../utils/date';
 import { api } from '../services/api/client';
+import { exitOnboarding } from '../utils/navigation';
 import { useNavigation } from '@react-navigation/native';
 
 /** POST /api/v1/kyc/start. Note there is no `message` field. */
@@ -106,7 +107,10 @@ export const KycScreen = ({
       }
 
       if (status === 'VERIFIED') {
+        // KYC is saved server-side, so the investor can stop here and assess their risk
+        // profile another day rather than being held in the funnel.
         Alert.alert('KYC verified', 'Your identity has been verified.', [
+          { text: 'Later', style: 'cancel', onPress: () => exitOnboarding(navigation) },
           { text: 'Continue', onPress: () => navigation.navigate('RiskAssessment') },
         ]);
         return;
@@ -123,6 +127,7 @@ export const KycScreen = ({
       }
 
       Alert.alert('Verification in progress', 'Your PAN is still being verified. You can continue and we will update your status.', [
+        { text: 'Later', style: 'cancel', onPress: () => exitOnboarding(navigation) },
         { text: 'Continue', onPress: () => navigation.navigate('RiskAssessment') },
       ]);
     } catch (error) {
