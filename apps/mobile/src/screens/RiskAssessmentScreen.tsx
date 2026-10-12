@@ -1,158 +1,186 @@
-import React, { useState } from 'react';
-import { SafeAreaView, View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authStore } from '../store/auth';
 
 const QUESTIONS = [
-  {
-    id: 'q1',
-    title: 'What is your age group?',
-    options: [
-      { id: 'A', text: 'Below 25 years', score: 4 },
-      { id: 'B', text: '25 - 35 years', score: 3 },
-      { id: 'C', text: '36 - 50 years', score: 2 },
-      { id: 'D', text: 'Above 50 years', score: 1 },
-    ]
-  },
-  {
-    id: 'q2',
-    title: 'For how long do you plan to stay invested?',
-    options: [
-      { id: 'A', text: 'Less than 1 year', score: 1 },
-      { id: 'B', text: '1 to 3 years', score: 2 },
-      { id: 'C', text: '3 to 7 years', score: 3 },
-      { id: 'D', text: 'More than 7 years', score: 4 },
-    ]
-  },
-  {
-    id: 'q3',
-    title: 'What is your monthly household income?',
-    options: [
-      { id: 'A', text: 'Below ₹15,000', score: 1 },
-      { id: 'B', text: '₹15,000 - ₹30,000', score: 2 },
-      { id: 'C', text: '₹30,000 - ₹60,000', score: 3 },
-      { id: 'D', text: 'Above ₹60,000', score: 4 },
-    ]
-  },
-  {
-    id: 'q4',
-    title: 'Imagine your ₹1 lakh investment temporarily falls to ₹85,000. What would you do?',
-    options: [
-      { id: 'A', text: 'Withdraw everything immediately', score: 1 },
-      { id: 'B', text: 'Feel worried, wait a little while', score: 2 },
-      { id: 'C', text: 'Stay calm and wait for recovery', score: 3 },
-      { id: 'D', text: 'See it as an opportunity and invest more', score: 4 },
-    ]
-  },
-  {
-    id: 'q5',
-    title: 'What is your main goal for investing?',
-    options: [
-      { id: 'A', text: 'Keep my money safe', score: 1 },
-      { id: 'B', text: 'Get regular income', score: 2 },
-      { id: 'C', text: 'Grow wealth over the long term', score: 3 },
-      { id: 'D', text: 'Maximize growth, willing to accept ups and downs', score: 4 },
-    ]
-  }
+  { id: 1, question: "Current market value of net worth (Assets - Liabilities)", options: [{ label: "Negative/0", score: 1 }, { label: "< 10L", score: 2 }, { label: "10L-50L", score: 3 }, { label: "> 50L", score: 4 }, { label: "> 1Cr", score: 5 }] },
+  { id: 2, question: "How familiar are you with financial markets?", options: [{ label: "Not at all", score: 1 }, { label: "Somewhat", score: 2 }, { label: "Good", score: 3 }, { label: "Very familiar", score: 4 }, { label: "Expert", score: 5 }] },
+  { id: 3, question: "Describe your risk range (losses vs profits)", options: [{ label: "Hate losses", score: 1 }, { label: "Accept small losses for small gains", score: 2 }, { label: "Accept moderate", score: 3 }, { label: "Accept high for high gains", score: 4 }, { label: "Maximum risk", score: 5 }] },
+  { id: 4, question: "Reaction if portfolio drops 20%", options: [{ label: "Sell all", score: 1 }, { label: "Sell some", score: 2 }, { label: "Do nothing", score: 3 }, { label: "Buy more", score: 4 }, { label: "Buy aggressively", score: 5 }] },
+  { id: 5, question: "Desired balance (Volatility vs Returns)", options: [{ label: "100% stable", score: 1 }, { label: "Mostly stable", score: 2 }, { label: "Balanced", score: 3 }, { label: "Mostly volatile", score: 4 }, { label: "100% volatile", score: 5 }] },
+  { id: 6, question: "Current and future income stability", options: [{ label: "Very unstable", score: 1 }, { label: "Unstable", score: 2 }, { label: "Stable", score: 3 }, { label: "Very stable", score: 4 }, { label: "Guaranteed", score: 5 }] },
+  { id: 7, question: "Preferred investment objective", options: [{ label: "Preserve capital", score: 1 }, { label: "Regular income", score: 2 }, { label: "Balanced growth", score: 3 }, { label: "High growth", score: 4 }, { label: "Maximum speculation", score: 5 }] },
+  { id: 8, question: "Years away is your nearest goal?", options: [{ label: "< 1 yr", score: 1 }, { label: "1-3 yrs", score: 2 }, { label: "3-5 yrs", score: 3 }, { label: "5-10 yrs", score: 4 }, { label: "> 10 yrs", score: 5 }] },
+  { id: 9, question: "How long will you hold a poorly performing portfolio?", options: [{ label: "< 3 months", score: 1 }, { label: "3-6 months", score: 2 }, { label: "6-12 months", score: 3 }, { label: "1-3 years", score: 4 }, { label: "> 3 years", score: 5 }] },
+  { id: 10, question: "Percentage of net worth you plan to invest", options: [{ label: "< 10%", score: 1 }, { label: "10-25%", score: 2 }, { label: "25-50%", score: 3 }, { label: "50-75%", score: 4 }, { label: "> 75%", score: 5 }] },
+  { id: 11, question: "Ability to save money consistently", options: [{ label: "Very poor", score: 1 }, { label: "Poor", score: 2 }, { label: "Average", score: 3 }, { label: "Good", score: 4 }, { label: "Excellent", score: 5 }] },
+  { id: 12, question: "What is your overall attitude towards the stock market?", options: [{ label: "It is a casino, highly dangerous", score: 1 }, { label: "A place for experts only", score: 2 }, { label: "A good place to invest, with some caution", score: 3 }, { label: "An excellent wealth-building opportunity", score: 4 }, { label: "The only place to beat inflation and maximize returns", score: 5 }] }
 ];
 
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+
 export const RiskAssessmentScreen = () => {
+  const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [current, setCurrent] = useState(0);
+  const [answers, setAnswers] = useState<number[]>([]);
+  const [selectedScore, setSelectedScore] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const question = QUESTIONS[currentQuestionIndex];
-  const selectedScore = answers[question.id];
+  const q = QUESTIONS[current];
+
+  useEffect(() => {
+    if (answers[current] !== undefined) {
+      setSelectedScore(answers[current]);
+    } else {
+      setSelectedScore(null);
+    }
+  }, [current, answers]);
 
   const handleNext = async () => {
-    if (currentQuestionIndex < QUESTIONS.length - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
+    if (selectedScore === null) return;
+    
+    const newAnswers = [...answers.slice(0, current), selectedScore];
+    setAnswers(newAnswers);
+
+    if (current < QUESTIONS.length - 1) {
+      setCurrent(current + 1);
     } else {
-      // Submit
       setLoading(true);
       try {
-        const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'}/risk/calculate`, {
+        const token = authStore.accessToken;
+        const res = await fetch(`${API_URL}/risk/calculate`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: authStore.userId,
-            answers: Object.values(answers)
-          })
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({ answers: newAnswers, consent: true })
         });
-        const result = await response.json();
-        navigation.navigate('RiskProfileResult', { profile: result });
-      } catch (e) {
-        console.error(e);
-      } finally {
+        
+        if (!res.ok) throw new Error('Failed to calculate risk profile');
+        const data = await res.json();
+        const cat = data.data.category || 'MODERATE';
+        const finalScore = data.data.score || newAnswers.reduce((a, b) => a + b, 0);
+        
+        navigation.navigate('RiskResult', { category: cat, score: finalScore });
+      } catch (err) {
+        console.log('Failed to save risk profile to backend', err);
         setLoading(false);
       }
     }
   };
 
+  const handlePrevious = () => {
+    if (current > 0) setCurrent(current - 1);
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#3C3985" />
+        <Text style={styles.loadingText}>{t('risk.calc', { defaultValue: 'Calculating your profile...' })}</Text>
+      </View>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.safe}>
       <StatusBar style="light" />
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Risk Assessment</Text>
-        <Text style={styles.progress}>{currentQuestionIndex + 1}/{QUESTIONS.length}</Text>
+        <View style={styles.headerTop}>
+          <Text style={styles.headerTitle}>{t('risk.title', { defaultValue: 'Risk Assessment' })}</Text>
+          <Text style={styles.headerCount}>{current + 1} / {QUESTIONS.length}</Text>
+        </View>
+        <View style={styles.progressBg}>
+          <View style={[styles.progressFill, { width: `${((current + 1) / QUESTIONS.length) * 100}%` }]} />
+        </View>
       </View>
 
-      <ScrollView style={styles.content}>
-        <View style={styles.qBadge}>
-          <Text style={styles.qBadgeText}>Q{currentQuestionIndex + 1}</Text>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.qPrefix}>
+          <Text style={styles.qPrefixText}>Question {current + 1}</Text>
         </View>
-        <Text style={styles.questionText}>{question.title}</Text>
+        <Text style={styles.questionText}>
+          {t(`risk.q${q.id}.q`, { defaultValue: q.question })}
+        </Text>
 
-        <View style={styles.options}>
-          {question.options.map(opt => (
-            <Pressable 
-              key={opt.id} 
-              style={[styles.optionCard, selectedScore === opt.score && styles.optionSelected]}
-              onPress={() => setAnswers(prev => ({ ...prev, [question.id]: opt.score }))}
-            >
-              <View style={[styles.letterCircle, selectedScore === opt.score && styles.letterCircleSelected]}>
-                <Text style={[styles.letterText, selectedScore === opt.score && styles.letterTextSelected]}>{opt.id}</Text>
-              </View>
-              <Text style={styles.optionText}>{opt.text}</Text>
-            </Pressable>
-          ))}
+        <View style={styles.optionsList}>
+          {q.options.map((opt, i) => {
+            const isSelected = selectedScore === opt.score;
+            return (
+              <Pressable
+                key={i}
+                style={[styles.optionCard, isSelected && styles.optionCardSelected]}
+                onPress={() => setSelectedScore(opt.score)}
+              >
+                <View style={[styles.optionLetter, isSelected && styles.optionLetterSelected]}>
+                  <Text style={[styles.optionLetterText, isSelected && styles.optionLetterTextSelected]}>
+                    {String.fromCharCode(65 + i)}
+                  </Text>
+                </View>
+                <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
+                  {t(`risk.q${q.id}.${opt.score}`, { defaultValue: opt.label })}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
-        <Pressable 
-          style={[styles.button, !selectedScore && styles.buttonDisabled]} 
-          onPress={handleNext}
-          disabled={!selectedScore || loading}
-        >
-          <Text style={styles.buttonText}>{currentQuestionIndex === QUESTIONS.length - 1 ? (loading ? 'Submitting...' : 'See My Profile') : 'Next'}</Text>
-        </Pressable>
+        <View style={styles.footerRow}>
+          {current > 0 && (
+            <Pressable style={styles.backBtn} onPress={handlePrevious}>
+              <Text style={styles.backBtnText}>Back</Text>
+            </Pressable>
+          )}
+          <Pressable 
+            style={[styles.nextBtn, selectedScore === null && styles.nextBtnDisabled]} 
+            onPress={handleNext} 
+            disabled={selectedScore === null}
+          >
+            <Text style={styles.nextBtnText}>{current === QUESTIONS.length - 1 ? t('risk.finish', { defaultValue: 'Finish' }) : t('risk.next', { defaultValue: 'Next' })}</Text>
+          </Pressable>
+        </View>
       </View>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FB' },
-  header: { backgroundColor: '#3C3985', padding: 20, paddingTop: 60, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerTitle: { color: 'white', fontSize: 18, fontWeight: '700' },
-  progress: { color: 'white', fontSize: 14, opacity: 0.8 },
-  content: { padding: 24 },
-  qBadge: { backgroundColor: '#EBEAF8', alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginBottom: 16 },
-  qBadgeText: { color: '#3C3985', fontWeight: '700' },
-  questionText: { fontSize: 24, fontWeight: '800', color: '#102A54', marginBottom: 32 },
-  options: { gap: 16 },
-  optionCard: { backgroundColor: 'white', padding: 16, borderRadius: 12, borderWidth: 2, borderColor: '#E2E8F0', flexDirection: 'row', alignItems: 'center' },
-  optionSelected: { borderColor: '#3C3985', backgroundColor: '#EBEAF8' },
-  letterCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center', marginRight: 16 },
-  letterCircleSelected: { backgroundColor: '#3C3985' },
-  letterText: { color: '#64748B', fontWeight: '700' },
-  letterTextSelected: { color: 'white' },
-  optionText: { fontSize: 16, color: '#102A54', flex: 1, fontWeight: '500' },
-  footer: { padding: 24, paddingBottom: 40, backgroundColor: '#F8F9FB' },
-  button: { backgroundColor: '#3C3985', padding: 18, borderRadius: 12, alignItems: 'center' },
-  buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: 'white', fontSize: 16, fontWeight: '700' }
+  safe: { flex: 1, backgroundColor: '#fff' },
+  loadingContainer: { flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  loadingText: { color: '#3C3985', fontWeight: '800', fontSize: 18, marginTop: 16 },
+  header: { backgroundColor: '#3C3985', paddingTop: 20, paddingBottom: 24, paddingHorizontal: 24 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  headerTitle: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  headerCount: { color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: '700' },
+  progressBg: { height: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 4, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: '#F7941E', borderRadius: 4 },
+  content: { padding: 24, paddingBottom: 40 },
+  qPrefix: { backgroundColor: '#EBEBFA', alignSelf: 'flex-start', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16, marginBottom: 16 },
+  qPrefixText: { color: '#3C3985', fontWeight: '800', fontSize: 14 },
+  questionText: { fontSize: 24, fontWeight: '800', color: '#102A54', lineHeight: 32, marginBottom: 32 },
+  optionsList: { gap: 16 },
+  optionCard: { flexDirection: 'row', alignItems: 'center', padding: 20, borderRadius: 16, borderWidth: 2, borderColor: '#E2E8F0', backgroundColor: '#fff' },
+  optionCardSelected: { borderColor: '#3C3985', backgroundColor: '#EBEBFA' },
+  optionLetter: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F8F9FB', alignItems: 'center', justifyContent: 'center', marginRight: 16 },
+  optionLetterSelected: { backgroundColor: '#3C3985' },
+  optionLetterText: { color: '#718096', fontWeight: '800', fontSize: 16 },
+  optionLetterTextSelected: { color: '#fff' },
+  optionText: { flex: 1, fontSize: 16, fontWeight: '600', color: '#102A54' },
+  optionTextSelected: { color: '#3C3985', fontWeight: '800' },
+  footer: { padding: 24, borderTopWidth: 1, borderTopColor: '#E2E8F0', backgroundColor: '#fff' },
+  footerRow: { flexDirection: 'row', gap: 12 },
+  backBtn: { paddingVertical: 16, paddingHorizontal: 24, backgroundColor: '#F8F9FB', borderRadius: 16 },
+  backBtnText: { color: '#4A5568', fontSize: 16, fontWeight: '800' },
+  nextBtn: { flex: 1, paddingVertical: 16, backgroundColor: '#3C3985', borderRadius: 16, alignItems: 'center' },
+  nextBtnDisabled: { backgroundColor: '#E2E8F0' },
+  nextBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' }
 });
