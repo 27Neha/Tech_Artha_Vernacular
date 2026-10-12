@@ -7,29 +7,33 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { LanguageScreen } from './src/screens/LanguageScreen';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
-import { ProfileSetupScreen } from './src/screens/ProfileSetupScreen';
-import { ParentalApprovalScreen } from './src/screens/ParentalApprovalScreen';
-import { MinorGuardianScreen } from './src/screens/MinorGuardianScreen';
-import { MinorGuardianVerificationScreen } from './src/screens/MinorGuardianVerificationScreen';
-import { MinorConsentScreen } from './src/screens/MinorConsentScreen';
-import { MinorReviewScreen } from './src/screens/MinorReviewScreen';
 import { KycScreen } from './src/screens/KycScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { FundsScreen } from './src/screens/FundsScreen';
-import { FundDetailsScreen } from './src/screens/FundDetailsScreen';
 import { PortfolioScreen } from './src/screens/PortfolioScreen';
 import { ExpensesScreen } from './src/screens/ExpensesScreen';
 import { LearnScreen } from './src/screens/LearnScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { RiskAssessmentScreen } from './src/screens/RiskAssessmentScreen';
-import { RiskResultScreen } from './src/screens/RiskResultScreen';
 import { GoalSelectionScreen } from './src/screens/GoalSelectionScreen';
 import { InvestmentBucketsScreen } from './src/screens/InvestmentBucketsScreen';
 import { PlanSummaryScreen } from './src/screens/PlanSummaryScreen';
 import { PlanScreen } from './src/screens/PlanScreen';
-import { CustomBucketScreen } from './src/screens/CustomBucketScreen';
 import { InvestScreen } from './src/screens/InvestScreen';
+import { FundDetailScreen } from './src/screens/FundDetailScreen';
+import { FundDetailsScreen } from './src/screens/FundDetailsScreen';
+import { CustomBucketScreen } from './src/screens/CustomBucketScreen';
+import { EditProfileScreen } from './src/screens/EditProfileScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
+import { RiskResultScreen } from './src/screens/RiskResultScreen';
+import { ProfileSetupScreen } from './src/screens/ProfileSetupScreen';
+import { ParentalApprovalScreen } from './src/screens/ParentalApprovalScreen';
+import { MinorGuardianScreen } from './src/screens/minor/MinorGuardianScreen';
+import { MinorVerifyScreen } from './src/screens/minor/MinorVerifyScreen';
+import { MinorConsentScreen } from './src/screens/minor/MinorConsentScreen';
+import { MinorReviewScreen } from './src/screens/minor/MinorReviewScreen';
 import { AuthProvider, useAuth } from './src/store/AuthContext';
+import { TranslationProvider } from './src/i18n/TranslationContext';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -72,8 +76,6 @@ function RootNavigator() {
     previousStatus.current = status;
   }, [status]);
 
-  // Nothing renders until the keychain has been read, so initialRouteName is decided
-  // once with the real answer: a returning user lands in the app, not on the splash.
   if (status === 'loading') {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -85,7 +87,7 @@ function RootNavigator() {
   return (
     <Stack.Navigator
       screenOptions={{ headerShown: false }}
-      initialRouteName={status === 'authenticated' ? 'MainTabs' : 'Login'}
+      initialRouteName={status === 'authenticated' ? 'MainTabs' : 'Language'}
     >
       <Stack.Screen name="Language" component={LanguageScreen} />
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
@@ -94,10 +96,6 @@ function RootNavigator() {
       </Stack.Screen>
       <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
       <Stack.Screen name="ParentalApproval" component={ParentalApprovalScreen} />
-      <Stack.Screen name="MinorGuardian" component={MinorGuardianScreen} />
-      <Stack.Screen name="MinorGuardianVerification" component={MinorGuardianVerificationScreen} />
-      <Stack.Screen name="MinorConsent" component={MinorConsentScreen} />
-      <Stack.Screen name="MinorReview" component={MinorReviewScreen} />
       <Stack.Screen name="KYC">
         {(props) => (
           <KycScreen
@@ -114,25 +112,36 @@ function RootNavigator() {
       </Stack.Screen>
       <Stack.Screen name="RiskAssessment" component={RiskAssessmentScreen} />
       <Stack.Screen name="RiskResult" component={RiskResultScreen} />
+      <Stack.Screen name="RiskProfileResult" component={RiskResultScreen} />
       <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
       <Stack.Screen name="InvestmentBuckets" component={InvestmentBucketsScreen} />
       <Stack.Screen name="PlanSummary" component={PlanSummaryScreen} />
       <Stack.Screen name="Plan" component={PlanScreen} />
-      <Stack.Screen name="CustomBucket" component={CustomBucketScreen} />
       <Stack.Screen name="MainTabs" component={MainTabs} />
-      <Stack.Screen name="FundDetails" component={FundDetailsScreen} />
       <Stack.Screen name="Funds" component={FundsScreen} />
       <Stack.Screen name="Invest" component={InvestScreen} />
+      <Stack.Screen name="FundDetail" component={FundDetailScreen} />
+      <Stack.Screen name="FundDetails" component={FundDetailsScreen} />
+      <Stack.Screen name="CustomBucket" component={CustomBucketScreen} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="MinorGuardian" component={MinorGuardianScreen} />
+      <Stack.Screen name="MinorVerify" component={MinorVerifyScreen} />
+      <Stack.Screen name="MinorGuardianVerification" component={MinorVerifyScreen} />
+      <Stack.Screen name="MinorConsent" component={MinorConsentScreen} />
+      <Stack.Screen name="MinorReview" component={MinorReviewScreen} />
     </Stack.Navigator>
   );
 }
 
 export default function App() {
   return (
-    <AuthProvider>
-      <NavigationContainer ref={navigationRef}>
-        <RootNavigator />
-      </NavigationContainer>
-    </AuthProvider>
+    <TranslationProvider>
+      <AuthProvider>
+        <NavigationContainer ref={navigationRef}>
+          <RootNavigator />
+        </NavigationContainer>
+      </AuthProvider>
+    </TranslationProvider>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { api } from '../services/api/client';
 import { useAuth } from '../store/AuthContext';
 import { styles } from '../theme/styles';
@@ -17,6 +18,7 @@ type Profile = {
 const maskPan = (pan?: string | null) => (pan ? `${pan.slice(0, 3)}${'X'.repeat(5)}${pan.slice(-2)}` : '—');
 
 export const ProfileScreen = () => {
+  const navigation = useNavigation<any>();
   const { signOut, user } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,7 +93,23 @@ export const ProfileScreen = () => {
         </View>
       </View>
 
-      <Pressable style={[styles.primaryButton, { marginTop: 28 }]} onPress={confirmSignOut}>
+      <Pressable style={[styles.learningCard, { marginTop: 24 }]} onPress={() => navigation.navigate('EditProfile')}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardTitle}>Edit profile</Text>
+          <Text style={styles.cardSub}>Update your name and date of birth</Text>
+        </View>
+        <Text style={styles.arrow}>›</Text>
+      </Pressable>
+
+      <Pressable style={styles.learningCard} onPress={() => navigation.navigate('Settings')}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardTitle}>Settings</Text>
+          <Text style={styles.cardSub}>Language, legal and account</Text>
+        </View>
+        <Text style={styles.arrow}>›</Text>
+      </Pressable>
+
+      <Pressable style={[styles.primaryButton, { marginTop: 16 }]} onPress={confirmSignOut}>
         <Text style={styles.primaryText}>Sign out</Text>
       </Pressable>
 

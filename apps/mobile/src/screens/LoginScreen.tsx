@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { SafeAreaView, View, Text, TextInput, Pressable, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView, View, Text, TextInput, Pressable, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
+import { Screen } from '../types';
 import { api } from '../services/api/client';
+import { useTranslation } from '../i18n/TranslationContext';
 import { Session, useAuth } from '../store/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 
@@ -13,38 +15,58 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen = ({ phone, setPhone }: LoginScreenProps) => {
+  const { t } = useTranslation();
   const { signIn } = useAuth();
   const navigation = useNavigation<any>();
-  const [step, setStep] = useState<'contact' | 'otp' | 'password'>('contact');
-  const [authType, setAuthType] = useState<'login' | 'signup' | null>(null);
+  const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
-  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  // Explicit acceptance, not the passive "by continuing you agree" line this replaces.
+  // The compliance checklist requires acceptance to be an act the investor performs.
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  // Matches the web login's channel choice. WhatsApp first because that is the
+  // provider actually configured; SMS is the fallback when a code does not arrive.
+  const [channel, setChannel] = useState<'WHATSAPP' | 'SMS'>('WHATSAPP');
 
-  const handleContinue = async () => {
-    if (!phone) {
-      return Alert.alert('Enter contact', 'Please enter your mobile number or email.');
+  const handleSendOtp = async (via: 'WHATSAPP' | 'SMS' = channel) => {
+    if (!/^\d{10}$/.test(phone)) {
+      return Alert.alert('Enter a valid mobile number', 'Please enter your 10-digit mobile number.');
     }
-    
+    if (!acceptedTerms) {
+      return Alert.alert('Accept the terms', 'Please accept the terms of service and privacy policy to continue.');
+    }
+
     setLoading(true);
     try {
-      // 1. Check if user exists
-      const isEmail = phone.includes('@');
-      const payload = isEmail ? { email: phone } : { mobile: phone };
-      
-      const checkRes = await api.post<{ exists: boolean }>('/auth/check', payload, { anonymous: true });
-      const type = checkRes.exists ? 'login' : 'signup';
-      setAuthType(type);
+      // The channel must be explicit. AuthController defaults to 'SMS', and the server
+      // routes per channel - WhatsApp via Interakt, SMS via msg91 or the dev mock.
+      const result = await api.post<{ devOtp?: string }>(
+        '/auth/send-otp',
+        { mobile: phone, channel: via },
+        { anonymous: true },
+      );
 
-      // 2. Start flow
-      const channel = isEmail ? 'EMAIL' : 'SMS';
-      const endpoint = type === 'login' ? '/auth/login/start' : '/auth/signup/start';
-      
-      await api.post(endpoint, { ...payload, channel }, { anonymous: true });
+      setChannel(via);
+      setOtpSent(true);
 
-      setStep('otp');
+      // AUTH_DEV_BYPASS=true makes the server return the code in the response. Showing
+      // it here in development means a test login costs no Interakt credit and needs no
+      // trip to the API console. __DEV__ is false in any release build, so this cannot
+      // reach production.
+      if (__DEV__ && result?.devOtp) {
+        setOtp(result.devOtp);
+        Alert.alert('Dev code', `OTP ${result.devOtp} (prefilled - development only)`);
+        return;
+      }
+
+      Alert.alert(
+        via === 'SMS' ? 'Code sent by SMS' : 'Code sent on WhatsApp',
+        via === 'SMS'
+          ? 'Enter the verification code sent to your mobile number.'
+          : 'Please check WhatsApp for your verification code.',
+      );
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Please try again.');
+      Alert.alert('Could not send the code', error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setLoading(false);
     }
@@ -54,23 +76,29 @@ export const LoginScreen = ({ phone, setPhone }: LoginScreenProps) => {
     if (otp.length < 4) {
       return Alert.alert('Invalid OTP', 'Please enter a valid OTP.');
     }
-    if (authType === 'signup' && password.length < 8) {
-      return Alert.alert('Weak Password', 'Please create a password of at least 8 characters.');
-    }
 
     setLoading(true);
     try {
-      const isEmail = phone.includes('@');
-      const payload = isEmail ? { email: phone } : { mobile: phone };
-      
       const session = await api.post<Session>(
-        '/auth/otp/verify',
-        { ...payload, otp, type: authType!, password: password || undefined },
-        { anonymous: true }
+        '/auth/verify-otp',
+        { mobile: phone, otp },
+        { anonymous: true },
       );
 
+      // Persists to the device keychain and flips the navigator into the signed-in
+      // stack; the old code only assigned to an in-memory object, so the session was
+      // lost on every restart and no component re-rendered.
       await signIn(session);
-      navigation.navigate('ProfileSetup');
+
+      // Recorded against the user with its version, IP and an audit event. Failure must
+      // not block sign-in - the acceptance is re-asserted on the next login if missing.
+      try {
+        await api.post('/consents', { type: 'TERMS_AND_CONDITIONS' });
+      } catch {
+        // Logged server-side; nothing actionable for the user here.
+      }
+
+      navigation.navigate('KYC');
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Invalid OTP. Please try again.');
     } finally {
@@ -81,74 +109,97 @@ export const LoginScreen = ({ phone, setPhone }: LoginScreenProps) => {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
-      <Header title="Welcome" back={step === 'otp' ? undefined : "welcome"} onBack={() => {
-        if (step === 'otp') {
-          setStep('contact');
-          setOtp('');
-          setPassword('');
-        } else {
-          navigation.goBack();
-        }
+      <Header title="Welcome" back={otpSent ? undefined : "welcome"} onBack={() => {
+        if (otpSent) setOtpSent(false);
+        else navigation.goBack();
       }} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={styles.page}>
-          {step === 'contact' ? (
-            <>
-              <Text style={styles.title}>Let's get you started</Text>
-              <Text style={styles.description}>Enter your mobile number or email address.</Text>
-              <Text style={styles.label}>Mobile or Email</Text>
-              <View style={styles.phoneInput}>
-                {!phone.includes('@') && <Text style={styles.country}>+91</Text>}
-                <TextInput 
-                  value={phone} 
-                  onChangeText={setPhone} 
-                  keyboardType={phone.includes('@') ? "email-address" : "phone-pad"}
-                  placeholder="Mobile number or Email" 
-                  style={{flex: 1, fontSize: 16, color: '#102A54', fontWeight: 'bold'}}
-                  autoCapitalize="none"
-                />
-              </View>
-              <Pressable style={[styles.primaryButton, loading && {opacity: 0.7}]} onPress={handleContinue} disabled={loading}>
-                <Text style={styles.primaryText}>{loading ? 'Checking...' : 'Continue'}</Text>
-                {!loading && <Text style={styles.primaryText}>→</Text>}
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <Text style={styles.title}>{authType === 'login' ? 'Welcome back' : 'Create an account'}</Text>
-              <Text style={styles.description}>We sent a verification code to {phone}</Text>
-              
-              <Text style={styles.label}>Enter OTP</Text>
-              <TextInput 
-                value={otp} 
-                onChangeText={setOtp} 
-                keyboardType="number-pad" 
-                maxLength={6} 
-                placeholder="000000" 
+      <View style={styles.page}>
+        {!otpSent ? (
+          <>
+            <Text style={styles.title}>{t('login.title')}</Text>
+            <Text style={styles.description}>{t('login.desc')}</Text>
+            <Text style={styles.label}>Mobile number</Text>
+            <View style={styles.phoneInput}>
+              <Text style={styles.country}>+91</Text>
+              <TextInput
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                maxLength={10}
+                placeholder="10-digit number"
                 style={styles.input}
+                editable={!loading}
               />
+            </View>
+            <Pressable
+              style={[styles.primaryButton, loading && styles.primaryDisabled]}
+              onPress={() => handleSendOtp('WHATSAPP')}
+              disabled={loading}
+            >
+              <Text style={styles.primaryText}>{loading ? 'Sending...' : 'Get code on WhatsApp'}</Text>
+              <Text style={styles.primaryText}>→</Text>
+            </Pressable>
 
-              {authType === 'signup' && (
-                <>
-                  <Text style={[styles.label, {marginTop: 20}]}>Create a Password</Text>
-                  <TextInput 
-                    value={password} 
-                    onChangeText={setPassword} 
-                    secureTextEntry 
-                    placeholder="Minimum 8 characters" 
-                    style={styles.input}
-                  />
-                </>
-              )}
-
-              <Pressable style={[styles.primaryButton, loading && {opacity: 0.7}]} onPress={handleVerifyOtp} disabled={loading}>
-                <Text style={styles.primaryText}>{loading ? 'Verifying...' : 'Verify & Continue'}</Text>
-                {!loading && <Text style={styles.primaryText}>→</Text>}
+            {/* Development only: avoids spending an Interakt WhatsApp credit on every
+                test login. SMS has no provider configured in production - the channel
+                router refuses the mock there - so this must not ship. */}
+            {__DEV__ ? (
+              <Pressable
+                style={[styles.altButton, loading && styles.primaryDisabled]}
+                onPress={() => handleSendOtp('SMS')}
+                disabled={loading}
+              >
+                <Text style={styles.altButtonText}>Dev: get code by SMS (no WhatsApp credit)</Text>
               </Pressable>
-            </>
-          )}
-        </View>
-      </KeyboardAvoidingView>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <Text style={styles.title}>Verify your number</Text>
+            <Text style={styles.description}>
+              Enter the code sent to +91 {phone} {channel === 'SMS' ? 'by SMS' : 'on WhatsApp'}.
+            </Text>
+            <Text style={styles.label}>One-Time Password (OTP)</Text>
+            <TextInput
+              value={otp}
+              onChangeText={setOtp}
+              keyboardType="number-pad"
+              maxLength={6}
+              placeholder="Enter OTP"
+              style={styles.field}
+              editable={!loading}
+            />
+            <Pressable style={[styles.primaryButton, loading && styles.primaryDisabled]} onPress={handleVerifyOtp} disabled={loading}>
+              <Text style={styles.primaryText}>{loading ? 'Verifying...' : 'Verify OTP'}</Text>
+              <Text style={styles.primaryText}>→</Text>
+            </Pressable>
+
+            {/* Resending on the other channel is also dev-only, for the same reason. */}
+            {__DEV__ ? (
+              <Pressable
+                style={[styles.altButton, loading && styles.primaryDisabled]}
+                onPress={() => handleSendOtp(channel === 'SMS' ? 'WHATSAPP' : 'SMS')}
+                disabled={loading}
+              >
+                <Text style={styles.altButtonText}>
+                  Dev: resend by {channel === 'SMS' ? 'WhatsApp' : 'SMS'}
+                </Text>
+              </Pressable>
+            ) : null}
+          </>
+        )}
+        {!otpSent ? (
+          <Pressable style={styles.consent} onPress={() => setAcceptedTerms(!acceptedTerms)}>
+            <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
+              {acceptedTerms && <Text style={styles.check}>✓</Text>}
+            </View>
+            <Text style={styles.consentText}>
+              I have read and accept the Terms of Service and Privacy Policy, and I understand that
+              mutual fund investments are subject to market risks.
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
     </SafeAreaView>
   );
 };

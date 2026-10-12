@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { RecommendationEngine } from '../recommendations/recommendation.engine';
 import { FundsService } from '../funds/funds.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CybrillaService } from '../cybrilla/cybrilla.service';
 import { InvestInBucketDto } from './invest-in-bucket.dto';
+import { StartSipDto } from './sip-in-bucket.dto';
 import { CustomBucketDto } from './custom-bucket.dto';
 
 export type Bucket = { id: string; name: string; eligibleFor: string[]; allocation: { equity: number; debt: number; liquid: number }; horizon: string; explanation: string };
@@ -54,6 +55,7 @@ const bucketIdForIsin = (isin: string): string | undefined => Object.entries(BUC
 
 @Injectable()
 export class BucketsService {
+  private readonly logger = new Logger(BucketsService.name);
   constructor(
     private readonly recommendationEngine: RecommendationEngine,
     private readonly fundsService: FundsService,
@@ -115,7 +117,13 @@ export class BucketsService {
     return bucket;
   }
 
-  async invest(userId: string, bucketId: string, dto: InvestInBucketDto) {
+  /**
+   * Everything both the lumpsum and the SIP path need before a transaction can be sent:
+   * eligibility guards, the Cybrilla investor profile, the bank account and the MF
+   * investment account. Extracted from invest() so the two paths cannot drift - a SIP
+   * registered against a differently-built account would be very hard to diagnose.
+   */
+  private async ensureInvestmentAccount(userId: string, bucketId: string, dto: InvestInBucketDto) {
     const scheme = BUCKET_SCHEME[bucketId];
     if (!scheme) throw new BadRequestException('Unknown bucket.');
 
@@ -212,6 +220,10 @@ export class BucketsService {
         },
       });
     }
+    return { account, scheme, user };
+  }
+  async invest(userId: string, bucketId: string, dto: InvestInBucketDto) {
+    const { account, scheme, user } = await this.ensureInvestmentAccount(userId, bucketId, dto);
 
     // Real one-time (lumpsum) order placement. Recurring SIP via auto-debit mandate isn't wired
     // yet - Cybrilla's mandate request schema isn't confirmed (see conversation notes), so for now
@@ -224,7 +236,24 @@ export class BucketsService {
       userIp: '127.0.0.1',
     });
 
-    const orderStatus = this.mapCybrillaOrderState(orderResult.state);
+    // Step 2 of Cybrilla's purchase flow: a created order sits in `under_review` and
+    // never progresses until it is explicitly confirmed with the investor's consent.
+    // Skipping this is why every order we placed ended up `failed` with
+    // `confirmed_at: null`.
+    let confirmed = orderResult;
+    try {
+      confirmed = await this.cybrilla.confirmPurchaseOrder({
+        fpOrderId: orderResult.id,
+        email: dto.email,
+        mobile: (user?.mobile ?? '').replace(/^\+?91/, ''),
+      });
+    } catch (e) {
+      // The order exists either way; surface it as in-progress rather than losing the
+      // reference, and let /buckets/investments reconcile the real state later.
+      this.logger.warn(`Order ${orderResult.id} created but could not be confirmed.`);
+    }
+
+    const orderStatus = this.mapCybrillaOrderState(confirmed.state ?? orderResult.state);
 
     const order = await this.prisma.fpPurchaseOrder.create({
       data: {
@@ -249,6 +278,80 @@ export class BucketsService {
       status: order.status,
       statusLabel: ORDER_STATUS_LABELS[order.status] ?? order.status,
       message: 'Your order has been placed with Cybrilla. This is a one-time investment - recurring SIP auto-debit is coming soon.',
+    };
+  }
+
+  /**
+   * Registers a recurring SIP through POST /v2/mf_purchase_plans.
+   *
+   * This is what invest() could not do: the gateway supports UPI Autopay and e-NACH for
+   * SIPs, and /v2/mandates plus /v2/mf_purchase_plans are both live on this tenant.
+   *
+   * The auto-debit mandate is NOT created here. A plan can be registered without one,
+   * but instalments will not be collected until a mandate is authorised by the investor -
+   * so the response says so explicitly rather than implying money will move.
+   */
+  async startSip(userId: string, bucketId: string, dto: StartSipDto) {
+    const { account, scheme } = await this.ensureInvestmentAccount(userId, bucketId, dto);
+
+    const planResult = await this.cybrilla.createPurchasePlan({
+      mfInvestmentAccount: account.fpAccountId,
+      scheme: scheme.isin,
+      amount: dto.amount,
+      frequency: dto.frequency,
+      installmentDay: dto.installmentDay,
+      numberOfInstallments: dto.numberOfInstallments,
+      userIp: '127.0.0.1',
+    });
+
+    // Plans need the same confirmation step as orders.
+    try {
+      await this.cybrilla.confirmPurchasePlan(planResult?.id ?? planResult?.data?.id);
+    } catch (e) {
+      this.logger.warn('SIP plan created but could not be confirmed.');
+    }
+
+    const plan = await this.prisma.fpPurchasePlan.create({
+      data: {
+        accountId: account.id,
+        bucketId,
+        schemeIsin: scheme.isin,
+        amount: dto.amount,
+        frequency: dto.frequency,
+        installmentDay: dto.installmentDay,
+        status: 'PENDING_MANDATE_SETUP',
+        fpPlanId: planResult?.id ?? planResult?.data?.id ?? null,
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'SIP_REGISTERED',
+        details: JSON.stringify({
+          bucketId,
+          amount: dto.amount,
+          frequency: dto.frequency,
+          installmentDay: dto.installmentDay,
+          schemeIsin: scheme.isin,
+          planId: plan.id,
+        }),
+      },
+    });
+
+    return {
+      planId: plan.id,
+      bucketId,
+      fundName: scheme.fundName,
+      schemeIsin: scheme.isin,
+      amount: plan.amount,
+      frequency: plan.frequency,
+      installmentDay: plan.installmentDay,
+      status: plan.status,
+      statusLabel: ORDER_STATUS_LABELS[plan.status] ?? plan.status,
+      mandateRequired: true,
+      message:
+        'Your SIP has been registered. No money has been collected yet - an auto-debit mandate must be authorised before the first instalment.',
     };
   }
 

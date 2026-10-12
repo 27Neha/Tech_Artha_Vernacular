@@ -78,7 +78,7 @@ export class MtalkzOtpProvider implements OtpProvider {
   readonly mode = 'CONNECTED' as const;
   private readonly logger = new Logger(MtalkzOtpProvider.name);
 
-  constructor(private readonly mtalkzService: any) {}
+  constructor(private readonly mtalkzService?: any) {}
 
   async send(input: { mobile: string; code: string; channel: OtpChannel }): Promise<void> {
     if (input.channel !== 'SMS') {
@@ -114,7 +114,7 @@ export class ChannelRoutingOtpProvider implements OtpProvider {
     private readonly interaktProvider: InteraktOtpProvider,
     private readonly mockProvider: MockOtpProvider,
     private readonly emailProvider: EmailOtpProvider,
-    private readonly mtalkzProvider: MtalkzOtpProvider,
+    private readonly mtalkzProvider: MtalkzOtpProvider = new MtalkzOtpProvider(),
     private readonly msg91Provider: Msg91OtpProvider = new Msg91OtpProvider(),
   ) {}
 

@@ -21,6 +21,7 @@ import { RecommendationsModule } from './modules/recommendations/recommendations
 import { InteraktModule } from './integrations/interakt/interakt.module';
 import { CybrillaModule } from './modules/cybrilla/cybrilla.module';
 import { MinorModule } from './modules/minor/minor.module';
+import { CrmModule } from './modules/crm/crm.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { MinorModule } from './modules/minor/minor.module';
     InteraktModule,
     CybrillaModule,
     MinorModule,
+    CrmModule,
   ],
   controllers: [AppController],
   providers: [AppService],

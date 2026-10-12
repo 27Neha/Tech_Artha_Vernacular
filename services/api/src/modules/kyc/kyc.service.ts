@@ -45,12 +45,16 @@ export class KycService {
       });
       result = response.data;
     } catch (e: any) {
-      if (e.response?.code === 'KYC_PROVIDER_ERROR' || e.message?.includes('temporarily unavailable')) {
-        await this.prisma.kYCApplication.update({
-          where: { id: application.id },
-          data: { status: 'FAILED', failureReason: 'Provider unavailable' },
-        });
-      }
+      const isProviderOutage =
+        e.response?.code === 'KYC_PROVIDER_ERROR' || e.message?.includes('temporarily unavailable');
+
+      await this.prisma.kYCApplication.update({
+        where: { id: application.id },
+        data: {
+          status: 'FAILED',
+          failureReason: isProviderOutage ? 'Provider unavailable' : (e?.message ?? 'Verification failed'),
+        },
+      });
       throw e;
     }
 
