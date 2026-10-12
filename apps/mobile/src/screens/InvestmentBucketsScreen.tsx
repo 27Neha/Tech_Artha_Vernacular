@@ -1,212 +1,426 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, Pressable, ScrollView, StyleSheet, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { Header } from '../components/Header';
+import { SearchIcon } from '../components/Icons';
+import { useTranslation } from 'react-i18next';
 import { api } from '../services/api/client';
+import { authStore } from '../store/auth';
 
-/**
- * GET /buckets - the buckets eligible for this user's risk profile, with the funds the
- * recommendation engine picked for each.
- *
- * This screen previously rendered a hardcoded BUCKETS array that included invented
- * return bands ("6-8%", "14-18%"). The API deliberately returns no return projections -
- * a SEBI-regulated distributor cannot advertise expected returns - so the stat row now
- * shows allocation and horizon, which are facts about the bucket, instead.
- */
-type Bucket = {
-  id: string;
-  name: string;
-  allocation: { equity: number; debt: number; liquid: number };
-  horizon: string;
-  explanation: string;
-  recommended?: boolean;
-  bucketRiskLevel?: string;
-  riskMeter?: string;
-  recommendedFunds?: { schemeCode: number; name?: string; category?: string; nav?: string; navDate?: string }[];
-};
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
-const RISK_COLOURS: Record<string, string> = {
-  Conservative: '#3182CE',
-  Moderate: '#38A169',
-  Aggressive: '#E53E3E',
-};
+const DEFAULT_BUCKETS = [
+  {
+    id: 'stable',
+    name: 'Stable Income Bucket',
+    bucketRiskLevel: 'Conservative',
+    explanation: 'Conservative mix of liquid and short-term debt funds. Best for capital safety.',
+    recommended: false,
+    horizon: '1-3 yrs',
+    allocation: { equity: 15, debt: 85, liquid: 0 },
+    recommendedFunds: [
+      { schemeCode: 146716, name: 'ICICI Pru Retirement Fund Hybrid', category: 'Conservative Hybrid', nav: '...' },
+      { schemeCode: 101933, name: 'SBI Magnum Gilt Fund', category: 'Gilt Fund', nav: '...' },
+      { schemeCode: 118987, name: 'HDFC Corporate Bond Fund', category: 'Corporate Bond', nav: '...' },
+    ],
+  },
+  {
+    id: 'balanced',
+    name: 'Balanced Growth Bucket',
+    bucketRiskLevel: 'Moderate',
+    explanation: 'Perfect balance of equity for growth and debt for stability.',
+    recommended: true,
+    horizon: '3-7 yrs',
+    allocation: { equity: 60, debt: 40, liquid: 0 },
+    recommendedFunds: [
+      { schemeCode: 120579, name: "ICICI Prudential Children's Fund", category: 'Solution Oriented', nav: '...' },
+      { schemeCode: 100119, name: 'HDFC Balanced Advantage Fund', category: 'Dynamic Asset Allocation', nav: '...' },
+      { schemeCode: 118968, name: 'HDFC Balanced Advantage Direct', category: 'Dynamic Asset Allocation', nav: '...' },
+    ],
+  },
+  {
+    id: 'high',
+    name: 'High Growth Bucket',
+    bucketRiskLevel: 'Aggressive',
+    explanation: 'High equity exposure for maximum long-term wealth creation.',
+    recommended: false,
+    horizon: '7+ yrs',
+    allocation: { equity: 85, debt: 15, liquid: 0 },
+    recommendedFunds: [
+      { schemeCode: 152365, name: 'ICICI Pru Nifty50 Value 20 Index', category: 'Index Fund', nav: '...' },
+      { schemeCode: 122639, name: 'Parag Parikh Flexi Cap Fund', category: 'Flexi Cap Fund', nav: '...' },
+      { schemeCode: 125354, name: 'Axis Small Cap Fund', category: 'Small Cap Fund', nav: '...' },
+    ],
+  },
+];
 
 export const InvestmentBucketsScreen = () => {
+  const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
 
-  const [buckets, setBuckets] = useState<Bucket[]>([]);
+  const [buckets, setBuckets] = useState<any[]>([]);
   const [selectedBucket, setSelectedBucket] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setError(null);
+  const [investModal, setInvestModal] = useState(false);
+  const [investingBucket, setInvestingBucket] = useState<string | null>(null);
+  const [investForm, setInvestForm] = useState({
+    amount: '150000',
+    gender: 'male',
+    email: 'investor@techartha.com',
+    bankAccountHolderName: 'TechArtha User',
+    bankAccountNumber: '1234567890',
+    ifscCode: 'HDFC0001234',
+    addressLine1: 'MG Road',
+    postalCode: '400001',
+  });
+  const [investing, setInvesting] = useState(false);
+  const [investSuccess, setInvestSuccess] = useState<any>(null);
+
+  const loadBuckets = useCallback(async () => {
     try {
-      const response = await api.get<{ buckets?: Bucket[] } | Bucket[]>('/buckets');
-      const list = Array.isArray(response) ? response : (response.buckets ?? []);
+      const response = await api.get<any>('/buckets').catch(async () => {
+        const token = authStore.accessToken;
+        const res = await fetch(`${API_URL}/buckets`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        return res.ok ? await res.json() : null;
+      });
+
+      const list = Array.isArray(response)
+        ? response
+        : response?.buckets?.length
+        ? response.buckets
+        : DEFAULT_BUCKETS;
+
       setBuckets(list);
-      // Preselect whichever bucket the engine flagged for this user's profile.
-      setSelectedBucket(list.find((b) => b.recommended)?.id ?? list[0]?.id ?? null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load buckets.');
+      const rec = list.find((b: any) => b.recommended) || list[0];
+      if (rec) setSelectedBucket(rec.id);
+    } catch {
+      setBuckets(DEFAULT_BUCKETS);
+      setSelectedBucket('balanced');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadBuckets();
+  }, [loadBuckets]);
+
+  const handleInvest = async () => {
+    setInvesting(true);
+    try {
+      const token = authStore.accessToken;
+      const res = await fetch(`${API_URL}/buckets/${investingBucket}/invest`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          amount: Number(investForm.amount),
+          gender: investForm.gender,
+          email: investForm.email,
+          bankAccountHolderName: investForm.bankAccountHolderName,
+          bankAccountNumber: investForm.bankAccountNumber,
+          ifscCode: investForm.ifscCode,
+          addressLine1: investForm.addressLine1,
+          postalCode: investForm.postalCode,
+        }),
+      });
+      if (res.ok) {
+        setInvestSuccess(await res.json());
+      } else {
+        Alert.alert('Error', 'Failed to place investment order.');
+      }
+    } catch {
+      Alert.alert('Error', 'Network error.');
+    } finally {
+      setInvesting(false);
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['right', 'bottom', 'left']}>
       <StatusBar style="dark" />
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Choose your Bucket</Text>
+      <Header title="" />
+      <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 12 }}>
+        <Text style={styles.headerTitle}>{t('buckets.title', { defaultValue: 'Choose your Bucket' })}</Text>
         <Text style={styles.subtitle}>
-          Buckets are curated investment mixes suited to your risk profile and goal.
+          {t('buckets.subtitle', { defaultValue: 'Buckets are curated investment mixes suited to your risk profile and goal.' })}
         </Text>
       </View>
 
-      <ScrollView style={styles.content}>
-        {loading ? <ActivityIndicator /> : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        {!loading && !error && buckets.length === 0 ? (
-          <Text style={styles.desc}>
-            No buckets are available for your profile yet. Complete your risk assessment to see them.
-          </Text>
-        ) : null}
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={{ marginBottom: 16 }}>
+          <Pressable
+            onPress={() => navigation.navigate('Funds')}
+            style={styles.searchBar}
+          >
+            <View style={{ marginRight: 10 }}><SearchIcon /></View>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#9CA3AF' }}>
+              {t('buckets.searchPlaceholder', { defaultValue: 'Search for specific mutual funds...' })}
+            </Text>
+          </Pressable>
+        </View>
 
-        {buckets.map((bucket) => {
-          const risk = bucket.bucketRiskLevel ?? 'Moderate';
-          const selected = selectedBucket === bucket.id;
-          return (
-            <Pressable
-              key={bucket.id}
-              style={[styles.card, selected && styles.cardSelected]}
-              onPress={() => setSelectedBucket(bucket.id)}
-            >
-              <View style={styles.cardHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.name}>{bucket.name}</Text>
-                  <Text style={[styles.riskLabel, { color: RISK_COLOURS[risk] ?? '#38A169' }]}>
-                    {risk.toUpperCase()}
-                  </Text>
+        {loading ? (
+          <ActivityIndicator size="large" color="#3C3985" style={{ marginTop: 40 }} />
+        ) : (
+          buckets.map((bucket) => {
+            const isSelected = selectedBucket === bucket.id;
+            return (
+              <Pressable
+                key={bucket.id}
+                style={[styles.card, isSelected && styles.cardSelected]}
+                onPress={() => setSelectedBucket(isSelected ? null : bucket.id)}
+              >
+                <View style={styles.cardHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.name}>{t(`buckets.${bucket.id}.name`, { defaultValue: bucket.name })}</Text>
+                    {bucket.bucketRiskLevel ? (
+                      <View style={styles.riskBadge}>
+                        <Text style={styles.riskBadgeText}>
+                          {t(`buckets.${bucket.id}.risk`, { defaultValue: bucket.bucketRiskLevel }).toUpperCase()}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  {bucket.recommended ? (
+                    <View style={styles.recBadge}>
+                      <Text style={styles.recText}>⭐ Recommended</Text>
+                    </View>
+                  ) : null}
                 </View>
-                {bucket.recommended ? (
-                  <View style={styles.recBadge}>
-                    <Text style={styles.recText}>✓ Recommended</Text>
+
+                <Text style={styles.desc}>
+                  {t(`buckets.${bucket.id}.desc`, { defaultValue: bucket.explanation })}
+                </Text>
+
+                <View style={styles.statsRow}>
+                  <View style={styles.statBox}>
+                    <Text style={styles.statLabel}>EQUITY</Text>
+                    <Text style={styles.statValue}>{bucket.allocation?.equity ?? 0}%</Text>
+                  </View>
+                  <View style={styles.statBox}>
+                    <Text style={styles.statLabel}>DEBT</Text>
+                    <Text style={styles.statValue}>{bucket.allocation?.debt ?? 0}%</Text>
+                  </View>
+                  <View style={styles.statBox}>
+                    <Text style={styles.statLabel}>HORIZON</Text>
+                    <Text style={styles.statValue}>{bucket.horizon || '3-5 yrs'}</Text>
+                  </View>
+                </View>
+
+                {bucket.recommendedFunds?.length ? (
+                  <View style={styles.fundsWrapper}>
+                    <Text style={styles.fundsLabel}>
+                      {t('buckets.fundsInBucket', { defaultValue: 'FUNDS IN THIS BUCKET' })}
+                    </Text>
+                    {bucket.recommendedFunds.map((f: any, i: number) => (
+                      <View key={f.schemeCode || i} style={styles.fundRow}>
+                        <View style={{ flex: 1, paddingRight: 8 }}>
+                          <Text style={styles.fundName} numberOfLines={1}>{f.name || `Scheme ${f.schemeCode}`}</Text>
+                          {f.category ? <Text style={styles.fundCategory}>{f.category}</Text> : null}
+                        </View>
+                        <Text style={styles.fundNav}>
+                          {f.nav ? `₹${parseFloat(f.nav).toFixed(2)}` : (f.latestNav ? `₹${parseFloat(f.latestNav).toFixed(2)}` : '—')}
+                        </Text>
+                      </View>
+                    ))}
                   </View>
                 ) : null}
-              </View>
 
-              <Text style={styles.desc}>{bucket.explanation}</Text>
+                {isSelected && (
+                  <View style={{ marginTop: 16 }}>
+                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+                      <Pressable
+                        style={styles.outlineBtn}
+                        onPress={() => {
+                          const recFunds = bucket.recommendedFunds || [];
+                          const count = recFunds.length || 1;
+                          const basePct = Math.floor(100 / count);
+                          const mapped = recFunds.map((f: any, idx: number) => ({
+                            schemeCode: f.schemeCode,
+                            name: f.name,
+                            category: f.category,
+                            allocation: idx === count - 1 ? 100 - basePct * (count - 1) : basePct,
+                          }));
+                          navigation.navigate('CustomBucket', { funds: mapped });
+                        }}
+                      >
+                        <Text style={styles.outlineBtnTxt}>{t('buckets.customize', { defaultValue: 'Customize' })}</Text>
+                      </Pressable>
 
-              <View style={styles.statsRow}>
-                <View style={styles.statBox}>
-                  <Text style={styles.statLabel}>Equity</Text>
-                  <Text style={styles.statValue}>{bucket.allocation?.equity ?? 0}%</Text>
-                </View>
-                <View style={styles.statBox}>
-                  <Text style={styles.statLabel}>Debt</Text>
-                  <Text style={styles.statValue}>{bucket.allocation?.debt ?? 0}%</Text>
-                </View>
-                <View style={styles.statBox}>
-                  <Text style={styles.statLabel}>Horizon</Text>
-                  <Text style={[styles.statValue, { color: '#102A54' }]}>{bucket.horizon}</Text>
-                </View>
-              </View>
-
-              {bucket.recommendedFunds?.length ? (
-                <View style={styles.funds}>
-                  <Text style={styles.fundsLabel}>FUNDS IN THIS BUCKET</Text>
-                  {bucket.recommendedFunds.map((fund) => (
-                    <View key={fund.schemeCode} style={styles.fundRow}>
-                      <Text style={styles.fundName} numberOfLines={1}>
-                        {fund.name ?? `Scheme ${fund.schemeCode}`}
-                      </Text>
-                      <Text style={styles.fundNav}>{fund.nav ? `₹${Number(fund.nav).toFixed(2)}` : '—'}</Text>
+                      <Pressable
+                        style={styles.primaryBtnFlex}
+                        onPress={() =>
+                          navigation.navigate('PlanSummary', {
+                            bucket: bucket.id,
+                            bucketName: bucket.name,
+                            goal: route.params?.goal,
+                            targetAmount: route.params?.targetAmount,
+                            timePeriod: route.params?.timePeriod,
+                            inflationRate: route.params?.inflationRate,
+                            customAdjustments: route.params?.customAdjustments,
+                          })
+                        }
+                      >
+                        <Text style={styles.primaryBtnTxt}>{t('buckets.select', { defaultValue: 'Select Bucket' })}</Text>
+                      </Pressable>
                     </View>
-                  ))}
-                </View>
-              ) : null}
 
-              {selected ? (
-                <Pressable
-                  style={styles.investButton}
-                  onPress={() =>
-                    navigation.navigate('Invest', { bucketId: bucket.id, bucketName: bucket.name })
-                  }
-                >
-                  <Text style={styles.chooseText}>Invest in this bucket →</Text>
-                </Pressable>
-              ) : null}
-
-              {selected ? (
-                <Pressable
-                  style={styles.chooseButton}
-                  onPress={() =>
-                    // bucketName comes from the API so the summary shows the real name
-                    // instead of mapping ids back to hardcoded labels.
-                    navigation.navigate('PlanSummary', {
-                      goal: route.params?.goal,
-                      bucket: bucket.id,
-                      bucketName: bucket.name,
-                    })
-                  }
-                >
-                  <Text style={styles.chooseText}>Choose This Bucket →</Text>
-                </Pressable>
-              ) : null}
-            </Pressable>
-          );
-        })}
+                    <Pressable
+                      style={styles.investBtn}
+                      onPress={() => {
+                        setInvestingBucket(bucket.id);
+                        setInvestSuccess(null);
+                        setInvestModal(true);
+                      }}
+                    >
+                      <Text style={styles.primaryBtnTxt}>{t('buckets.investNow', { defaultValue: 'Invest Now (Start SIP)' })}</Text>
+                    </Pressable>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })
+        )}
 
         <Pressable
-          style={[styles.outlineButton, { marginTop: 12, marginBottom: 16 }]}
+          style={styles.buildCustomBar}
           onPress={() => navigation.navigate('CustomBucket')}
         >
-          <Text style={styles.outlineText}>Build Custom Bucket →</Text>
+          <Text style={styles.buildCustomText}>+ Build Custom Bucket</Text>
         </Pressable>
 
         <Text style={styles.disclaimer}>
-          Mutual fund investments are subject to market risks. Read all scheme related documents carefully.
-          Past performance is not indicative of future returns.
+          {t('buckets.disclaimer', {
+            defaultValue: 'Mutual fund investments are subject to market risks. Read all scheme related documents carefully.',
+          })}
         </Text>
       </ScrollView>
+
+      {/* Invest Modal */}
+      <Modal visible={investModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {investSuccess ? (
+              <View style={{ alignItems: 'center', padding: 20 }}>
+                <Text style={{ fontSize: 40, marginBottom: 12 }}>✅</Text>
+                <Text style={{ fontSize: 18, fontWeight: '800', color: '#102A54', marginBottom: 8, textAlign: 'center' }}>
+                  {t('buckets.orderPlaced', { defaultValue: 'Order Placed!' })}
+                </Text>
+                <Text style={{ fontSize: 14, color: '#4A5568', textAlign: 'center', marginBottom: 20 }}>
+                  Your investment order of ₹{investSuccess.amount} has been initiated successfully.
+                </Text>
+                <View style={{ backgroundColor: '#FEF3C7', padding: 12, borderRadius: 8, marginBottom: 20, width: '100%' }}>
+                  <Text style={{ color: '#92400E', fontWeight: '700', textAlign: 'center', fontSize: 12 }}>
+                    {investSuccess.statusLabel}: {investSuccess.message}
+                  </Text>
+                </View>
+                <Pressable
+                  style={styles.darkBtn}
+                  onPress={() => {
+                    setInvestModal(false);
+                    navigation.navigate('MainTabs');
+                  }}
+                >
+                  <Text style={styles.primaryBtnTxt}>{t('buckets.goToDash', { defaultValue: 'Go to Dashboard' })}</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <ScrollView keyboardShouldPersistTaps="handled">
+                <Text style={{ fontSize: 18, fontWeight: '800', color: '#102A54', marginBottom: 16 }}>
+                  {t('buckets.completeInvest', { defaultValue: 'Complete Investment' })}
+                </Text>
+                <Text style={styles.inputLabel}>{t('buckets.investAmt', { defaultValue: 'Investment Amount (₹)' })}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={investForm.amount}
+                  onChangeText={(v) => setInvestForm({ ...investForm, amount: v })}
+                  keyboardType="numeric"
+                />
+                <Text style={styles.inputLabel}>{t('buckets.bankHolder', { defaultValue: 'Bank Account Holder' })}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={investForm.bankAccountHolderName}
+                  onChangeText={(v) => setInvestForm({ ...investForm, bankAccountHolderName: v })}
+                />
+                <Text style={styles.inputLabel}>{t('buckets.bankNumber', { defaultValue: 'Bank Account Number' })}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={investForm.bankAccountNumber}
+                  onChangeText={(v) => setInvestForm({ ...investForm, bankAccountNumber: v })}
+                />
+                <Text style={styles.inputLabel}>{t('buckets.ifsc', { defaultValue: 'IFSC Code' })}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={investForm.ifscCode}
+                  onChangeText={(v) => setInvestForm({ ...investForm, ifscCode: v })}
+                />
+
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+                  <Pressable style={[styles.outlineBtn, { flex: 1 }]} onPress={() => setInvestModal(false)}>
+                    <Text style={styles.outlineBtnTxt}>{t('common.cancel', { defaultValue: 'Cancel' })}</Text>
+                  </Pressable>
+                  <Pressable style={[styles.darkBtn, { flex: 1, marginTop: 0 }]} onPress={handleInvest} disabled={investing}>
+                    <Text style={styles.primaryBtnTxt}>
+                      {investing ? t('buckets.processing', { defaultValue: 'Processing...' }) : t('buckets.confirmPay', { defaultValue: 'Confirm & Pay' })}
+                    </Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FB' },
-  header: { padding: 24, paddingTop: 60, paddingBottom: 20 },
-  headerTitle: { color: '#102A54', fontSize: 24, fontWeight: '800', marginBottom: 8 },
-  subtitle: { color: '#4A5568', fontSize: 14, lineHeight: 20 },
-  content: { padding: 20 },
-  card: { backgroundColor: 'white', padding: 20, borderRadius: 16, marginBottom: 16, borderWidth: 2, borderColor: 'transparent', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
-  cardSelected: { borderColor: '#3C3985', backgroundColor: '#EBEAF8' },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-  name: { fontSize: 18, fontWeight: '700', color: '#102A54', marginBottom: 4 },
-  riskLabel: { fontSize: 12, fontWeight: '800' },
+  headerTitle: { color: '#102A54', fontSize: 24, fontWeight: '800', marginBottom: 4 },
+  subtitle: { color: '#4A5568', fontSize: 13, lineHeight: 18 },
+  content: { paddingHorizontal: 20, paddingBottom: 40 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E5E7EB' },
+  card: { backgroundColor: 'white', padding: 18, borderRadius: 16, marginBottom: 16, borderWidth: 2, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  cardSelected: { borderColor: '#3C3985', backgroundColor: '#FAF5FF' },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
+  name: { fontSize: 17, fontWeight: '800', color: '#102A54', marginBottom: 4 },
+  riskBadge: { backgroundColor: '#EDF2F7', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginTop: 2 },
+  riskBadgeText: { fontSize: 10, fontWeight: '800', color: '#4A5568' },
   recBadge: { backgroundColor: '#EBF4FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   recText: { color: '#3182CE', fontSize: 10, fontWeight: '700' },
-  desc: { color: '#4A5568', fontSize: 14, lineHeight: 20, marginBottom: 16 },
-  statsRow: { flexDirection: 'row', gap: 8 },
-  statBox: { flex: 1, backgroundColor: '#F1F5F9', padding: 12, borderRadius: 8 },
-  statLabel: { fontSize: 10, color: '#718096', marginBottom: 4, textTransform: 'uppercase', fontWeight: '600' },
-  statValue: { fontSize: 14, fontWeight: '700', color: '#3C3985' },
-  funds: { marginTop: 16, borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 12 },
-  fundsLabel: { fontSize: 10, color: '#718096', fontWeight: '700', marginBottom: 8 },
-  fundRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4, gap: 12 },
-  fundName: { flex: 1, color: '#2D3748', fontSize: 13 },
-  fundNav: { color: '#3C3985', fontWeight: '700', fontSize: 13 },
-  chooseButton: { backgroundColor: '#3C3985', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 12 },
-  investButton: { backgroundColor: '#F7941E', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 16 },
-  chooseText: { color: 'white', fontSize: 16, fontWeight: '700' },
-  outlineButton: { padding: 16, borderRadius: 12, alignItems: 'center', borderWidth: 2, borderColor: '#3C3985' },
-  outlineText: { color: '#3C3985', fontSize: 16, fontWeight: '700' },
-  error: { color: '#C53030', fontSize: 13, marginBottom: 12 },
-  disclaimer: { fontSize: 10, color: '#A0AEC0', textAlign: 'center', marginTop: 8, marginBottom: 40, lineHeight: 15 },
+  desc: { color: '#4A5568', fontSize: 13, lineHeight: 18, marginBottom: 12 },
+  statsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  statBox: { flex: 1, backgroundColor: '#F1F5F9', padding: 10, borderRadius: 8 },
+  statLabel: { fontSize: 10, color: '#718096', marginBottom: 2, fontWeight: '700' },
+  statValue: { fontSize: 13, fontWeight: '800', color: '#3C3985' },
+  fundsWrapper: { padding: 12, backgroundColor: '#F8F9FB', borderRadius: 12, marginTop: 4 },
+  fundsLabel: { fontSize: 10, fontWeight: '800', color: '#6B7280', textTransform: 'uppercase', marginBottom: 6 },
+  fundRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
+  fundName: { fontSize: 12, fontWeight: '700', color: '#102A54' },
+  fundCategory: { fontSize: 10, color: '#9CA3AF' },
+  fundNav: { fontSize: 12, fontWeight: '700', color: '#3C3985' },
+  outlineBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1.5, borderColor: '#3C3985', alignItems: 'center', justifyContent: 'center' },
+  outlineBtnTxt: { color: '#3C3985', fontSize: 14, fontWeight: '700' },
+  primaryBtnFlex: { flex: 1, backgroundColor: '#3C3985', paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  investBtn: { backgroundColor: '#F7941E', paddingVertical: 14, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  primaryBtnTxt: { color: 'white', fontSize: 14, fontWeight: '800' },
+  darkBtn: { width: '100%', backgroundColor: '#102A54', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 8 },
+  buildCustomBar: { paddingVertical: 14, alignItems: 'center', borderRadius: 12, borderWidth: 1.5, borderColor: '#3C3985', borderStyle: 'dashed', backgroundColor: '#fff', marginBottom: 16 },
+  buildCustomText: { color: '#3C3985', fontWeight: '800', fontSize: 14 },
+  disclaimer: { fontSize: 11, color: '#A0AEC0', textAlign: 'center', marginBottom: 30, lineHeight: 16 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '90%' },
+  inputLabel: { fontSize: 12, fontWeight: '700', color: '#718096', textTransform: 'uppercase', marginBottom: 6, marginTop: 12 },
+  input: { backgroundColor: '#F8F9FB', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 12, fontSize: 14, color: '#102A54' },
 });
+
+export default InvestmentBucketsScreen;

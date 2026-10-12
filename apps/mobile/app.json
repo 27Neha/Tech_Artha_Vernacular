@@ -1,41 +1,37 @@
 {
   "expo": {
     "name": "TechArtha",
-    "slug": "techartha",
+    "slug": "techartha-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1653B0"
+    },
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.techartha.app",
-      "infoPlist": {
-        "NSLocalNetworkUsageDescription": "TechArtha uses your local network to connect to a development server while testing.",
-        "NSAppTransportSecurity": {
-          "NSAllowsLocalNetworking": true
-        }
-      }
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1653B0"
       },
-      "predictiveBackGestureEnabled": false,
-      "package": "com.techartha.app",
-      "permissions": [
-        "INTERNET"
-      ]
+      "package": "com.techartha.mobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-secure-store",
-      "expo-status-bar"
+      "expo-status-bar",
+      "@react-native-community/datetimepicker",
+      "expo-sharing"
     ],
-    "scheme": "techartha"
+    "scheme": "techartha",
+    "sdkVersion": "57.0.0"
   }
 }

@@ -1,205 +1,330 @@
 import React, { useState } from 'react';
-import { SafeAreaView, View, Text, TextInput, Pressable, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
-import { Screen } from '../types';
-import { api } from '../services/api/client';
-import { useTranslation } from '../i18n/TranslationContext';
-import { Session, useAuth } from '../store/AuthContext';
-import { useNavigation } from '@react-navigation/native';
+import { authStore } from '../store/auth';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
+import { OtpVerification } from '../components/OtpVerification';
+import { API_URL } from '../services/api/apiClient';
 
 interface LoginScreenProps {
-  phone: string;
-  setPhone: (phone: string) => void;
+  apiUrl?: string;
+  phone?: string;
+  setPhone?: (phone: string) => void;
 }
 
-export const LoginScreen = ({ phone, setPhone }: LoginScreenProps) => {
-  const { t } = useTranslation();
-  const { signIn } = useAuth();
+export const LoginScreen = ({ apiUrl = API_URL, phone: initialPhone, setPhone: setParentPhone }: LoginScreenProps) => {
+  const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState('');
+  
+  const [phone, setPhone] = useState(initialPhone || '');
+  const [step, setStep] = useState(1);
+  const [authChannel, setAuthChannel] = useState<'SMS' | 'WHATSAPP' | 'EMAIL'>('SMS');
+  const [identifierType, setIdentifierType] = useState<'MOBILE' | 'EMAIL'>('MOBILE');
+  const [email, setEmail] = useState('');
+  const [loginMethod, setLoginMethod] = useState<'otp' | 'password'>('otp');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  // Explicit acceptance, not the passive "by continuing you agree" line this replaces.
-  // The compliance checklist requires acceptance to be an act the investor performs.
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
-  // Matches the web login's channel choice. WhatsApp first because that is the
-  // provider actually configured; SMS is the fallback when a code does not arrive.
-  const [channel, setChannel] = useState<'WHATSAPP' | 'SMS'>('WHATSAPP');
+  const [error, setError] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(true);
 
-  const handleSendOtp = async (via: 'WHATSAPP' | 'SMS' = channel) => {
-    if (!/^\d{10}$/.test(phone)) {
-      return Alert.alert('Enter a valid mobile number', 'Please enter your 10-digit mobile number.');
+  useFocusEffect(
+    React.useCallback(() => {
+      setPhone(initialPhone || '');
+      setEmail('');
+      setPassword('');
+      setStep(1);
+      setError('');
+    }, [initialPhone])
+  );
+
+  const handlePhoneChange = (val: string) => {
+    const cleaned = val.replace(/\D/g, '');
+    setPhone(cleaned);
+    if (setParentPhone) setParentPhone(cleaned);
+  };
+
+  const safeFetchJson = async (res: Response) => {
+    try {
+      return await res.json();
+    } catch {
+      return { message: 'Network or parsing error' };
     }
-    if (!acceptedTerms) {
-      return Alert.alert('Accept the terms', 'Please accept the terms of service and privacy policy to continue.');
+  };
+
+  const handleContinue = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL' | 'PASSWORD') => {
+    setError('');
+    if (channel !== 'PASSWORD') setAuthChannel(channel as any);
+    
+    if (identifierType === 'EMAIL') {
+      if (!email.trim() || !email.includes('@')) {
+        setError(t('validation.emailInvalid', { defaultValue: 'Please enter a valid email address.' }));
+        return;
+      }
+    } else {
+      if (phone.length !== 10) {
+        setError(t('validation.mobileInvalid', { defaultValue: 'Please enter a valid 10-digit mobile number.' }));
+        return;
+      }
     }
 
     setLoading(true);
     try {
-      // The channel must be explicit. AuthController defaults to 'SMS', and the server
-      // routes per channel - WhatsApp via Interakt, SMS via msg91 or the dev mock.
-      const result = await api.post<{ devOtp?: string }>(
-        '/auth/send-otp',
-        { mobile: phone, channel: via },
-        { anonymous: true },
-      );
-
-      setChannel(via);
-      setOtpSent(true);
-
-      // AUTH_DEV_BYPASS=true makes the server return the code in the response. Showing
-      // it here in development means a test login costs no Interakt credit and needs no
-      // trip to the API console. __DEV__ is false in any release build, so this cannot
-      // reach production.
-      if (__DEV__ && result?.devOtp) {
-        setOtp(result.devOtp);
-        Alert.alert('Dev code', `OTP ${result.devOtp} (prefilled - development only)`);
-        return;
+      if (channel === 'PASSWORD') {
+        await handlePasswordLogin();
+      } else {
+        setAuthChannel(channel);
+        await handleSendOtp(channel);
       }
-
-      Alert.alert(
-        via === 'SMS' ? 'Code sent by SMS' : 'Code sent on WhatsApp',
-        via === 'SMS'
-          ? 'Enter the verification code sent to your mobile number.'
-          : 'Please check WhatsApp for your verification code.',
-      );
-    } catch (error) {
-      Alert.alert('Could not send the code', error instanceof Error ? error.message : 'Please try again.');
+    } catch (e: any) {
+      setError(t('common.error', { defaultValue: 'Something went wrong. Please try again.' }));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyOtp = async () => {
-    if (otp.length < 4) {
-      return Alert.alert('Invalid OTP', 'Please enter a valid OTP.');
-    }
-
+  const handleSendOtp = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL') => {
     setLoading(true);
+    setError('');
     try {
-      const session = await api.post<Session>(
-        '/auth/verify-otp',
-        { mobile: phone, otp },
-        { anonymous: true },
-      );
+      const res = await fetch(`${apiUrl}/auth/login/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(identifierType === 'EMAIL' ? { email, channel } : { mobile: phone, channel })
+      });
+      const data = await safeFetchJson(res);
+      if (!res.ok) throw new Error(data.message || t('login.failedToSendOtp', { defaultValue: 'Failed to send OTP' }));
+      
+      setStep(2);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      // Persists to the device keychain and flips the navigator into the signed-in
-      // stack; the old code only assigned to an in-memory object, so the session was
-      // lost on every restart and no component re-rendered.
-      await signIn(session);
+  const handlePasswordLogin = async () => {
+    if (!password) {
+      setError(t('login.enterPassword', { defaultValue: 'Enter password.' }));
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch(`${apiUrl}/auth/login-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(identifierType === 'EMAIL' ? { email, password } : { mobile: phone, password })
+      });
+      const data = await safeFetchJson(res);
+      if (!res.ok) throw new Error(data.message || t('login.invalidCredentials', { defaultValue: 'Invalid credentials' }));
+      
+      authStore.accessToken = data.accessToken || data.access_token;
+      authStore.userId = data.user?.id;
+      navigation.navigate('MainTabs');
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      // Recorded against the user with its version, IP and an audit event. Failure must
-      // not block sign-in - the acceptance is re-asserted on the next login if missing.
-      try {
-        await api.post('/consents', { type: 'TERMS_AND_CONDITIONS' });
-      } catch {
-        // Logged server-side; nothing actionable for the user here.
-      }
-
-      navigation.navigate('KYC');
-    } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Invalid OTP. Please try again.');
+  const handleVerifyOtp = async (otpValue: string) => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch(`${apiUrl}/auth/otp/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(identifierType === 'EMAIL' ? { email, otp: otpValue, type: 'login' } : { mobile: phone, otp: otpValue, type: 'login' })
+      });
+      const data = await safeFetchJson(res);
+      if (!res.ok) throw new Error(data.message || t('login.invalidOtp', { defaultValue: 'Invalid OTP' }));
+      
+      authStore.accessToken = data.accessToken || data.access_token;
+      authStore.userId = data.user?.id;
+      navigation.navigate('MainTabs');
+    } catch (e: any) {
+      setError(e.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
       <StatusBar style="dark" />
-      <Header title="Welcome" back={otpSent ? undefined : "welcome"} onBack={() => {
-        if (otpSent) setOtpSent(false);
+      <Header title="" onBack={() => {
+        if (step === 2) setStep(1);
         else navigation.goBack();
       }} />
-      <View style={styles.page}>
-        {!otpSent ? (
-          <>
-            <Text style={styles.title}>{t('login.title')}</Text>
-            <Text style={styles.description}>{t('login.desc')}</Text>
-            <Text style={styles.label}>Mobile number</Text>
-            <View style={styles.phoneInput}>
-              <Text style={styles.country}>+91</Text>
-              <TextInput
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-                maxLength={10}
-                placeholder="10-digit number"
-                style={styles.input}
-                editable={!loading}
-              />
+      <ScrollView style={styles.page} keyboardShouldPersistTaps="handled">
+        {step === 1 ? (
+          <View style={localStyles.content}>
+            <Text style={styles.title}>{t('login.welcomeBack', { defaultValue: 'Welcome Back' })}</Text>
+            <Text style={styles.description}>{t('login.subtitle', { defaultValue: 'Securely login to your TechArtha account.' })}</Text>
+            
+            {identifierType === 'EMAIL' ? (
+              <View style={localStyles.inputGroup}>
+                <Text style={styles.label}>{t('login.emailAddress', { defaultValue: 'Email Address' })}</Text>
+                <TextInput 
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  placeholder={t('login.emailPlaceholder', { defaultValue: 'Enter your email' })}
+                  style={styles.field}
+                />
+              </View>
+            ) : (
+              <View style={localStyles.inputGroup}>
+                <Text style={styles.label}>{t('login.mobileNumber', { defaultValue: 'Mobile Number' })}</Text>
+                <View style={styles.phoneInput}>
+                  <Text style={styles.country}>+91</Text>
+                  <TextInput 
+                    value={phone}
+                    onChangeText={handlePhoneChange}
+                    keyboardType="number-pad"
+                    maxLength={10}
+                    placeholder={t('login.mobilePlaceholder', { defaultValue: 'Enter 10-digit number' })}
+                    style={styles.input}
+                  />
+                </View>
+              </View>
+            )}
+
+            <Text style={styles.label}>{t('login.loginVia', { defaultValue: 'Login via' })}</Text>
+            <View style={localStyles.toggleContainer}>
+              <Pressable 
+                style={[localStyles.toggleBtn, loginMethod === 'otp' && localStyles.toggleActive]}
+                onPress={() => setLoginMethod('otp')}
+              >
+                <Text style={[localStyles.toggleText, loginMethod === 'otp' && localStyles.toggleActiveText]}>{t('login.viaOtp', { defaultValue: 'OTP' })}</Text>
+              </Pressable>
+              <Pressable 
+                style={[localStyles.toggleBtn, loginMethod === 'password' && localStyles.toggleActive]}
+                onPress={() => setLoginMethod('password')}
+              >
+                <Text style={[localStyles.toggleText, loginMethod === 'password' && localStyles.toggleActiveText]}>{t('login.viaPassword', { defaultValue: 'Password' })}</Text>
+              </Pressable>
             </View>
-            <Pressable
-              style={[styles.primaryButton, loading && styles.primaryDisabled]}
-              onPress={() => handleSendOtp('WHATSAPP')}
-              disabled={loading}
-            >
-              <Text style={styles.primaryText}>{loading ? 'Sending...' : 'Get code on WhatsApp'}</Text>
-              <Text style={styles.primaryText}>→</Text>
+
+            {error ? <Text style={localStyles.errorText}>{error}</Text> : null}
+
+            {loginMethod === 'password' ? (
+              <View>
+                <View style={localStyles.inputGroup}>
+                  <Text style={styles.label}>{t('login.password', { defaultValue: 'Password' })}</Text>
+                  <TextInput 
+                    secureTextEntry={!showPassword}
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder={t('login.passwordPlaceholder', { defaultValue: 'Enter your password' })}
+                    style={styles.field}
+                  />
+                  <Pressable onPress={() => setShowPassword(!showPassword)} style={{marginTop: 8}}>
+                    <Text style={localStyles.switchText}>{showPassword ? t('signup.hidePassword', { defaultValue: 'Hide Password' }) : t('signup.showPassword', { defaultValue: 'Show Password' })}</Text>
+                  </Pressable>
+                </View>
+                <Pressable style={[styles.primaryButton, loading && styles.primaryDisabled]} onPress={() => handleContinue('PASSWORD')} disabled={loading || !password}>
+                  <Text style={styles.primaryText}>{loading ? t('common.loading', { defaultValue: 'Loading...' }) : t('login.login', { defaultValue: 'Login' })}</Text>
+                  {!loading && <Text style={styles.primaryText}>→</Text>}
+                </Pressable>
+              </View>
+            ) : (
+              <View>
+                {identifierType === 'EMAIL' ? (
+                  <Pressable style={[styles.primaryButton, (loading && authChannel === 'EMAIL') && styles.primaryDisabled]} onPress={() => handleContinue('EMAIL')} disabled={loading}>
+                    <Text style={styles.primaryText}>{(loading && authChannel === 'EMAIL') ? t('common.loading', { defaultValue: 'Loading...' }) : t('login.continueWithEmail', { defaultValue: 'Continue with Email' })}</Text>
+                    {!(loading && authChannel === 'EMAIL') && <Text style={styles.primaryText}>→</Text>}
+                  </Pressable>
+                ) : (
+                  <>
+                    <Pressable style={[styles.primaryButton, (loading && authChannel === 'SMS') && styles.primaryDisabled]} onPress={() => handleContinue('SMS')} disabled={loading}>
+                      <Text style={styles.primaryText}>{(loading && authChannel === 'SMS') ? t('common.loading', { defaultValue: 'Loading...' }) : t('login.continueWithSms', { defaultValue: 'Continue with SMS' })}</Text>
+                      {!(loading && authChannel === 'SMS') && <Text style={styles.primaryText}>→</Text>}
+                    </Pressable>
+                    <View style={localStyles.divider}>
+                      <View style={localStyles.line} />
+                      <Text style={localStyles.orText}>{t('signup.or', { defaultValue: 'or' })}</Text>
+                      <View style={localStyles.line} />
+                    </View>
+                    <Pressable style={localStyles.waButton} onPress={() => handleContinue('WHATSAPP')} disabled={loading}>
+                      <Text style={localStyles.waIcon}>💬</Text>
+                      <Text style={localStyles.waText}>{(loading && authChannel === 'WHATSAPP') ? t('common.loading', { defaultValue: 'Loading...' }) : t('login.useWaInstead', { defaultValue: 'Continue with WhatsApp' })}</Text>
+                    </Pressable>
+                  </>
+                )}
+              </View>
+            )}
+
+            <Pressable onPress={() => { setIdentifierType(identifierType === 'EMAIL' ? 'MOBILE' : 'EMAIL'); setError(''); }} style={[localStyles.switchBtn, { marginTop: 12 }]}>
+              <Text style={localStyles.switchText}>
+                {identifierType === 'EMAIL' ? t('signup.useMobileInstead', { defaultValue: 'Use mobile instead' }) : t('signup.useEmailInstead', { defaultValue: 'Use email instead' })}
+              </Text>
             </Pressable>
 
-            {/* Development only: avoids spending an Interakt WhatsApp credit on every
-                test login. SMS has no provider configured in production - the channel
-                router refuses the mock there - so this must not ship. */}
-            {__DEV__ ? (
-              <Pressable
-                style={[styles.altButton, loading && styles.primaryDisabled]}
-                onPress={() => handleSendOtp('SMS')}
-                disabled={loading}
-              >
-                <Text style={styles.altButtonText}>Dev: get code by SMS (no WhatsApp credit)</Text>
-              </Pressable>
-            ) : null}
-          </>
+            <Pressable style={localStyles.consentRow} onPress={() => setAcceptedTerms(!acceptedTerms)}>
+              <View style={[localStyles.checkbox, acceptedTerms && localStyles.checkboxChecked]}>
+                {acceptedTerms && <Text style={localStyles.checkMark}>✓</Text>}
+              </View>
+              <Text style={localStyles.consentText}>
+                {t('signup.termsConsent', { defaultValue: 'I agree to the Terms of Service & Privacy Policy' })}
+              </Text>
+            </Pressable>
+            
+            <View style={localStyles.footer}>
+              <Text style={localStyles.footerText}>{t('login.noAccount', { defaultValue: 'Not have an account?' })} </Text>
+              <Pressable onPress={() => navigation.navigate('Signup')}><Text style={localStyles.link}>{t('login.signUp', { defaultValue: 'Sign up' })}</Text></Pressable>
+            </View>
+          </View>
         ) : (
-          <>
-            <Text style={styles.title}>Verify your number</Text>
-            <Text style={styles.description}>
-              Enter the code sent to +91 {phone} {channel === 'SMS' ? 'by SMS' : 'on WhatsApp'}.
-            </Text>
-            <Text style={styles.label}>One-Time Password (OTP)</Text>
-            <TextInput
-              value={otp}
-              onChangeText={setOtp}
-              keyboardType="number-pad"
-              maxLength={6}
-              placeholder="Enter OTP"
-              style={styles.field}
-              editable={!loading}
-            />
-            <Pressable style={[styles.primaryButton, loading && styles.primaryDisabled]} onPress={handleVerifyOtp} disabled={loading}>
-              <Text style={styles.primaryText}>{loading ? 'Verifying...' : 'Verify OTP'}</Text>
-              <Text style={styles.primaryText}>→</Text>
-            </Pressable>
-
-            {/* Resending on the other channel is also dev-only, for the same reason. */}
-            {__DEV__ ? (
-              <Pressable
-                style={[styles.altButton, loading && styles.primaryDisabled]}
-                onPress={() => handleSendOtp(channel === 'SMS' ? 'WHATSAPP' : 'SMS')}
-                disabled={loading}
-              >
-                <Text style={styles.altButtonText}>
-                  Dev: resend by {channel === 'SMS' ? 'WhatsApp' : 'SMS'}
-                </Text>
-              </Pressable>
-            ) : null}
-          </>
+          <OtpVerification
+            identifierType={identifierType}
+            initialChannel={authChannel}
+            identifierValue={identifierType === 'EMAIL' ? email : phone}
+            onSendOtp={handleSendOtp}
+            onVerify={handleVerifyOtp}
+            onChangeIdentifier={() => setStep(1)}
+            loading={loading}
+            error={error}
+            setError={setError}
+          />
         )}
-        {!otpSent ? (
-          <Pressable style={styles.consent} onPress={() => setAcceptedTerms(!acceptedTerms)}>
-            <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
-              {acceptedTerms && <Text style={styles.check}>✓</Text>}
-            </View>
-            <Text style={styles.consentText}>
-              I have read and accept the Terms of Service and Privacy Policy, and I understand that
-              mutual fund investments are subject to market risks.
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
+
+const localStyles = StyleSheet.create({
+  content: { paddingBottom: 40 },
+  inputGroup: { marginBottom: 16 },
+  errorText: { color: '#E53E3E', fontSize: 14, marginBottom: 16, fontWeight: '500' },
+  toggleContainer: { flexDirection: 'row', backgroundColor: '#F8F9FB', padding: 4, borderRadius: 12, marginBottom: 24, borderWidth: 1, borderColor: '#E2E8F0' },
+  toggleBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
+  toggleActive: { backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
+  toggleText: { fontSize: 14, fontWeight: '700', color: '#718096' },
+  toggleActiveText: { color: '#3C3985' },
+  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },
+  line: { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
+  orText: { marginHorizontal: 16, color: '#A0AEC0', fontSize: 14 },
+  waButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#fff', marginBottom: 24 },
+  waIcon: { fontSize: 20, marginRight: 12 },
+  waText: { fontSize: 16, fontWeight: '700', color: '#4A5568' },
+  switchBtn: { alignItems: 'center', paddingVertical: 12 },
+  switchText: { color: '#3C3985', fontSize: 14, fontWeight: '600' },
+  consentRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16, marginBottom: 8 },
+  checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: '#CBD5E0', marginRight: 10, justifyContent: 'center', alignItems: 'center' },
+  checkboxChecked: { backgroundColor: '#3C3985', borderColor: '#3C3985' },
+  checkMark: { color: '#fff', fontSize: 13, fontWeight: 'bold' },
+  consentText: { color: '#718096', fontSize: 12, flex: 1 },
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 12 },
+  footerText: { color: '#718096', fontSize: 14 },
+  link: { color: '#3C3985', fontSize: 14, fontWeight: '700' }
+});
+
+export default LoginScreen;

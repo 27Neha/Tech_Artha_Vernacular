@@ -689,5 +689,15 @@
   "signup.showPassword": "പാസ്‌വേഡ് കാണിക്കുക",
   "signup.failedToSavePassword": "പാസ്‌വേഡ് സംരക്ഷിക്കുന്നതിൽ പരാജയപ്പെട്ടു",
   "signup.anErrorOccurred": "ഒരു പിശക് സംഭവിച്ചു",
-  "signup.passwordMismatch": "പാസ്‌വേഡുകൾ പൊരുത്തപ്പെടുന്നില്ല"
+  "signup.passwordMismatch": "പാസ്‌വേഡുകൾ പൊരുത്തപ്പെടുന്നില്ല",
+  "profile.familyPortfolio": "Family Portfolio",
+  "profile.familyDesc": "Manage wealth together",
+  "profile.accountSettings": "Account Settings",
+  "profile.settingsDesc": "Language, themes, notifications",
+  "profile.aiAssistant": "AI / Client Assistance",
+  "profile.aiDesc": "24/7 AI chat support",
+  "profile.contact": "Contact Us",
+  "profile.contactDesc": "Get in touch with support",
+  "profile.terms": "Terms & Conditions",
+  "profile.termsDesc": "Legal agreements and policies"
 }
