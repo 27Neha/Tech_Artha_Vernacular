@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { exitOnboarding } from '../utils/navigation';
 import { useTranslation } from 'react-i18next';
 import { Header } from '../components/Header';
 
@@ -82,7 +83,10 @@ export const RiskResultScreen = () => {
           <Text style={styles.primaryBtnText}>→</Text>
         </Pressable>
 
-        <Pressable style={styles.skipBtn} onPress={() => navigation.navigate('MainTabs')}>
+        {/* reset rather than navigate: the onboarding stack must not stay behind the
+            main app, or the back gesture walks into a finished assessment. Lands on
+            Profile, where the deferred investment step can be resumed. */}
+        <Pressable style={styles.skipBtn} onPress={() => exitOnboarding(navigation)}>
           <Text style={styles.skipBtnText}>Skip for now</Text>
         </Pressable>
       </ScrollView>

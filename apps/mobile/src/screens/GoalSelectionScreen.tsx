@@ -3,6 +3,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet, TextInput } from 'react-
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
+import { exitOnboarding } from '../utils/navigation';
 import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
 
@@ -174,12 +175,19 @@ export const GoalSelectionScreen = () => {
         >
           <Text style={styles.buttonText}>{t('goals.chooseInvestmentPlan', { defaultValue: 'Choose Investment Plan' })} →</Text>
         </Pressable>
+        {/* Nothing is committed at this step, so leaving discards only the selection. */}
+        <Pressable style={styles.laterButton} onPress={() => exitOnboarding(navigation)}>
+          <Text style={styles.laterText}>{t('common.skipForNow', { defaultValue: 'Skip for now' })}</Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  laterButton: { paddingVertical: 12, alignItems: 'center' },
+  laterText: { color: '#718096', fontSize: 14, fontWeight: '600' },
+
   container: { flex: 1, backgroundColor: '#F8F9FB' },
   header: { backgroundColor: '#3C3985', padding: 24, paddingTop: 60, paddingBottom: 40 },
   backButton: { marginBottom: 16 },

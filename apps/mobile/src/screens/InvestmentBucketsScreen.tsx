@@ -3,6 +3,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet, Modal, TextInput, Alert,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { exitOnboarding } from '../utils/navigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Header } from '../components/Header';
 import { SearchIcon } from '../components/Icons';
@@ -272,6 +273,14 @@ export const InvestmentBucketsScreen = () => {
             </Pressable>
           );
         })}
+        {/* The last step of the funnel and the one most worth being able to defer:
+            choosing a bucket is the decision that costs money. */}
+        <Pressable style={styles.laterButton} onPress={() => exitOnboarding(navigation)}>
+          <Text style={styles.laterText}>
+            {t('buckets.decideLater', { defaultValue: 'Decide later - take me to my profile' })}
+          </Text>
+        </Pressable>
+
         <Text style={styles.disclaimer}>{t('buckets.disclaimer', { defaultValue: 'Mutual Fund investments are subject to market risks.' })}</Text>
       </ScrollView>
 
@@ -335,6 +344,8 @@ const styles = StyleSheet.create({
   primaryBtnFlex: { flex: 1, backgroundColor: '#3C3985', paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   darkBtn: { width: '100%', backgroundColor: '#102A54', paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   primaryBtnTxt: { color: 'white', fontSize: 15, fontWeight: '800' },
+  laterButton: { paddingVertical: 14, alignItems: 'center', marginTop: 4 },
+  laterText: { color: '#3C3985', fontSize: 14, fontWeight: '700' },
   disclaimer: { fontSize: 10, color: '#A0AEC0', textAlign: 'center', marginTop: 8, marginBottom: 40 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '90%' },

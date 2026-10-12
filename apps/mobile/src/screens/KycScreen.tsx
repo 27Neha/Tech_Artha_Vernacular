@@ -6,6 +6,7 @@ import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
 import { authStore } from '../store/auth';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { exitOnboarding } from '../utils/navigation';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTranslation } from 'react-i18next';
 
@@ -73,8 +74,11 @@ export const KycScreen = (props: KycScreenProps) => {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message ?? 'KYC could not be started.');
+      // KYC is persisted server-side, so the investor can stop here rather than being
+      // held in the funnel until they have also assessed their risk profile.
       Alert.alert('KYC Verified', result.message || 'Verification complete!', [
-        { text: 'OK', onPress: () => navigation.navigate('RiskAssessment') }
+        { text: 'Later', style: 'cancel', onPress: () => exitOnboarding(navigation) },
+        { text: 'Continue', onPress: () => navigation.navigate('RiskAssessment') },
       ]);
     } catch (error) { 
       Alert.alert('KYC could not be started', error instanceof Error ? error.message : 'Please try again.'); 

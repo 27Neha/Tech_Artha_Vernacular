@@ -37,6 +37,10 @@ export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
   const [showPassword, setShowPassword] = useState(false);
   
   const [loading, setLoading] = useState(false);
+  // Cybrilla compliance point 11: consent must be an explicit, unticked action before
+  // any credential is sent, not implied by continuing. Restored after the b657c9f merge,
+  // whose version of this screen had no consent gate.
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState('');
 
   const safeFetchJson = async (res: Response) => {
@@ -49,6 +53,17 @@ export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
 
   const handleContinue = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL' | 'PASSWORD') => {
     setError('');
+    // Guarded here rather than on each button: all four entry points - SMS, WhatsApp,
+    // email and password - come through this function, so one check cannot be bypassed
+    // by a path someone adds later.
+    if (!acceptedTerms) {
+      setError(
+        t('validation.termsRequired', {
+          defaultValue: 'Please accept the Terms & Conditions and Privacy Policy to continue.',
+        }),
+      );
+      return;
+    }
     if (channel !== 'PASSWORD') setAuthChannel(channel as any);
     
     if (identifierType === 'EMAIL') {
@@ -189,6 +204,23 @@ export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
               </View>
             )}
 
+            <Pressable
+              style={localStyles.termsRow}
+              onPress={() => setAcceptedTerms((prev) => !prev)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: acceptedTerms }}
+            >
+              <View style={[localStyles.checkbox, acceptedTerms && localStyles.checkboxOn]}>
+                {acceptedTerms ? <Text style={localStyles.checkboxTick}>✓</Text> : null}
+              </View>
+              <Text style={localStyles.termsText}>
+                {t('login.acceptTerms', {
+                  defaultValue:
+                    'I agree to the Terms & Conditions and the Privacy Policy, and to receive transaction updates about my investments.',
+                })}
+              </Text>
+            </Pressable>
+
             <Text style={styles.label}>{t('login.loginVia', { defaultValue: 'Login via' })}</Text>
             <View style={localStyles.toggleContainer}>
               <Pressable 
@@ -284,6 +316,12 @@ export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
 };
 
 const localStyles = StyleSheet.create({
+  termsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 20, marginBottom: 4 },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#A0AEC0', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  checkboxOn: { backgroundColor: '#3C3985', borderColor: '#3C3985' },
+  checkboxTick: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  termsText: { flex: 1, color: '#4A5568', fontSize: 12, lineHeight: 18 },
+
   content: { paddingBottom: 40 },
   inputGroup: { marginBottom: 16 },
   errorText: { color: '#E53E3E', fontSize: 14, marginBottom: 16, fontWeight: '500' },

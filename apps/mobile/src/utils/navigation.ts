@@ -9,7 +9,7 @@ import type { NavigationProp } from '@react-navigation/native';
  * src/utils/__tests__/navigation.spec.ts reads App.tsx to assert the two agree - the
  * failure mode of silent drift is a tab that vanishes, which is easy to miss.
  */
-export const MAIN_TAB_ROUTES = ['Home', 'Portfolio', 'Expenses', 'Learn', 'Profile'] as const;
+export const MAIN_TAB_ROUTES = ['Home', 'Portfolio', 'Expenses', 'Assistant', 'Profile'] as const;
 
 export type MainTabName = (typeof MAIN_TAB_ROUTES)[number];
 

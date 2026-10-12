@@ -6,8 +6,17 @@ import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authStore } from '../store/auth';
+import { api } from '../services/api/client';
 
-const QUESTIONS = [
+/**
+ * Fallback only. The questionnaire is fetched from GET /risk/questionnaire, because the
+ * API scores by question id: a bare array of scores is mapped positionally onto its own
+ * RISK_QUESTIONS, so a locally-authored list in a different order gets stored under the
+ * wrong ids and the generated reasons describe questions the investor never answered.
+ *
+ * Three divergent copies of this questionnaire existed before; fetching leaves one.
+ */
+const FALLBACK_QUESTIONS = [
   { id: 1, question: "Current market value of net worth (Assets - Liabilities)", options: [{ label: "Negative/0", score: 1 }, { label: "< 10L", score: 2 }, { label: "10L-50L", score: 3 }, { label: "> 50L", score: 4 }, { label: "> 1Cr", score: 5 }] },
   { id: 2, question: "How familiar are you with financial markets?", options: [{ label: "Not at all", score: 1 }, { label: "Somewhat", score: 2 }, { label: "Good", score: 3 }, { label: "Very familiar", score: 4 }, { label: "Expert", score: 5 }] },
   { id: 3, question: "Describe your risk range (losses vs profits)", options: [{ label: "Hate losses", score: 1 }, { label: "Accept small losses for small gains", score: 2 }, { label: "Accept moderate", score: 3 }, { label: "Accept high for high gains", score: 4 }, { label: "Maximum risk", score: 5 }] },
@@ -31,8 +40,29 @@ export const RiskAssessmentScreen = () => {
   const [answers, setAnswers] = useState<number[]>([]);
   const [selectedScore, setSelectedScore] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [questions, setQuestions] = useState<
+    { id: string | number; question: string; options: { label: string; score: number }[] }[]
+  >(FALLBACK_QUESTIONS);
 
-  const q = QUESTIONS[current];
+  useEffect(() => {
+    let active = true;
+    api
+      .get<{ questions?: { id: string; prompt: string; options: { label: string; score: number }[] }[] }>(
+        '/risk/questionnaire',
+      )
+      .then((data) => {
+        if (!active || !data?.questions?.length) return;
+        setQuestions(data.questions.map((item) => ({ id: item.id, question: item.prompt, options: item.options })));
+      })
+      .catch(() => {
+        // Keep the fallback rather than blocking the assessment on a fetch.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const q = questions[current];
 
   useEffect(() => {
     if (answers[current] !== undefined) {
@@ -48,7 +78,7 @@ export const RiskAssessmentScreen = () => {
     const newAnswers = [...answers.slice(0, current), selectedScore];
     setAnswers(newAnswers);
 
-    if (current < QUESTIONS.length - 1) {
+    if (current < questions.length - 1) {
       setCurrent(current + 1);
     } else {
       setLoading(true);
@@ -60,7 +90,11 @@ export const RiskAssessmentScreen = () => {
             'Content-Type': 'application/json',
             ...(token ? { 'Authorization': `Bearer ${token}` } : {})
           },
-          body: JSON.stringify({ answers: newAnswers, consent: true })
+          // Keyed by question id, not positional: see the note on FALLBACK_QUESTIONS.
+          body: JSON.stringify({
+            answers: Object.fromEntries(newAnswers.map((score, index) => [questions[index]?.id ?? index, score])),
+            consent: true,
+          })
         });
         
         if (!res.ok) throw new Error('Failed to calculate risk profile');
@@ -95,10 +129,10 @@ export const RiskAssessmentScreen = () => {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Text style={styles.headerTitle}>{t('risk.title', { defaultValue: 'Risk Assessment' })}</Text>
-          <Text style={styles.headerCount}>{current + 1} / {QUESTIONS.length}</Text>
+          <Text style={styles.headerCount}>{current + 1} / {questions.length}</Text>
         </View>
         <View style={styles.progressBg}>
-          <View style={[styles.progressFill, { width: `${((current + 1) / QUESTIONS.length) * 100}%` }]} />
+          <View style={[styles.progressFill, { width: `${((current + 1) / questions.length) * 100}%` }]} />
         </View>
       </View>
 
@@ -145,7 +179,7 @@ export const RiskAssessmentScreen = () => {
             onPress={handleNext} 
             disabled={selectedScore === null}
           >
-            <Text style={styles.nextBtnText}>{current === QUESTIONS.length - 1 ? t('risk.finish', { defaultValue: 'Finish' }) : t('risk.next', { defaultValue: 'Next' })}</Text>
+            <Text style={styles.nextBtnText}>{current === questions.length - 1 ? t('risk.finish', { defaultValue: 'Finish' }) : t('risk.next', { defaultValue: 'Next' })}</Text>
           </Pressable>
         </View>
       </View>

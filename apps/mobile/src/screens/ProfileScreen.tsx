@@ -6,6 +6,7 @@ import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { authStore } from '../store/auth';
+import { api } from '../services/api/client';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -17,12 +18,20 @@ export const ProfileScreen = () => {
   const [bankAccounts, setBankAccounts] = useState<any[]>([]);
   const [nominees, setNominees] = useState<any[]>([]);
   const [mandates, setMandates] = useState<any[]>([]);
+  // Real account data, replacing the placeholder avatar initial and +91 XXXXX XXXXX.
+  const [profile, setProfile] = useState<{
+    mobile?: string;
+    email?: string | null;
+    profile?: { fullName?: string };
+    riskProfile?: { category?: string } | null;
+  } | null>(null);
 
   const fetchProfileData = useCallback(async () => {
     try {
       const token = authStore.accessToken;
       if (!token) return;
-      
+
+      setProfile(await api.get('/auth/profile'));
       
       // We assume user profile id is fetched and then we fetch cybrilla details.
       // Mocking the arrays for now since profile id is needed for the Cybrilla Sandbox API calls as per Web
@@ -57,14 +66,59 @@ export const ProfileScreen = () => {
         
         {/* Avatar Card */}
         <View style={styles.profileCard}>
-          <View style={styles.avatar}><Text style={styles.avatarText}>U</Text></View>
-          <Text style={styles.name}>{t('header.user', { defaultValue: 'User' })}</Text>
-          <Text style={styles.mobile}>+91 XXXXX XXXXX</Text>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {(profile?.profile?.fullName ?? 'U').trim().charAt(0).toUpperCase() || 'U'}
+            </Text>
+          </View>
+          <Text style={styles.name}>
+            {profile?.profile?.fullName ?? t('header.user', { defaultValue: 'User' })}
+          </Text>
+          <Text style={styles.mobile}>{profile?.mobile ?? '-'}</Text>
           <View style={styles.kycBadge}><Text style={styles.kycText}>{t('header.kycVerified', { defaultValue: 'KYC VERIFIED' })}</Text></View>
         </View>
 
         {/* MENU */}
         <View style={{ gap: 12, marginBottom: 24 }}>
+          {/* Restored after the b657c9f merge: this version of the screen had no route to
+              EditProfile, which left the email verification unreachable, and no way back
+              into the investment funnel for anyone who deferred it. */}
+          <Pressable style={styles.card} onPress={() => navigation.navigate('EditProfile')}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.iconBox, { backgroundColor: '#EBEAF8' }]}><Text style={styles.iconText}>ID</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>{t('profile.editProfile', { defaultValue: 'Edit profile' })}</Text>
+                <Text style={styles.cardSub}>
+                  {profile?.email
+                    ? profile.email
+                    : t('profile.verifyEmail', { defaultValue: 'Verify your email address' })}
+                </Text>
+              </View>
+              <Text style={styles.chevron}>&gt;</Text>
+            </View>
+          </Pressable>
+
+          {/* Risk assessment first when it is missing - bucket eligibility derives from it. */}
+          <Pressable
+            style={styles.card}
+            onPress={() => navigation.navigate(profile?.riskProfile ? 'GoalSelection' : 'RiskAssessment')}
+          >
+            <View style={styles.cardHeader}>
+              <View style={[styles.iconBox, { backgroundColor: '#EDF7EE' }]}><Text style={styles.iconText}>+</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>
+                  {profile?.riskProfile
+                    ? t('profile.choosePlan', { defaultValue: 'Choose an investment plan' })
+                    : t('profile.completeRisk', { defaultValue: 'Complete your risk assessment' })}
+                </Text>
+                <Text style={styles.cardSub}>
+                  {profile?.riskProfile?.category ??
+                    t('profile.riskNeeded', { defaultValue: 'Needed before we can recommend investments' })}
+                </Text>
+              </View>
+              <Text style={styles.chevron}>&gt;</Text>
+            </View>
+          </Pressable>
           {/* Family Portfolio */}
           <Pressable style={styles.card} onPress={() => navigation.navigate('FamilyPortfolio')}>
             <View style={styles.cardHeader}>

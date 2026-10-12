@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import './src/i18n/i18n';
-import { NavigationContainer } from '@react-navigation/native';
+import { ActivityIndicator } from 'react-native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { HomeIcon, TrendingIcon, WalletIcon, BookIcon, UserIcon, HeadsetIcon } from './src/components/Icons';
 import { View, Text } from 'react-native';
 
@@ -31,11 +32,21 @@ import { GoalDetailsScreen } from './src/screens/GoalDetailsScreen';
 import { ArticleScreen } from './src/screens/ArticleScreen';
 import { FamilyPortfolioScreen } from './src/screens/FamilyPortfolioScreen';
 import { EditGoalScreen } from './src/screens/EditGoalScreen';
+import { InvestScreen } from './src/screens/InvestScreen';
+import { FundDetailScreen } from './src/screens/FundDetailScreen';
+import { EditProfileScreen } from './src/screens/EditProfileScreen';
+import { MinorGuardianScreen } from './src/screens/minor/MinorGuardianScreen';
+import { MinorVerifyScreen } from './src/screens/minor/MinorVerifyScreen';
+import { MinorConsentScreen } from './src/screens/minor/MinorConsentScreen';
+import { MinorReviewScreen } from './src/screens/minor/MinorReviewScreen';
+import { AuthProvider, useAuth } from './src/store/AuthContext';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+
+export const navigationRef = createNavigationContainerRef();
 
 function MainTabs({ route }: any) {
   const { name } = route?.params || {};
@@ -97,58 +108,86 @@ function MainTabs({ route }: any) {
   );
 }
 
-export default function App() {
-  
-  
-  
+function RootNavigator() {
+  const { status } = useAuth();
+  const previousStatus = useRef(status);
 
+  // Signing out - or a 401 that the api client turned into one - must take the user back
+  // to the start rather than leaving them on a signed-in screen that silently fails.
+  useEffect(() => {
+    if (previousStatus.current === 'authenticated' && status === 'anonymous' && navigationRef.isReady()) {
+      navigationRef.reset({ index: 0, routes: [{ name: 'Language' as never }] });
+    }
+    previousStatus.current = status;
+  }, [status]);
+
+  // Nothing renders until the keychain has been read, so initialRouteName is decided once
+  // with the real answer: a returning user lands in the app, not on the language picker.
+  if (status === 'loading') {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
 
   return (
+    <Stack.Navigator
+      screenOptions={{ headerShown: false }}
+      initialRouteName={status === 'authenticated' ? 'MainTabs' : 'Language'}
+    >
+      <Stack.Screen name="Language" component={LanguageScreen} />
+      <Stack.Screen name="Welcome" component={WelcomeScreen} />
+      <Stack.Screen name="Signup">
+        {(props) => <SignupScreen {...props} apiUrl={API_URL} />}
+      </Stack.Screen>
+      <Stack.Screen name="Login">
+        {(props) => <LoginScreen {...props} apiUrl={API_URL} />}
+      </Stack.Screen>
+      <Stack.Screen name="KYC">
+        {(props) => <KycScreen {...props} apiUrl={API_URL} />}
+      </Stack.Screen>
+      <Stack.Screen name="RiskAssessment" component={RiskAssessmentScreen} />
+      {/* Both names resolve to the result screen. The cherry-picked version pointed
+          RiskProfileResult at GoalSelectionScreen, which skipped the risk result
+          entirely - every one of our screens navigates to RiskProfileResult. */}
+      <Stack.Screen name="RiskProfileResult" component={RiskResultScreen} />
+      <Stack.Screen name="RiskResult" component={RiskResultScreen} />
+      <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="InvestmentBuckets" component={InvestmentBucketsScreen} />
+      <Stack.Screen name="CustomBucket" component={CustomBucketScreen} />
+      <Stack.Screen name="PlanSummary" component={PlanSummaryScreen} />
+      <Stack.Screen name="GoalDetails" component={GoalDetailsScreen} />
+      <Stack.Screen name="Article" component={ArticleScreen} />
+      <Stack.Screen name="Learn" component={LearnScreen} />
+      <Stack.Screen name="FamilyPortfolio" component={FamilyPortfolioScreen} />
+      <Stack.Screen name="EditGoal" component={EditGoalScreen} />
+      <Stack.Screen name="MainTabs" component={MainTabs} />
+      <Stack.Screen name="Funds">
+        {(props) => <FundsScreen {...props} apiUrl={API_URL} />}
+      </Stack.Screen>
+      {/* Restored: the cherry-picked App.tsx predates these screens, so they were on
+          disk but unreachable - including the email verification inside EditProfile. */}
+      <Stack.Screen name="Invest" component={InvestScreen} />
+      <Stack.Screen name="FundDetail" component={FundDetailScreen} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+      <Stack.Screen name="MinorGuardian" component={MinorGuardianScreen} />
+      <Stack.Screen name="MinorVerify" component={MinorVerifyScreen} />
+      <Stack.Screen name="MinorConsent" component={MinorConsentScreen} />
+      <Stack.Screen name="MinorReview" component={MinorReviewScreen} />
+    </Stack.Navigator>
+  );
+}
+
+export default function App() {
+  return (
     <SafeAreaProvider>
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Language">
-        <Stack.Screen name="Language" component={LanguageScreen} />
-        <Stack.Screen name="Welcome" component={WelcomeScreen} />
-        <Stack.Screen name="Signup">
-          {(props) => <SignupScreen {...props} apiUrl={API_URL} />}
-        </Stack.Screen>
-        <Stack.Screen name="Login">
-          {(props) => <LoginScreen {...props} apiUrl={API_URL} />}
-        </Stack.Screen>
-        <Stack.Screen name="KYC">
-          {(props) => (
-            <KycScreen 
-              {...props}
-               
-               
-               
-               
-               
-               
-               
-              apiUrl={API_URL} 
-            />
-          )}
-        </Stack.Screen>
-        <Stack.Screen name="RiskAssessment" component={RiskAssessmentScreen} />
-        <Stack.Screen name="RiskProfileResult" component={GoalSelectionScreen} />
-        <Stack.Screen name="RiskResult" component={RiskResultScreen} />
-        <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
-        <Stack.Screen name="Settings" component={SettingsScreen} />
-        <Stack.Screen name="InvestmentBuckets" component={InvestmentBucketsScreen} />
-        <Stack.Screen name="CustomBucket" component={CustomBucketScreen} />
-        <Stack.Screen name="PlanSummary" component={PlanSummaryScreen} />
-        <Stack.Screen name="GoalDetails" component={GoalDetailsScreen} />
-        <Stack.Screen name="Article" component={ArticleScreen} />
-        <Stack.Screen name="Learn" component={LearnScreen} />
-        <Stack.Screen name="FamilyPortfolio" component={FamilyPortfolioScreen} />
-        <Stack.Screen name="EditGoal" component={EditGoalScreen} />
-        <Stack.Screen name="MainTabs" component={MainTabs} />
-        <Stack.Screen name="Funds">
-          {(props) => <FundsScreen {...props} apiUrl={API_URL} />}
-        </Stack.Screen>
-      </Stack.Navigator>
-    </NavigationContainer>
+      <AuthProvider>
+        <NavigationContainer ref={navigationRef}>
+          <RootNavigator />
+        </NavigationContainer>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
