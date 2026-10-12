@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
 import { authStore } from '../store/auth';
+import { useAuth } from '../store/AuthContext';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { OtpVerification } from '../components/OtpVerification';
@@ -16,6 +17,7 @@ interface SignupScreenProps {
 export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
+  const { signIn } = useAuth();
   
   const [step, setStep] = useState(1);
   const [authChannel, setAuthChannel] = useState<'SMS' | 'WHATSAPP' | 'EMAIL'>('SMS');
@@ -151,9 +153,17 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
       const data = await safeFetchJson(res);
       if (!res.ok) throw new Error(data.message || 'Signup failed');
       
-      authStore.accessToken = data.accessToken || data.access_token;
+      const token = data.accessToken || data.access_token;
+      authStore.accessToken = token;
       authStore.userId = data.user?.id;
-      navigation.navigate('KYC');
+      if (token && data.user) {
+        await signIn({
+          accessToken: token,
+          refreshToken: data.refreshToken || '',
+          user: { id: data.user.id, mobile: data.user.mobile || mobile || '' }
+        });
+      }
+      navigation.navigate('ProfileSetup');
     } catch (e: any) {
       setError(e.message);
     } finally {

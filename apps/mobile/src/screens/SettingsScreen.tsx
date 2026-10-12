@@ -8,6 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { authStore } from '../store/auth';
+import { useAuth } from '../store/AuthContext';
 
 const SUPPORTED_LANGUAGES = [
   { code: 'en', name: 'English', nativeName: 'English' },
@@ -27,6 +28,7 @@ const SUPPORTED_LANGUAGES = [
 export const SettingsScreen = () => {
   const { t, i18n } = useTranslation('common');
   const navigation = useNavigation<any>();
+  const { signOut } = useAuth();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [theme, setTheme] = useState('system');
   const [notifStatus, setNotifStatus] = useState<string>('granted');
@@ -60,7 +62,8 @@ export const SettingsScreen = () => {
       {
         text: 'Sign out',
         style: 'destructive',
-        onPress: () => {
+        onPress: async () => {
+          await signOut();
           authStore.accessToken = null;
           authStore.userId = null;
           navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });

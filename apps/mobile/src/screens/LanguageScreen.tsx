@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TechArthaLogo } from '../components/TechArthaLogo';
 
 const LANGUAGES = [
   { code: 'en', label: 'English', native: 'English' },
@@ -49,7 +50,7 @@ export const LanguageScreen = () => {
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           
           <View style={styles.logoWrapper}>
-            <Image source={require('../../assets/logo.png')} style={styles.logoImage} resizeMode="contain" />
+            <TechArthaLogo size="medium" />
           </View>
 
           <View style={styles.pillContainer}>
@@ -101,30 +102,29 @@ export const LanguageScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8F9FB' },
+  safe: { flex: 1, backgroundColor: '#F8F9FD' },
   container: { flex: 1 },
-  scrollContent: { padding: 20, paddingTop: 40, paddingBottom: 100 },
-  logoWrapper: { alignItems: 'center', marginBottom: 24, marginTop: 12 },
-  logoImage: { height: 40, width: 180 },
-  pillContainer: { alignItems: 'center', marginBottom: 16 },
-  pill: { backgroundColor: '#EBEBFA', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#E0E7FF' },
-  pillText: { color: '#3C3985', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  title: { fontSize: 28, fontWeight: '800', color: '#102A54', textAlign: 'center', marginBottom: 12, lineHeight: 36 },
-  titleHighlight: { color: '#3C3985' },
-  subtitle: { fontSize: 14, color: '#718096', textAlign: 'center', marginBottom: 32, paddingHorizontal: 16, lineHeight: 20 },
+  scrollContent: { padding: 20, paddingTop: 32, paddingBottom: 110 },
+  logoWrapper: { alignItems: 'center', marginBottom: 20, marginTop: 8 },
+  pillContainer: { alignItems: 'center', marginBottom: 14 },
+  pill: { backgroundColor: '#EEF0FB', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: '#E0E3FA' },
+  pillText: { color: '#36358D', fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
+  title: { fontSize: 27, fontWeight: '900', color: '#102A54', textAlign: 'center', marginBottom: 8, lineHeight: 34, letterSpacing: -0.3 },
+  titleHighlight: { color: '#36358D' },
+  subtitle: { fontSize: 13.5, color: '#64748B', textAlign: 'center', marginBottom: 26, paddingHorizontal: 16, lineHeight: 20 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12 },
-  card: { backgroundColor: '#fff', width: '48%', padding: 16, borderRadius: 16, borderWidth: 2, borderColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  cardSelected: { borderColor: '#3C3985', backgroundColor: '#EBEBFA' },
-  radio: { position: 'absolute', top: 12, right: 12, width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#CBD5E0', backgroundColor: '#fff' },
-  radioSelected: { borderColor: '#3C3985', backgroundColor: '#3C3985' },
-  native: { fontSize: 18, fontWeight: '700', color: '#102A54', marginTop: 16, marginBottom: 4 },
-  nativeSelected: { color: '#3C3985' },
-  label: { fontSize: 12, color: '#A0AEC0' },
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(255,255,255,0.95)', padding: 20, borderTopWidth: 1, borderTopColor: '#E2E8F0' },
-  continueButton: { backgroundColor: '#3C3985', paddingVertical: 16, paddingHorizontal: 24, borderRadius: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  continueButtonDisabled: { opacity: 0.5 },
-  continueText: { color: 'white', fontSize: 16, fontWeight: '700', marginRight: 8 },
-  continueArrow: { color: 'white', fontSize: 18, fontWeight: '700' }
+  card: { backgroundColor: '#FFFFFF', width: '48%', padding: 16, borderRadius: 16, borderWidth: 1.5, borderColor: '#EDF2F7', alignItems: 'center', justifyContent: 'center', position: 'relative', elevation: 2, shadowColor: '#102A54', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6 },
+  cardSelected: { borderColor: '#36358D', backgroundColor: '#F4F5FD' },
+  radio: { position: 'absolute', top: 12, right: 12, width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF' },
+  radioSelected: { borderColor: '#36358D', backgroundColor: '#36358D' },
+  native: { fontSize: 18, fontWeight: '800', color: '#102A54', marginTop: 14, marginBottom: 4 },
+  nativeSelected: { color: '#36358D' },
+  label: { fontSize: 12, color: '#94A3B8', fontWeight: '600' },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(255,255,255,0.96)', padding: 16, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  continueButton: { backgroundColor: '#36358D', paddingVertical: 15, paddingHorizontal: 24, borderRadius: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', elevation: 3, shadowColor: '#36358D', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8 },
+  continueButtonDisabled: { opacity: 0.45 },
+  continueText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', marginRight: 8 },
+  continueArrow: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' }
 });
 
 export default LanguageScreen;

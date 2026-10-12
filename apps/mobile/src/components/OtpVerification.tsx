@@ -82,13 +82,18 @@ export const OtpVerification = ({
         }}
         keyboardType="number-pad"
         maxLength={4}
-        
+        placeholder="1234"
+        placeholderTextColor="#A0AEC0"
         style={globalStyles.field}
         editable={!loading}
         textContentType="oneTimeCode"
         autoComplete="sms-otp"
         importantForAutofill="yes"
       />
+
+      <Text style={{ fontSize: 12, color: '#64748B', marginTop: 6, fontWeight: '500' }}>
+        Development test code: <Text style={{ fontWeight: '800', color: '#36358D' }}>1234</Text>
+      </Text>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 

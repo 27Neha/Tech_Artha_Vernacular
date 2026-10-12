@@ -56,22 +56,22 @@ function MainTabs({ route }: any) {
     <Tab.Navigator
       screenOptions={({ route: tabRoute }) => ({
         headerShown: false,
-        tabBarActiveTintColor: '#3C3985',
-        tabBarInactiveTintColor: '#A0AEC0',
+        tabBarActiveTintColor: '#36358D',
+        tabBarInactiveTintColor: '#94A3B8',
         tabBarShowLabel: false,
         tabBarStyle: {
-          height: 85,
+          height: 84,
           paddingHorizontal: 16,
-          paddingTop: 12,
-          paddingBottom: 24,
-          backgroundColor: '#ffffff',
+          paddingTop: 10,
+          paddingBottom: 22,
+          backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
-          borderTopColor: '#E2E8F0',
-          elevation: 10,
-          shadowColor: '#000',
+          borderTopColor: '#EDF2F7',
+          elevation: 12,
+          shadowColor: '#102A54',
           shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.05,
-          shadowRadius: 10,
+          shadowOpacity: 0.06,
+          shadowRadius: 12,
         },
         tabBarIcon: ({ focused }) => {
           let IconComponent;
@@ -85,17 +85,28 @@ function MainTabs({ route }: any) {
 
           return (
             <View style={{ alignItems: 'center', justifyContent: 'center', width: 64 }}>
-              <IconComponent color={focused ? '#3C3985' : '#A0AEC0'} size={24} />
+              <IconComponent color={focused ? '#36358D' : '#94A3B8'} size={24} />
               <Text
                 style={{
-                  marginTop: 4,
+                  marginTop: 3,
                   fontSize: 11,
                   fontWeight: focused ? '800' : '600',
-                  color: focused ? '#3C3985' : '#A0AEC0',
+                  color: focused ? '#36358D' : '#94A3B8',
                 }}
               >
                 {label}
               </Text>
+              {focused && (
+                <View
+                  style={{
+                    width: 4,
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: '#F7941D',
+                    marginTop: 3,
+                  }}
+                />
+              )}
             </View>
           );
         },
@@ -115,9 +126,9 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <NavigationContainer ref={navigationRef}>
-          <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Language">
-            <Stack.Screen name="Language" component={LanguageScreen} />
+          <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Welcome">
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
+            <Stack.Screen name="Language" component={LanguageScreen} />
             <Stack.Screen name="Signup">
               {(props) => <SignupScreen {...props} apiUrl={API_URL} />}
             </Stack.Screen>
@@ -145,7 +156,7 @@ export default function App() {
             </Stack.Screen>
             <Stack.Screen name="Invest" component={InvestScreen} />
             <Stack.Screen name="FundDetail" component={FundDetailScreen} />
-            <Stack.Screen name="FundDetails" component={FundDetailsScreen} />
+            <Stack.Screen name="FundDetails" component={FundDetailScreen} />
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
             <Stack.Screen name="FamilyPortfolio" component={FamilyPortfolioScreen} />
             <Stack.Screen name="Article" component={ArticleScreen} />

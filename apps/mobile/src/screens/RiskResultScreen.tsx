@@ -5,6 +5,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Header } from '../components/Header';
+import { RiskometerGauge } from '../components/RiskometerGauge';
+import { colors, radii, shadows } from '../theme/tokens';
 
 type RiskPayload = {
   data?: { score?: number; category?: string };
@@ -27,21 +29,20 @@ export const RiskResultScreen = () => {
 
   let label = 'Moderate';
   let desc = 'You prefer a balanced approach, seeking growth while taking measured risks to protect your capital.';
-  let color = '#38A169';
+  let themeColor = colors.risk.moderate;
+  let bgBadgeColor = colors.risk.moderateMuted;
 
   if (category === 'CONSERVATIVE') {
     label = 'Conservative';
     desc = 'You prioritize capital preservation over high returns. You prefer stable, low-risk investments.';
-    color = '#3182CE';
+    themeColor = colors.risk.conservative;
+    bgBadgeColor = colors.risk.conservativeMuted;
   } else if (category === 'AGGRESSIVE') {
     label = 'Aggressive';
     desc = 'You are willing to accept higher market volatility for the potential of significant long-term growth.';
-    color = '#E53E3E';
+    themeColor = colors.risk.aggressive;
+    bgBadgeColor = colors.risk.aggressiveMuted;
   }
-
-  const normalizedScore = Math.max(12, Math.min(60, Number(score) || 35));
-  const percentage = ((normalizedScore - 12) / (60 - 12)) * 100;
-  const rotation = -90 + percentage * 1.8;
 
   return (
     <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
@@ -49,44 +50,38 @@ export const RiskResultScreen = () => {
       <Header title="Your Risk Profile" />
       
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        {/* 3D Elevated Results Card */}
         <View style={styles.card}>
-          <Text style={styles.title}>Your Risk Profile is</Text>
-          <Text style={[styles.category, { color }]}>{label}</Text>
+          <Text style={styles.cardHeaderEyebrow}>Assessed Investor Profile</Text>
+          
+          <View style={[styles.categoryBadge, { backgroundColor: bgBadgeColor, borderColor: themeColor }]}>
+            <Text style={[styles.categoryText, { color: themeColor }]}>{label}</Text>
+          </View>
 
-          {/* Riskometer Visualization */}
-          <View style={styles.meterContainer}>
-            <View style={styles.archBackground}>
-              <View style={[styles.archSegment, { backgroundColor: '#3182CE', transform: [{ rotate: '-60deg' }] }]} />
-              <View style={[styles.archSegment, { backgroundColor: '#38A169', transform: [{ rotate: '0deg' }] }]} />
-              <View style={[styles.archSegment, { backgroundColor: '#E53E3E', transform: [{ rotate: '60deg' }] }]} />
-            </View>
-            <View style={styles.archCover} />
-            <View style={[styles.needle, { transform: [{ rotate: `${rotation}deg` }] }]}>
-              <View style={styles.needleLine} />
-              <View style={styles.needleCenter} />
-            </View>
-          </View>
-          <View style={styles.meterLabels}>
-            <Text style={styles.meterLabelText}>Conservative</Text>
-            <Text style={styles.meterLabelText}>Aggressive</Text>
-          </View>
+          {/* Precision Animated Vector Riskometer */}
+          <RiskometerGauge
+            score={Number(score)}
+            category={category}
+            size={280}
+          />
 
           <Text style={styles.description}>{desc}</Text>
 
+          {/* Score & Bucket Summary */}
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
               <Text style={styles.statLabel}>Calculated Score</Text>
               <Text style={styles.statValue}>{score} / 60</Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={styles.statLabel}>Recommended</Text>
-              <Text style={styles.statValue}>{label} Bucket</Text>
+              <Text style={styles.statLabel}>Matching Bucket</Text>
+              <Text style={[styles.statValue, { color: themeColor }]}>{label} Bucket</Text>
             </View>
           </View>
 
           {reasons.length > 0 && (
             <View style={styles.reasonsBox}>
-              <Text style={styles.reasonsTitle}>Why this profile</Text>
+              <Text style={styles.reasonsTitle}>Assessment Rationale</Text>
               {reasons.map((reason, i) => (
                 <Text key={i} style={styles.reasonText}>• {reason}</Text>
               ))}
@@ -95,57 +90,186 @@ export const RiskResultScreen = () => {
 
           <Text style={styles.disclaimer}>
             {payload.disclaimer ??
-              'This investor profile is a suitability assessment and does not guarantee investment returns. Mutual fund investments are subject to market risks.'}
+              'This investor profile is a suitability assessment conducted per AMFI/SEBI norms and does not guarantee investment returns. Mutual fund investments are subject to market risks.'}
           </Text>
         </View>
 
-        <Pressable style={styles.primaryBtn} onPress={() => navigation.navigate('GoalSelection')}>
-          <Text style={styles.primaryBtnText}>Continue to Goal Planner</Text>
-          <Text style={styles.primaryBtnText}>→</Text>
-        </Pressable>
+        {/* Action Controls */}
+        <View style={styles.actionBlock}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.primaryBtn,
+              pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] },
+            ]}
+            onPress={() => navigation.navigate('GoalSelection')}
+          >
+            <Text style={styles.primaryBtnText}>Continue to Goal Planner</Text>
+            <Text style={styles.primaryBtnText}>→</Text>
+          </Pressable>
 
-        <Pressable style={styles.outlineBtn} onPress={() => navigation.navigate('RiskAssessment')}>
-          <Text style={styles.outlineBtnText}>Retake Assessment</Text>
-        </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.outlineBtn,
+              pressed && { backgroundColor: '#F1F5F9' },
+            ]}
+            onPress={() => navigation.navigate('RiskAssessment')}
+          >
+            <Text style={styles.outlineBtnText}>Retake Assessment</Text>
+          </Pressable>
 
-        <Pressable style={styles.skipBtn} onPress={() => navigation.navigate('MainTabs')}>
-          <Text style={styles.skipBtnText}>Skip for now</Text>
-        </Pressable>
+          <Pressable style={styles.skipBtn} onPress={() => navigation.navigate('MainTabs')} hitSlop={10}>
+            <Text style={styles.skipBtnText}>Skip for now</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8F9FB' },
-  container: { padding: 24, paddingBottom: 40, alignItems: 'center' },
-  card: { backgroundColor: '#fff', borderRadius: 24, padding: 24, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2, marginBottom: 20 },
-  title: { fontSize: 14, fontWeight: '700', color: '#718096', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
-  category: { fontSize: 32, fontWeight: '900', marginBottom: 24 },
-  meterContainer: { width: 240, height: 120, position: 'relative', alignItems: 'center', overflow: 'hidden', marginBottom: 12 },
-  archBackground: { width: 240, height: 240, borderRadius: 120, position: 'absolute', top: 0, overflow: 'hidden' },
-  archSegment: { width: 120, height: 240, position: 'absolute', left: 120, top: 0, transformOrigin: 'left center' },
-  archCover: { width: 160, height: 160, borderRadius: 80, backgroundColor: '#fff', position: 'absolute', top: 40 },
-  needle: { position: 'absolute', bottom: 0, height: 100, width: 4, alignItems: 'center', justifyContent: 'flex-end', transformOrigin: 'bottom center' },
-  needleLine: { width: 4, height: 90, backgroundColor: '#102A54', borderRadius: 2 },
-  needleCenter: { width: 16, height: 16, borderRadius: 8, backgroundColor: '#102A54', position: 'absolute', bottom: -8 },
-  meterLabels: { flexDirection: 'row', justifyContent: 'space-between', width: 240, marginBottom: 24 },
-  meterLabelText: { fontSize: 12, fontWeight: '700', color: '#A0AEC0' },
-  description: { fontSize: 14, color: '#4A5568', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-  statsRow: { flexDirection: 'row', gap: 16, width: '100%', marginBottom: 16 },
-  statBox: { flex: 1, backgroundColor: '#F8F9FB', padding: 14, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: '#EDF2F7' },
-  statLabel: { fontSize: 10, fontWeight: '700', color: '#A0AEC0', textTransform: 'uppercase', marginBottom: 4 },
-  statValue: { fontSize: 15, fontWeight: '800', color: '#102A54' },
-  reasonsBox: { alignSelf: 'stretch', backgroundColor: '#F8F9FB', borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#E2E8F0' },
-  reasonsTitle: { fontSize: 13, fontWeight: '700', color: '#102A54', marginBottom: 8 },
-  reasonText: { fontSize: 12, color: '#4A5568', lineHeight: 18, marginBottom: 4 },
-  disclaimer: { fontSize: 11, color: '#A0AEC0', textAlign: 'center', lineHeight: 16, marginTop: 8 },
-  primaryBtn: { width: '100%', backgroundColor: '#3C3985', paddingVertical: 16, paddingHorizontal: 24, borderRadius: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
-  outlineBtn: { width: '100%', paddingVertical: 14, borderRadius: 16, borderWidth: 1.5, borderColor: '#3C3985', alignItems: 'center', marginBottom: 10 },
-  outlineBtnText: { color: '#3C3985', fontSize: 14, fontWeight: '700' },
-  skipBtn: { width: '100%', paddingVertical: 12, alignItems: 'center' },
-  skipBtnText: { color: '#718096', fontSize: 14, fontWeight: '600' }
+  safe: { flex: 1, backgroundColor: colors.canvas },
+  container: { padding: 20, paddingBottom: 40, alignItems: 'center' },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: radii['2xl'],
+    padding: 24,
+    width: '100%',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E8ECF4',
+    ...shadows.cardElevated,
+    marginBottom: 20,
+  },
+  cardHeaderEyebrow: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginBottom: 10,
+  },
+  categoryBadge: {
+    paddingHorizontal: 18,
+    paddingVertical: 6,
+    borderRadius: radii.full,
+    borderWidth: 1.5,
+    marginBottom: 16,
+  },
+  categoryText: {
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  description: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginTop: 6,
+    marginBottom: 20,
+    paddingHorizontal: 8,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+    marginBottom: 16,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: '#F8F9FD',
+    padding: 14,
+    borderRadius: radii.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#EDF2F7',
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: colors.textPrimary,
+  },
+  reasonsBox: {
+    alignSelf: 'stretch',
+    backgroundColor: '#F8F9FD',
+    borderRadius: radii.md,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  reasonsTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    marginBottom: 8,
+  },
+  reasonText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+  disclaimer: {
+    fontSize: 11,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 16,
+    marginTop: 8,
+    paddingHorizontal: 8,
+  },
+  actionBlock: {
+    width: '100%',
+    gap: 10,
+  },
+  primaryBtn: {
+    width: '100%',
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: radii.lg,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    ...shadows.buttonPrimary,
+  },
+  primaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  outlineBtn: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 14,
+    borderRadius: radii.lg,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    ...shadows.card,
+  },
+  outlineBtnText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  skipBtn: {
+    width: '100%',
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  skipBtnText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: '600',
+  },
 });
 
 export default RiskResultScreen;

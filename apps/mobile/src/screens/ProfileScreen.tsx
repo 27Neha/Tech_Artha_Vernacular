@@ -6,6 +6,7 @@ import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { authStore } from '../store/auth';
+import { useAuth } from '../store/AuthContext';
 import { api } from '../services/api/client';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -24,6 +25,7 @@ const maskPan = (pan?: string | null) => (pan ? `${pan.slice(0, 3)}${'X'.repeat(
 export const ProfileScreen = () => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
+  const { signOut } = useAuth();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,7 +68,8 @@ export const ProfileScreen = () => {
       {
         text: 'Sign out',
         style: 'destructive',
-        onPress: () => {
+        onPress: async () => {
+          await signOut();
           authStore.accessToken = null;
           authStore.userId = null;
           navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });

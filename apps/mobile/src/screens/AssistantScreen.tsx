@@ -1,9 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Header } from '../components/Header';
 import { HeadsetIcon } from '../components/Icons';
+import { useTranslation } from 'react-i18next';
+import { api } from '../services/api/client';
 
 type Message = { id: string; from: 'bot' | 'user'; text: string };
 
@@ -14,23 +16,47 @@ const GREETING: Message = {
 };
 
 export const AssistantScreen = () => {
+  const { i18n } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([GREETING]);
   const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     const text = input.trim();
-    if (!text) return;
+    if (!text || sending) return;
     const userMsg: Message = { id: `u-${Date.now()}`, from: 'user', text };
-    // TODO: replace placeholder reply with chatbot API integration
-    const botMsg: Message = {
-      id: `b-${Date.now()}`,
-      from: 'bot',
-      text: 'Thanks for your message! Our assistant will be fully available soon.',
-    };
-    setMessages(prev => [...prev, userMsg, botMsg]);
+    setMessages((prev) => [...prev, userMsg]);
     setInput('');
+    setSending(true);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+
+    try {
+      const res = await api.post<{ text: string }>('/assistant/messages', {
+        message: text,
+        locale: i18n.language || 'en',
+      });
+      const botReply = res?.text || "I'm here to help with your investments and financial questions.";
+      const botMsg: Message = {
+        id: `b-${Date.now()}`,
+        from: 'bot',
+        text: botReply,
+      };
+      setMessages((prev) => [...prev, botMsg]);
+    } catch (e: any) {
+      const errorReply = e?.status === 401
+        ? 'Please sign in to access personalized portfolio and assistant insights.'
+        : 'Unable to reach assistant service at the moment. Please try again.';
+      const botMsg: Message = {
+        id: `b-${Date.now()}`,
+        from: 'bot',
+        text: errorReply,
+      };
+      setMessages((prev) => [...prev, botMsg]);
+    } finally {
+      setSending(false);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+    }
   };
 
   return (
@@ -61,8 +87,16 @@ export const AssistantScreen = () => {
             onSubmitEditing={sendMessage}
             returnKeyType="send"
           />
-          <Pressable style={[s.sendBtn, !input.trim() && { opacity: 0.5 }]} onPress={sendMessage} disabled={!input.trim()}>
-            <Text style={s.sendText}>➤</Text>
+          <Pressable
+            style={[s.sendBtn, (!input.trim() || sending) && { opacity: 0.5 }]}
+            onPress={sendMessage}
+            disabled={!input.trim() || sending}
+          >
+            {sending ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={s.sendText}>➤</Text>
+            )}
           </Pressable>
         </View>
       </KeyboardAvoidingView>

@@ -213,7 +213,7 @@ export default function FundDiscoveryPage() {
            {/* Filter Navigation */}
            <div className="flex gap-2 px-5 py-2 overflow-x-auto no-scrollbar scroll-smooth">
              {investorProfile && investorProfile !== 'ASSESSMENT_REQUIRED' && (
-                <FilterChip label="Recommended" active={activeFilter === 'Recommended'} onClick={() => setActiveFilter('Recommended')} />
+                <FilterChip label="Curated Collection" active={activeFilter === 'Recommended'} onClick={() => setActiveFilter('Recommended')} />
              )}
              <FilterChip label="All" active={activeFilter === 'All'} onClick={() => setActiveFilter('All')} />
              <FilterChip label="Conservative" active={activeFilter === 'Conservative'} onClick={() => { setActiveFilter('Conservative'); setCategoryFilter(''); }} />
@@ -225,8 +225,8 @@ export default function FundDiscoveryPage() {
              {activeFilter === 'Recommended' && investorProfile !== 'ASSESSMENT_REQUIRED' && (
                 <div className="mb-8">
                   <div className="mb-4">
-                    <h2 className="text-lg font-extrabold text-[var(--dark)]">Recommended for You</h2>
-                    <p className="text-sm text-gray-500">Based on your {investorProfile?.toLowerCase() || 'current'} risk profile</p>
+                    <h2 className="text-lg font-extrabold text-[var(--dark)]">Curated Fund Collection</h2>
+                    <p className="text-sm text-gray-500">Aligned with your {investorProfile?.toLowerCase() || 'current'} risk profile</p>
                   </div>
                   
                   {recommended.length > 0 ? (

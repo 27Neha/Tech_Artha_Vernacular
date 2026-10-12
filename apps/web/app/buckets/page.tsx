@@ -172,8 +172,8 @@ function BucketsContent() {
               }`}
             >
               {b.recommended && (
-                <span className="absolute -top-3 left-4 bg-[var(--orange)] text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">
-                  Matches Your Profile
+                <span className="absolute -top-3 left-4 bg-[var(--primary)] text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">
+                  ✨ Curated Collection
                 </span>
               )}
                             <div className="flex items-center gap-2 mb-1">
@@ -187,7 +187,7 @@ function BucketsContent() {
               <p className="text-sm text-gray-500 mb-3">{b.explanation}</p>
               
               <div className="bg-gray-50 rounded-lg p-3 mb-4">
-                 <p className="text-xs font-bold text-gray-500 uppercase mb-2">Funds in this Bucket</p>
+                 <p className="text-xs font-bold text-gray-500 uppercase mb-2">Funds in this Collection</p>
                  {b.recommendedFunds?.map((f: any) => (
                    <div key={f.schemeCode} className="flex justify-between items-center py-2 border-b border-gray-200 last:border-0 cursor-pointer hover:text-[var(--primary)]" onClick={() => router.push(`/funds/${f.schemeCode}`)}>
                       <div className="flex-1 pr-2 min-w-0">
@@ -220,7 +220,7 @@ function BucketsContent() {
                   Edit Bucket
                 </button>
                 <button onClick={() => router.push(`/plan?goal=${goal}&bucket=${b.id}`)} className="flex-1 py-3 bg-[var(--primary)] hover:opacity-90 text-white rounded-xl font-bold">
-                  Select
+                  Explore Collection
                 </button>
               </div>
               <button onClick={() => openInvestForm(b.id)} className="w-full mt-3 py-3 bg-[var(--dark)] hover:opacity-90 text-white rounded-xl font-bold">

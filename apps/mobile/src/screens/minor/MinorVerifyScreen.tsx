@@ -78,8 +78,8 @@ export const MinorVerifyScreen = () => {
               value={code}
               onChangeText={setCode}
               keyboardType="number-pad"
-              maxLength={6}
-              placeholder="Enter the code"
+              maxLength={4}
+              placeholder="1234"
               style={s.input}
             />
             <Pressable style={[s.button, busy && s.disabled]} onPress={verify} disabled={busy}>

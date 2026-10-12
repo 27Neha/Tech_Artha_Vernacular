@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
 import { authStore } from '../store/auth';
+import { useAuth } from '../store/AuthContext';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { OtpVerification } from '../components/OtpVerification';
@@ -19,6 +20,7 @@ interface LoginScreenProps {
 export const LoginScreen = ({ apiUrl = API_URL, phone: initialPhone, setPhone: setParentPhone }: LoginScreenProps) => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
+  const { signIn } = useAuth();
   
   const [phone, setPhone] = useState(initialPhone || '');
   const [step, setStep] = useState(1);
@@ -123,8 +125,16 @@ export const LoginScreen = ({ apiUrl = API_URL, phone: initialPhone, setPhone: s
       const data = await safeFetchJson(res);
       if (!res.ok) throw new Error(data.message || t('login.invalidCredentials', { defaultValue: 'Invalid credentials' }));
       
-      authStore.accessToken = data.accessToken || data.access_token;
+      const token = data.accessToken || data.access_token;
+      authStore.accessToken = token;
       authStore.userId = data.user?.id;
+      if (token && data.user) {
+        await signIn({
+          accessToken: token,
+          refreshToken: data.refreshToken || '',
+          user: { id: data.user.id, mobile: data.user.mobile || phone || '' }
+        });
+      }
       navigation.navigate('MainTabs');
     } catch (e: any) {
       setError(e.message);
@@ -145,8 +155,16 @@ export const LoginScreen = ({ apiUrl = API_URL, phone: initialPhone, setPhone: s
       const data = await safeFetchJson(res);
       if (!res.ok) throw new Error(data.message || t('login.invalidOtp', { defaultValue: 'Invalid OTP' }));
       
-      authStore.accessToken = data.accessToken || data.access_token;
+      const token = data.accessToken || data.access_token;
+      authStore.accessToken = token;
       authStore.userId = data.user?.id;
+      if (token && data.user) {
+        await signIn({
+          accessToken: token,
+          refreshToken: data.refreshToken || '',
+          user: { id: data.user.id, mobile: data.user.mobile || phone || '' }
+        });
+      }
       navigation.navigate('MainTabs');
     } catch (e: any) {
       setError(e.message);

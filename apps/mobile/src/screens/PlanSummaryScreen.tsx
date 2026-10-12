@@ -86,6 +86,7 @@ export const PlanSummaryScreen = () => {
       const payload = {
         name: goal,
         goal,
+        goalName: goal,
         targetAmount,
         timePeriod,
         horizonYears: timePeriod,
@@ -94,6 +95,7 @@ export const PlanSummaryScreen = () => {
         bucketId: bucket,
         sipDate: selectedDate,
         amountType: 'SIP',
+        frequency: 'Monthly',
         amount: monthlySIP,
         consent,
       };

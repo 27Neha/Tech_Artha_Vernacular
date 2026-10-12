@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "TechArtha",
-    "slug": "techartha-mobile",
-    "version": "1.0.0",
+    "name": "TechArtha 2.0",
+    "slug": "techartha-v2",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -10,15 +10,15 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1653B0"
+      "backgroundColor": "#36358D"
     },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1653B0"
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#36358D"
       },
       "package": "com.techartha.mobile"
     },
@@ -27,9 +27,7 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-status-bar",
-      "@react-native-community/datetimepicker",
-      "expo-sharing"
+      "expo-status-bar"
     ],
     "scheme": "techartha",
     "sdkVersion": "57.0.0"

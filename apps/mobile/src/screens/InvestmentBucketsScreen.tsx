@@ -192,7 +192,7 @@ export const InvestmentBucketsScreen = () => {
                   </View>
                   {bucket.recommended ? (
                     <View style={styles.recBadge}>
-                      <Text style={styles.recText}>⭐ Recommended</Text>
+                      <Text style={styles.recText}>✨ {t('buckets.curatedBadge', { defaultValue: 'Curated Collection' })}</Text>
                     </View>
                   ) : null}
                 </View>
@@ -219,7 +219,7 @@ export const InvestmentBucketsScreen = () => {
                 {bucket.recommendedFunds?.length ? (
                   <View style={styles.fundsWrapper}>
                     <Text style={styles.fundsLabel}>
-                      {t('buckets.fundsInBucket', { defaultValue: 'FUNDS IN THIS BUCKET' })}
+                      {t('buckets.fundsInBucket', { defaultValue: 'FUNDS IN THIS COLLECTION' })}
                     </Text>
                     {bucket.recommendedFunds.map((f: any, i: number) => (
                       <View key={f.schemeCode || i} style={styles.fundRow}>
@@ -270,7 +270,7 @@ export const InvestmentBucketsScreen = () => {
                           })
                         }
                       >
-                        <Text style={styles.primaryBtnTxt}>{t('buckets.select', { defaultValue: 'Select Bucket' })}</Text>
+                        <Text style={styles.primaryBtnTxt}>{t('buckets.select', { defaultValue: 'Explore Collection' })}</Text>
                       </Pressable>
                     </View>
 
