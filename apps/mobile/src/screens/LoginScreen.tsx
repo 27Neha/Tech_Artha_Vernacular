@@ -37,6 +37,9 @@ export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
   const [showPassword, setShowPassword] = useState(false);
   
   const [loading, setLoading] = useState(false);
+  // Returned by the server only outside production with AUTH_DEV_BYPASS on. Carried so
+  // the OTP screen can prefill it while real SMS and WhatsApp delivery is unreliable.
+  const [devOtp, setDevOtp] = useState<string | null>(null);
   // Cybrilla compliance point 11: consent must be an explicit, unticked action before
   // any credential is sent, not implied by continuing. Restored after the b657c9f merge,
   // whose version of this screen had no consent gate.
@@ -105,7 +108,8 @@ export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
       });
       const data = await safeFetchJson(res);
       if (!res.ok) throw new Error(data.message || t('login.failedToSendOtp', { defaultValue: 'Failed to send OTP' }));
-      
+
+      setDevOtp(data?.devOtp ?? null);
       setStep(2);
     } catch (e: any) {
       setError(e.message);
@@ -308,6 +312,7 @@ export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
             loading={loading}
             error={error}
             setError={setError}
+            devOtp={devOtp}
           />
         )}
       </ScrollView>

@@ -37,6 +37,9 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Returned by the server only outside production with AUTH_DEV_BYPASS on. Carried so
+  // the OTP screen can prefill it while real SMS and WhatsApp delivery is unreliable.
+  const [devOtp, setDevOtp] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [showReqs, setShowReqs] = useState(false);
 
@@ -96,6 +99,8 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
         body: JSON.stringify(channel === 'EMAIL' ? { email, channel } : { mobile, channel })
       });
       const data = await safeFetchJson(res);
+
+      setDevOtp(data?.devOtp ?? null);
       if (res.status === 409) {
         throw new Error(channel === 'EMAIL' ? t('signup.emailExists', { defaultValue: 'This email is already registered. Please log in instead.' }) : t('signup.mobileExists', { defaultValue: 'This mobile number is already registered. Please log in instead.' }));
       }
@@ -254,6 +259,7 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
             loading={loading}
             error={error}
             setError={setError}
+            devOtp={devOtp}
           />
         )}
 
