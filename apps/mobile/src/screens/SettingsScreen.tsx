@@ -6,6 +6,8 @@ import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TermsModal } from '../components/TermsModal';
+import { PrivacyPolicyModal } from '../components/PrivacyPolicyModal';
 
 const SUPPORTED_LANGUAGES = [
   { code: 'en', name: 'English', nativeName: 'English' },
@@ -28,6 +30,8 @@ export const SettingsScreen = () => {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [theme, setTheme] = useState('system');
   const [notifStatus, setNotifStatus] = useState<string>('unknown');
+  const [termsModalVisible, setTermsModalVisible] = useState(false);
+  const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
 
   useEffect(() => {
     checkNotifPermission();
@@ -186,6 +190,51 @@ export const SettingsScreen = () => {
           )}
         </View>
 
+        {/* LEGAL & POLICIES */}
+        <View style={[styles.card, expanded === 'Legal' && styles.cardActive]}>
+          <Pressable style={styles.cardHeader} onPress={() => toggleExpand('Legal')}>
+            <View style={styles.iconBox}><Text style={styles.iconText}>📜</Text></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>{t('settings.legal', { defaultValue: 'Legal & Policies' })}</Text>
+              <Text style={styles.cardSub}>{t('settings.legalDesc', { defaultValue: 'Terms of Service and Privacy Policy' })}</Text>
+            </View>
+            <Text style={[styles.chevron, expanded === 'Legal' && { transform: [{ rotate: '90deg' }] }]}>›</Text>
+          </Pressable>
+          {expanded === 'Legal' && (
+            <View style={styles.expandedContent}>
+              <Pressable 
+                style={[styles.langItem, { paddingVertical: 14 }]} 
+                onPress={() => setTermsModalVisible(true)}
+              >
+                <View>
+                  <Text style={[styles.langNative, { fontSize: 15, fontWeight: '700' }]}>
+                    {t('signup.termsOfService', { defaultValue: 'Terms of Service' })}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
+                    {t('termsModal.subtitle', { defaultValue: 'Rules and conditions governing platform usage' })}
+                  </Text>
+                </View>
+                <Text style={{ color: '#3C3985', fontSize: 18, fontWeight: 'bold' }}>›</Text>
+              </Pressable>
+
+              <Pressable 
+                style={[styles.langItem, { paddingVertical: 14, borderTopWidth: 1, borderTopColor: '#F1F5F9' }]} 
+                onPress={() => setPrivacyModalVisible(true)}
+              >
+                <View>
+                  <Text style={[styles.langNative, { fontSize: 15, fontWeight: '700' }]}>
+                    {t('signup.privacyPolicy', { defaultValue: 'Privacy Policy' })}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
+                    {t('privacyModal.subtitle', { defaultValue: 'Data security, privacy practices, and compliance' })}
+                  </Text>
+                </View>
+                <Text style={{ color: '#3C3985', fontSize: 18, fontWeight: 'bold' }}>›</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+
         {/* OTHER SETTINGS */}
         <Pressable style={styles.card} onPress={() => Alert.alert('Coming Soon', 'Privacy settings will be available shortly.')}>
           <View style={styles.cardHeader}>
@@ -208,6 +257,15 @@ export const SettingsScreen = () => {
         </Pressable>
 
       </ScrollView>
+
+      <TermsModal 
+        visible={termsModalVisible} 
+        onClose={() => setTermsModalVisible(false)} 
+      />
+      <PrivacyPolicyModal
+        visible={privacyModalVisible}
+        onClose={() => setPrivacyModalVisible(false)}
+      />
     </SafeAreaView>
   );
 };

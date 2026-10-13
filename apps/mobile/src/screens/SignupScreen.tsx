@@ -5,9 +5,13 @@ import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
 import { authStore } from '../store/auth';
+import { useAuth } from '../store/AuthContext';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { OtpVerification } from '../components/OtpVerification';
+import { Ionicons } from '@expo/vector-icons';
+import { TermsModal } from '../components/TermsModal';
+import { PrivacyPolicyModal } from '../components/PrivacyPolicyModal';
 
 interface SignupScreenProps {
   apiUrl: string;
@@ -16,6 +20,7 @@ interface SignupScreenProps {
 export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
+  const { signIn } = useAuth();
   
   const [step, setStep] = useState(1);
   const [authChannel, setAuthChannel] = useState<'SMS' | 'WHATSAPP' | 'EMAIL'>('SMS');
@@ -23,6 +28,11 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [termsWarning, setTermsWarning] = useState('');
+  const [termsModalVisible, setTermsModalVisible] = useState(false);
+  const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -32,6 +42,8 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
       setConfirmPassword('');
       setStep(1);
       setError('');
+      setAcceptedTerms(false);
+      setTermsWarning('');
     }, [])
   );
   const [showPassword, setShowPassword] = useState(false);
@@ -53,7 +65,13 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
 
   const handleContinue = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL') => {
     setError('');
+    setTermsWarning('');
     setAuthChannel(channel);
+    
+    if (!acceptedTerms) {
+      setTermsWarning(t('signup.termsRequired', { defaultValue: 'Please agree to the Terms of Service & Privacy Policy to continue.' }));
+      return;
+    }
     
     if (channel === 'EMAIL') {
       if (!email.trim() || !email.includes('@')) {
@@ -99,7 +117,6 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
         body: JSON.stringify(channel === 'EMAIL' ? { email, channel } : { mobile, channel })
       });
       const data = await safeFetchJson(res);
-
       setDevOtp(data?.devOtp ?? null);
       if (res.status === 409) {
         throw new Error(channel === 'EMAIL' ? t('signup.emailExists', { defaultValue: 'This email is already registered. Please log in instead.' }) : t('signup.mobileExists', { defaultValue: 'This mobile number is already registered. Please log in instead.' }));
@@ -156,9 +173,17 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
       const data = await safeFetchJson(res);
       if (!res.ok) throw new Error(data.message || 'Signup failed');
       
-      authStore.accessToken = data.accessToken || data.access_token;
+      const token = data.accessToken || data.access_token;
+      authStore.accessToken = token;
       authStore.userId = data.user?.id;
-      navigation.navigate('KYC');
+      if (token && data.user) {
+        await signIn({
+          accessToken: token,
+          refreshToken: data.refreshToken || '',
+          user: { id: data.user.id, mobile: data.user.mobile || mobile || '' }
+        });
+      }
+      navigation.navigate('ProfileSetup');
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -211,14 +236,38 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
             {error ? <Text style={localStyles.errorText}>{error}</Text> : null}
 
             {authChannel === 'EMAIL' ? (
-              <Pressable style={[styles.primaryButton, (loading && authChannel === 'EMAIL') && styles.primaryDisabled, localStyles.mt24]} onPress={() => handleContinue('EMAIL')} disabled={loading}>
-                <Text style={styles.primaryText}>{(loading && authChannel === 'EMAIL') ? t('common.loading', { defaultValue: 'Loading...' }) : t('signup.continueWithEmail', { defaultValue: 'Continue with Email' })}</Text>
-                {!(loading && authChannel === 'EMAIL') && <Text style={styles.primaryText}>→</Text>}
-              </Pressable>
+              <View>
+                <Pressable 
+                  style={[styles.primaryButton, (loading && authChannel === 'EMAIL') && styles.primaryDisabled, localStyles.mt24]} 
+                  onPress={() => handleContinue('EMAIL')} 
+                  disabled={loading}
+                >
+                  <Text style={styles.primaryText}>
+                    {(loading && authChannel === 'EMAIL') ? t('common.loading', { defaultValue: 'Loading...' }) : t('signup.continueWithEmail', { defaultValue: 'Continue with Email' })}
+                  </Text>
+                  {!(loading && authChannel === 'EMAIL') && <Text style={styles.primaryText}>→</Text>}
+                </Pressable>
+
+                <Pressable 
+                  style={[localStyles.secondaryBoxBtn, { marginTop: 16 }]} 
+                  onPress={() => { setAuthChannel('SMS'); setError(''); setTermsWarning(''); }}
+                >
+                  <Ionicons name="phone-portrait-outline" size={20} color="#3C3985" style={{ marginRight: 8 }} />
+                  <Text style={localStyles.secondaryBoxText}>
+                    {t('signup.useMobileInstead', { defaultValue: 'Use mobile instead' })}
+                  </Text>
+                </Pressable>
+              </View>
             ) : (
-              <>
-                <Pressable style={[styles.primaryButton, (loading && authChannel === 'SMS') && styles.primaryDisabled, localStyles.mt24]} onPress={() => handleContinue('SMS')} disabled={loading}>
-                  <Text style={styles.primaryText}>{(loading && authChannel === 'SMS') ? t('common.loading', { defaultValue: 'Loading...' }) : t('signup.continueWithSms', { defaultValue: 'Continue with SMS' })}</Text>
+              <View>
+                <Pressable 
+                  style={[styles.primaryButton, (loading && authChannel === 'SMS') && styles.primaryDisabled, localStyles.mt24]} 
+                  onPress={() => handleContinue('SMS')} 
+                  disabled={loading}
+                >
+                  <Text style={styles.primaryText}>
+                    {(loading && authChannel === 'SMS') ? t('common.loading', { defaultValue: 'Loading...' }) : t('signup.continueWithSms', { defaultValue: 'Continue with SMS' })}
+                  </Text>
                   {!(loading && authChannel === 'SMS') && <Text style={styles.primaryText}>→</Text>}
                 </Pressable>
                 
@@ -228,18 +277,82 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
                   <View style={localStyles.line} />
                 </View>
 
-                <Pressable style={localStyles.waButton} onPress={() => handleContinue('WHATSAPP')} disabled={loading}>
-                  <Text style={localStyles.waIcon}>💬</Text>
-                  <Text style={localStyles.waText}>{(loading && authChannel === 'WHATSAPP') ? t('common.loading', { defaultValue: 'Loading...' }) : t('signup.continueWithWa', { defaultValue: 'Continue with WhatsApp' })}</Text>
+                <Pressable 
+                  style={[localStyles.waButton, (loading && authChannel === 'WHATSAPP') && styles.primaryDisabled]} 
+                  onPress={() => handleContinue('WHATSAPP')} 
+                  disabled={loading}
+                >
+                  <Ionicons name="logo-whatsapp" size={20} color="#25D366" style={{ marginRight: 8 }} />
+                  <Text style={localStyles.waText}>
+                    {(loading && authChannel === 'WHATSAPP') ? t('common.loading', { defaultValue: 'Loading...' }) : t('signup.continueWithWa', { defaultValue: 'Continue with WhatsApp' })}
+                  </Text>
                 </Pressable>
-              </>
+
+                <Pressable 
+                  style={localStyles.secondaryBoxBtn} 
+                  onPress={() => { setAuthChannel('EMAIL'); setError(''); setTermsWarning(''); }}
+                >
+                  <Ionicons name="mail-outline" size={20} color="#3C3985" style={{ marginRight: 8 }} />
+                  <Text style={localStyles.secondaryBoxText}>
+                    {t('signup.useEmailInstead', { defaultValue: 'Use email instead' })}
+                  </Text>
+                </Pressable>
+              </View>
             )}
 
-            <Pressable onPress={() => { setAuthChannel(authChannel === 'EMAIL' ? 'SMS' : 'EMAIL'); setError(''); }} style={localStyles.switchBtn}>
-              <Text style={localStyles.switchText}>
-                {authChannel === 'EMAIL' ? t('signup.useMobileInstead', { defaultValue: 'Use mobile instead' }) : t('signup.useEmailInstead', { defaultValue: 'Use email instead' })}
-              </Text>
-            </Pressable>
+            <View style={localStyles.termsWrapper}>
+              <View style={localStyles.consentRow}>
+                <Pressable 
+                  onPress={() => { 
+                    setAcceptedTerms(!acceptedTerms); 
+                    if (!acceptedTerms) setTermsWarning(''); 
+                  }}
+                  hitSlop={8}
+                >
+                  <View style={[localStyles.checkbox, acceptedTerms && localStyles.checkboxChecked, !!termsWarning && localStyles.checkboxError]}>
+                    {acceptedTerms && <Text style={localStyles.checkMark}>✓</Text>}
+                  </View>
+                </Pressable>
+
+                <Text style={localStyles.consentText}>
+                  <Text onPress={() => {
+                    setAcceptedTerms(!acceptedTerms); 
+                    if (!acceptedTerms) setTermsWarning(''); 
+                  }}>
+                    {t('signup.termsPrefix', { defaultValue: 'I agree to the ' })}
+                  </Text>
+                  <Text 
+                    onPress={() => setTermsModalVisible(true)} 
+                    style={{ textDecorationLine: 'underline', color: '#102A54', fontWeight: '600' }}
+                  >
+                    {t('signup.termsOfService', { defaultValue: 'Terms of Service' })}
+                  </Text>
+                  <Text onPress={() => {
+                    setAcceptedTerms(!acceptedTerms); 
+                    if (!acceptedTerms) setTermsWarning(''); 
+                  }}>
+                    {` ${t('signup.and', { defaultValue: 'and' })} `}
+                  </Text>
+                  <Text 
+                    onPress={() => setPrivacyModalVisible(true)} 
+                    style={{ textDecorationLine: 'underline', color: '#102A54', fontWeight: '600' }}
+                  >
+                    {t('signup.privacyPolicy', { defaultValue: 'Privacy Policy' })}
+                  </Text>
+                  <Text> </Text>
+                  <Text 
+                    onPress={() => setTermsModalVisible(true)} 
+                    style={localStyles.learnMoreText}
+                  >
+                    {t('signup.learnMore', { defaultValue: 'Learn more' })}
+                  </Text>
+                </Text>
+              </View>
+
+              {termsWarning ? (
+                <Text style={localStyles.termsWarningText}>{termsWarning}</Text>
+              ) : null}
+            </View>
             
             <View style={localStyles.footer}>
               <Text style={localStyles.footerText}>{t('signup.haveAccount', { defaultValue: 'Already have an account?' })} </Text>
@@ -352,6 +465,14 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
           </View>
         )}
       </ScrollView>
+      <TermsModal 
+        visible={termsModalVisible} 
+        onClose={() => setTermsModalVisible(false)} 
+      />
+      <PrivacyPolicyModal
+        visible={privacyModalVisible}
+        onClose={() => setPrivacyModalVisible(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -379,12 +500,42 @@ const localStyles = StyleSheet.create({
   divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },
   line: { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
   orText: { marginHorizontal: 16, color: '#A0AEC0', fontSize: 14 },
-  waButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#fff', marginBottom: 24 },
-  waIcon: { fontSize: 20, marginRight: 12 },
-  waText: { fontSize: 16, fontWeight: '700', color: '#4A5568' },
-  switchBtn: { alignItems: 'center', paddingVertical: 12 },
-  switchText: { color: '#3C3985', fontSize: 14, fontWeight: '600' },
-  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 32 },
+  waButton: {
+    minHeight: 56,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  waText: { fontSize: 16, fontWeight: '700', color: '#102A54' },
+  secondaryBoxBtn: {
+    minHeight: 56,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  secondaryBoxText: { fontSize: 16, fontWeight: '700', color: '#102A54' },
+  termsWrapper: { marginTop: 12, marginBottom: 8 },
+  consentRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: '#CBD5E0', marginRight: 10, marginTop: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
+  checkboxChecked: { backgroundColor: '#3C3985', borderColor: '#3C3985' },
+  checkboxError: { borderColor: '#E53E3E' },
+  checkMark: { color: '#fff', fontSize: 13, fontWeight: 'bold' },
+  consentText: { color: '#718096', fontSize: 12, flex: 1, lineHeight: 18 },
+  learnMoreText: { color: '#2B6CB0', fontSize: 12, fontWeight: '700', textDecorationLine: 'underline' },
+  termsWarningText: { color: '#E53E3E', fontSize: 12, fontWeight: '600', marginLeft: 32, marginTop: 6 },
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 16 },
   footerText: { color: '#718096', fontSize: 14 },
   link: { color: '#3C3985', fontSize: 14, fontWeight: '700' }
 });

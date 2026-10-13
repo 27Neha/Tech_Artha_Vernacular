@@ -131,53 +131,6 @@ export const ProfileScreen = () => {
             </View>
           </Pressable>
 
-          {/* Account Settings */}
-          <Pressable style={styles.card} onPress={() => navigation.navigate('Settings')}>
-            <View style={styles.cardHeader}>
-              <View style={styles.iconBox}><Text style={styles.iconText}>sT,?</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{t('profile.accountSettings', { defaultValue: 'Account Settings' })}</Text>
-                <Text style={styles.cardSub}>{t('profile.settingsDesc', { defaultValue: 'Language, themes, notifications' })}</Text>
-              </View>
-              <Text style={styles.chevron}>&gt;</Text>
-            </View>
-          </Pressable>
-
-          {/* AI / Client Assistance */}
-          <Pressable style={styles.card} onPress={() => Alert.alert('Chat Support', 'Chat Support interface coming soon!')}>
-            <View style={styles.cardHeader}>
-              <View style={[styles.iconBox, { backgroundColor: '#E6FFFA' }]}><Text style={styles.iconText}>dY -</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{t('profile.support', { defaultValue: 'AI / Client Assistance' })}</Text>
-                <Text style={styles.cardSub}>{t('profile.supportDesc', { defaultValue: 'Get help with your portfolio' })}</Text>
-              </View>
-              <Text style={styles.chevron}>&gt;</Text>
-            </View>
-          </Pressable>
-
-          {/* Contact */}
-          <Pressable style={styles.card} onPress={() => Alert.alert('Contact module structure exists. Awaiting verified contact details from project owners.')}>
-            <View style={styles.cardHeader}>
-              <View style={[styles.iconBox, { backgroundColor: '#F0FFF4' }]}><Text style={styles.iconText}>dY"z</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{t('profile.contact', { defaultValue: 'Contact Us' })}</Text>
-                <Text style={styles.cardSub}>{t('profile.contactDesc', { defaultValue: 'Get in touch with support' })}</Text>
-              </View>
-              <Text style={styles.chevron}>&gt;</Text>
-            </View>
-          </Pressable>
-
-          {/* Terms */}
-          <Pressable style={styles.card} onPress={() => Alert.alert('Terms & Conditions structure exists. Awaiting approved legal text.')}>
-            <View style={styles.cardHeader}>
-              <View style={styles.iconBox}><Text style={styles.iconText}>dY",</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{t('profile.terms', { defaultValue: 'Terms & Conditions' })}</Text>
-                <Text style={styles.cardSub}>{t('profile.termsDesc', { defaultValue: 'Legal agreements and policies' })}</Text>
-              </View>
-              <Text style={styles.chevron}>&gt;</Text>
-            </View>
-          </Pressable>
         </View>
 
         {/* EXPANDABLE SECTIONS */}

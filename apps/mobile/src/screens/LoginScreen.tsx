@@ -5,46 +5,62 @@ import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
 import { authStore } from '../store/auth';
+import { useAuth } from '../store/AuthContext';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { OtpVerification } from '../components/OtpVerification';
+import { Ionicons } from '@expo/vector-icons';
+import { TermsModal } from '../components/TermsModal';
+import { PrivacyPolicyModal } from '../components/PrivacyPolicyModal';
+
+const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 interface LoginScreenProps {
-  apiUrl: string;
+  apiUrl?: string;
+  phone?: string;
+  setPhone?: (phone: string) => void;
 }
 
-export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
+export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, setPhone: setParentPhone }: LoginScreenProps) => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
+  const { signIn } = useAuth();
   
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState(initialPhone || '');
   const [step, setStep] = useState(1);
   const [authChannel, setAuthChannel] = useState<'SMS' | 'WHATSAPP' | 'EMAIL'>('SMS');
   const [identifierType, setIdentifierType] = useState<'MOBILE' | 'EMAIL'>('MOBILE');
   const [email, setEmail] = useState('');
   const [loginMethod, setLoginMethod] = useState<'otp' | 'password'>('otp');
-
-  useFocusEffect(
-    React.useCallback(() => {
-      setPhone('');
-      setEmail('');
-      setPassword('');
-      setStep(1);
-      setError('');
-    }, [])
-  );
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  
   const [loading, setLoading] = useState(false);
   // Returned by the server only outside production with AUTH_DEV_BYPASS on. Carried so
   // the OTP screen can prefill it while real SMS and WhatsApp delivery is unreliable.
   const [devOtp, setDevOtp] = useState<string | null>(null);
-  // Cybrilla compliance point 11: consent must be an explicit, unticked action before
-  // any credential is sent, not implied by continuing. Restored after the b657c9f merge,
-  // whose version of this screen had no consent gate.
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [termsWarning, setTermsWarning] = useState('');
+  const [termsModalVisible, setTermsModalVisible] = useState(false);
+  const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setPhone(initialPhone || '');
+      setEmail('');
+      setPassword('');
+      setStep(1);
+      setError('');
+      setAcceptedTerms(false);
+      setTermsWarning('');
+    }, [initialPhone])
+  );
+
+  const handlePhoneChange = (val: string) => {
+    const cleaned = val.replace(/\D/g, '');
+    setPhone(cleaned);
+    if (setParentPhone) setParentPhone(cleaned);
+  };
 
   const safeFetchJson = async (res: Response) => {
     try {
@@ -56,18 +72,13 @@ export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
 
   const handleContinue = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL' | 'PASSWORD') => {
     setError('');
-    // Guarded here rather than on each button: all four entry points - SMS, WhatsApp,
-    // email and password - come through this function, so one check cannot be bypassed
-    // by a path someone adds later.
+    setTermsWarning('');
+    if (channel !== 'PASSWORD') setAuthChannel(channel as any);
+    
     if (!acceptedTerms) {
-      setError(
-        t('validation.termsRequired', {
-          defaultValue: 'Please accept the Terms & Conditions and Privacy Policy to continue.',
-        }),
-      );
+      setTermsWarning(t('signup.termsRequired', { defaultValue: 'Please agree to the Terms of Service & Privacy Policy to continue.' }));
       return;
     }
-    if (channel !== 'PASSWORD') setAuthChannel(channel as any);
     
     if (identifierType === 'EMAIL') {
       if (!email.trim() || !email.includes('@')) {
@@ -83,7 +94,6 @@ export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
 
     setLoading(true);
     try {
-      // Skip existence check for faster login
       if (channel === 'PASSWORD') {
         await handlePasswordLogin();
       } else {
@@ -91,7 +101,9 @@ export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
         await handleSendOtp(channel);
       }
     } catch (e: any) {
-      setError(t('common.error', { defaultValue: 'Something went wrong. Please try again.' }));
+      if (!error) {
+        setError(e?.message || t('common.error', { defaultValue: 'Something went wrong. Please try again.' }));
+      }
     } finally {
       setLoading(false);
     }
@@ -112,7 +124,11 @@ export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
       setDevOtp(data?.devOtp ?? null);
       setStep(2);
     } catch (e: any) {
-      setError(e.message);
+      const msg = e?.message === 'Network request failed'
+        ? `Could not reach server at ${apiUrl}. Check your Wi-Fi connection.`
+        : (e?.message || t('login.failedToSendOtp', { defaultValue: 'Failed to send OTP' }));
+      setError(msg);
+      throw new Error(msg);
     } finally {
       setLoading(false);
     }
@@ -134,8 +150,16 @@ export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
       const data = await safeFetchJson(res);
       if (!res.ok) throw new Error(data.message || t('login.invalidCredentials', { defaultValue: 'Invalid credentials' }));
       
-      authStore.accessToken = data.accessToken || data.access_token;
+      const token = data.accessToken || data.access_token;
+      authStore.accessToken = token;
       authStore.userId = data.user?.id;
+      if (token && data.user) {
+        await signIn({
+          accessToken: token,
+          refreshToken: data.refreshToken || '',
+          user: { id: data.user.id, mobile: data.user.mobile || phone || '' }
+        });
+      }
       navigation.navigate('MainTabs');
     } catch (e: any) {
       setError(e.message);
@@ -144,20 +168,28 @@ export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
     }
   };
 
-  const handleVerifyOtp = async (otp: string) => {
+  const handleVerifyOtp = async (otpValue: string) => {
     setLoading(true);
     setError('');
     try {
       const res = await fetch(`${apiUrl}/auth/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(identifierType === 'EMAIL' ? { email, otp, type: 'login' } : { mobile: phone, otp, type: 'login' })
+        body: JSON.stringify(identifierType === 'EMAIL' ? { email, otp: otpValue, type: 'login' } : { mobile: phone, otp: otpValue, type: 'login' })
       });
       const data = await safeFetchJson(res);
       if (!res.ok) throw new Error(data.message || t('login.invalidOtp', { defaultValue: 'Invalid OTP' }));
       
-      authStore.accessToken = data.accessToken || data.access_token;
+      const token = data.accessToken || data.access_token;
+      authStore.accessToken = token;
       authStore.userId = data.user?.id;
+      if (token && data.user) {
+        await signIn({
+          accessToken: token,
+          refreshToken: data.refreshToken || '',
+          user: { id: data.user.id, mobile: data.user.mobile || phone || '' }
+        });
+      }
       navigation.navigate('MainTabs');
     } catch (e: any) {
       setError(e.message);
@@ -198,7 +230,7 @@ export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
                   <Text style={styles.country}>+91</Text>
                   <TextInput 
                     value={phone}
-                    onChangeText={(text) => setPhone(text.replace(/\D/g, ''))}
+                    onChangeText={handlePhoneChange}
                     keyboardType="number-pad"
                     maxLength={10}
                     placeholder={t('login.mobilePlaceholder', { defaultValue: 'Enter 10-digit number' })}
@@ -207,23 +239,6 @@ export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
                 </View>
               </View>
             )}
-
-            <Pressable
-              style={localStyles.termsRow}
-              onPress={() => setAcceptedTerms((prev) => !prev)}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: acceptedTerms }}
-            >
-              <View style={[localStyles.checkbox, acceptedTerms && localStyles.checkboxOn]}>
-                {acceptedTerms ? <Text style={localStyles.checkboxTick}>✓</Text> : null}
-              </View>
-              <Text style={localStyles.termsText}>
-                {t('login.acceptTerms', {
-                  defaultValue:
-                    'I agree to the Terms & Conditions and the Privacy Policy, and to receive transaction updates about my investments.',
-                })}
-              </Text>
-            </Pressable>
 
             <Text style={styles.label}>{t('login.loginVia', { defaultValue: 'Login via' })}</Text>
             <View style={localStyles.toggleContainer}>
@@ -266,35 +281,113 @@ export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
             ) : (
               <View>
                 {identifierType === 'EMAIL' ? (
-                  <Pressable style={[styles.primaryButton, (loading && authChannel === 'EMAIL') && styles.primaryDisabled]} onPress={() => handleContinue('EMAIL')} disabled={loading}>
-                    <Text style={styles.primaryText}>{(loading && authChannel === 'EMAIL') ? t('common.loading', { defaultValue: 'Loading...' }) : t('login.continueWithEmail', { defaultValue: 'Continue with Email' })}</Text>
-                    {!(loading && authChannel === 'EMAIL') && <Text style={styles.primaryText}>→</Text>}
-                  </Pressable>
+                  <View>
+                    <Pressable style={[styles.primaryButton, (loading && authChannel === 'EMAIL') && styles.primaryDisabled]} onPress={() => handleContinue('EMAIL')} disabled={loading}>
+                      <Text style={styles.primaryText}>{(loading && authChannel === 'EMAIL') ? t('common.loading', { defaultValue: 'Loading...' }) : t('login.continueWithEmail', { defaultValue: 'Continue with Email' })}</Text>
+                      {!(loading && authChannel === 'EMAIL') && <Text style={styles.primaryText}>→</Text>}
+                    </Pressable>
+
+                    <Pressable 
+                      style={[localStyles.secondaryBoxBtn, { marginTop: 16 }]} 
+                      onPress={() => { setIdentifierType('MOBILE'); setAuthChannel('SMS'); setError(''); setTermsWarning(''); }}
+                    >
+                      <Ionicons name="phone-portrait-outline" size={20} color="#3C3985" style={{ marginRight: 8 }} />
+                      <Text style={localStyles.secondaryBoxText}>
+                        {t('signup.useMobileInstead', { defaultValue: 'Use mobile instead' })}
+                      </Text>
+                    </Pressable>
+                  </View>
                 ) : (
-                  <>
+                  <View>
                     <Pressable style={[styles.primaryButton, (loading && authChannel === 'SMS') && styles.primaryDisabled]} onPress={() => handleContinue('SMS')} disabled={loading}>
                       <Text style={styles.primaryText}>{(loading && authChannel === 'SMS') ? t('common.loading', { defaultValue: 'Loading...' }) : t('login.continueWithSms', { defaultValue: 'Continue with SMS' })}</Text>
                       {!(loading && authChannel === 'SMS') && <Text style={styles.primaryText}>→</Text>}
                     </Pressable>
+
                     <View style={localStyles.divider}>
                       <View style={localStyles.line} />
                       <Text style={localStyles.orText}>{t('signup.or', { defaultValue: 'or' })}</Text>
                       <View style={localStyles.line} />
                     </View>
-                    <Pressable style={localStyles.waButton} onPress={() => handleContinue('WHATSAPP')} disabled={loading}>
-                      <Text style={localStyles.waIcon}>💬</Text>
-                      <Text style={localStyles.waText}>{(loading && authChannel === 'WHATSAPP') ? t('common.loading', { defaultValue: 'Loading...' }) : t('login.useWaInstead', { defaultValue: 'Continue with WhatsApp' })}</Text>
+
+                    <Pressable 
+                      style={[localStyles.waButton, (loading && authChannel === 'WHATSAPP') && styles.primaryDisabled]} 
+                      onPress={() => handleContinue('WHATSAPP')} 
+                      disabled={loading}
+                    >
+                      <Ionicons name="logo-whatsapp" size={20} color="#25D366" style={{ marginRight: 8 }} />
+                      <Text style={localStyles.waText}>
+                        {(loading && authChannel === 'WHATSAPP') ? t('common.loading', { defaultValue: 'Loading...' }) : t('login.useWaInstead', { defaultValue: 'Continue with WhatsApp' })}
+                      </Text>
                     </Pressable>
-                  </>
+
+                    <Pressable 
+                      style={localStyles.secondaryBoxBtn} 
+                      onPress={() => { setIdentifierType('EMAIL'); setAuthChannel('EMAIL'); setError(''); setTermsWarning(''); }}
+                    >
+                      <Ionicons name="mail-outline" size={20} color="#3C3985" style={{ marginRight: 8 }} />
+                      <Text style={localStyles.secondaryBoxText}>
+                        {t('signup.useEmailInstead', { defaultValue: 'Use email instead' })}
+                      </Text>
+                    </Pressable>
+                  </View>
                 )}
               </View>
             )}
 
-            <Pressable onPress={() => { setIdentifierType(identifierType === 'EMAIL' ? 'MOBILE' : 'EMAIL'); setError(''); }} style={[localStyles.switchBtn, { marginTop: 12 }]}>
-              <Text style={localStyles.switchText}>
-                {identifierType === 'EMAIL' ? t('signup.useMobileInstead', { defaultValue: 'Use mobile instead' }) : t('signup.useEmailInstead', { defaultValue: 'Use email instead' })}
-              </Text>
-            </Pressable>
+            <View style={localStyles.termsWrapper}>
+              <View style={localStyles.consentRow}>
+                <Pressable 
+                  onPress={() => { 
+                    setAcceptedTerms(!acceptedTerms); 
+                    if (!acceptedTerms) setTermsWarning(''); 
+                  }}
+                  hitSlop={8}
+                >
+                  <View style={[localStyles.checkbox, acceptedTerms && localStyles.checkboxChecked, !!termsWarning && localStyles.checkboxError]}>
+                    {acceptedTerms && <Text style={localStyles.checkMark}>✓</Text>}
+                  </View>
+                </Pressable>
+
+                <Text style={localStyles.consentText}>
+                  <Text onPress={() => {
+                    setAcceptedTerms(!acceptedTerms); 
+                    if (!acceptedTerms) setTermsWarning(''); 
+                  }}>
+                    {t('signup.termsPrefix', { defaultValue: 'I agree to the ' })}
+                  </Text>
+                  <Text 
+                    onPress={() => setTermsModalVisible(true)} 
+                    style={{ textDecorationLine: 'underline', color: '#102A54', fontWeight: '600' }}
+                  >
+                    {t('signup.termsOfService', { defaultValue: 'Terms of Service' })}
+                  </Text>
+                  <Text onPress={() => {
+                    setAcceptedTerms(!acceptedTerms); 
+                    if (!acceptedTerms) setTermsWarning(''); 
+                  }}>
+                    {` ${t('signup.and', { defaultValue: 'and' })} `}
+                  </Text>
+                  <Text 
+                    onPress={() => setPrivacyModalVisible(true)} 
+                    style={{ textDecorationLine: 'underline', color: '#102A54', fontWeight: '600' }}
+                  >
+                    {t('signup.privacyPolicy', { defaultValue: 'Privacy Policy' })}
+                  </Text>
+                  <Text> </Text>
+                  <Text 
+                    onPress={() => setTermsModalVisible(true)} 
+                    style={localStyles.learnMoreText}
+                  >
+                    {t('signup.learnMore', { defaultValue: 'Learn more' })}
+                  </Text>
+                </Text>
+              </View>
+
+              {termsWarning ? (
+                <Text style={localStyles.termsWarningText}>{termsWarning}</Text>
+              ) : null}
+            </View>
             
             <View style={localStyles.footer}>
               <Text style={localStyles.footerText}>{t('login.noAccount', { defaultValue: 'Not have an account?' })} </Text>
@@ -316,17 +409,19 @@ export const LoginScreen = ({ apiUrl }: LoginScreenProps) => {
           />
         )}
       </ScrollView>
+      <TermsModal 
+        visible={termsModalVisible} 
+        onClose={() => setTermsModalVisible(false)} 
+      />
+      <PrivacyPolicyModal
+        visible={privacyModalVisible}
+        onClose={() => setPrivacyModalVisible(false)}
+      />
     </SafeAreaView>
   );
 };
 
 const localStyles = StyleSheet.create({
-  termsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 20, marginBottom: 4 },
-  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#A0AEC0', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
-  checkboxOn: { backgroundColor: '#3C3985', borderColor: '#3C3985' },
-  checkboxTick: { color: '#fff', fontSize: 13, fontWeight: '800' },
-  termsText: { flex: 1, color: '#4A5568', fontSize: 12, lineHeight: 18 },
-
   content: { paddingBottom: 40 },
   inputGroup: { marginBottom: 16 },
   errorText: { color: '#E53E3E', fontSize: 14, marginBottom: 16, fontWeight: '500' },
@@ -338,12 +433,45 @@ const localStyles = StyleSheet.create({
   divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },
   line: { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
   orText: { marginHorizontal: 16, color: '#A0AEC0', fontSize: 14 },
-  waButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#fff', marginBottom: 24 },
-  waIcon: { fontSize: 20, marginRight: 12 },
-  waText: { fontSize: 16, fontWeight: '700', color: '#4A5568' },
-  switchBtn: { alignItems: 'center', paddingVertical: 12 },
-  switchText: { color: '#3C3985', fontSize: 14, fontWeight: '600' },
+  waButton: {
+    minHeight: 56,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  waText: { fontSize: 16, fontWeight: '700', color: '#102A54' },
+  secondaryBoxBtn: {
+    minHeight: 56,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  secondaryBoxText: { fontSize: 16, fontWeight: '700', color: '#102A54' },
+  termsWrapper: { marginTop: 12, marginBottom: 8 },
+  consentRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: '#CBD5E0', marginRight: 10, marginTop: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
+  checkboxChecked: { backgroundColor: '#3C3985', borderColor: '#3C3985' },
+  checkboxError: { borderColor: '#E53E3E' },
+  checkMark: { color: '#fff', fontSize: 13, fontWeight: 'bold' },
+  consentText: { color: '#718096', fontSize: 12, flex: 1, lineHeight: 18 },
+  learnMoreText: { color: '#2B6CB0', fontSize: 12, fontWeight: '700', textDecorationLine: 'underline' },
+  termsWarningText: { color: '#E53E3E', fontSize: 12, fontWeight: '600', marginLeft: 32, marginTop: 6 },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 12 },
   footerText: { color: '#718096', fontSize: 14 },
-  link: { color: '#3C3985', fontSize: 14, fontWeight: '700' }
+  link: { color: '#3C3985', fontSize: 14, fontWeight: '700' },
+  switchText: { color: '#3C3985', fontSize: 14, fontWeight: '600' }
 });
+
+export default LoginScreen;

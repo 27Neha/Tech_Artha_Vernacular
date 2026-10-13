@@ -1,13 +1,20 @@
-﻿'use client';
+'use client';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
+import { useTranslation } from '../../TranslationProvider';
+import { SUPPORTED_LANGUAGES } from '../../TranslationProvider';
+import TermsModal from '@/components/TermsModal';
+import PrivacyPolicyModal from '@/components/PrivacyPolicyModal';
 
 export default function SettingsPage() {
+  const { t, lang, setLang } = useTranslation();
   const router = useRouter();
     
   const [expanded, setExpanded] = useState<string | null>(null);
   const [pushEnabled, setPushEnabled] = useState(true);
   const [theme, setTheme] = useState('system');
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
+  const [privacyPolicyModalOpen, setPrivacyPolicyModalOpen] = useState(false);
 
   useEffect(() => {
     setPushEnabled(localStorage.getItem('pushEnabled') !== 'false');
@@ -46,16 +53,41 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col min-h-screen p-6 bg-gray-50 pb-32">
       <div className="flex items-center gap-4 mb-8">
-        <button onClick={() => router.back()} className="text-3xl leading-none opacity-80 text-[var(--dark)]">‹</button>
-        <h1 className="text-2xl font-extrabold text-[var(--dark)]">Settings</h1>
+<h1 className="text-2xl font-extrabold text-[var(--dark)]">{t('settings.title') || 'Settings'}</h1>
       </div>
 
       <div className="flex flex-col gap-3">
+
+        {/* LANGUAGE SETTING */}
+        <div className={`bg-white rounded-2xl border ${expanded === 'Language' ? 'border-[var(--primary)]' : 'border-gray-100'} transition-all shadow-sm overflow-hidden`}>
+          <button onClick={() => toggleExpand('Language')} className="w-full p-4 flex items-center gap-4 text-left">
+            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">🌐</div>
+            <div className="flex-1">
+              <p className="font-bold text-[var(--dark)] text-sm">{t('settings.language') || 'Language'}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t('settings.changeLang') || 'Change app language'}</p>
+            </div>
+            <span className={`text-gray-300 text-xl transition-transform ${expanded === 'Language' ? 'rotate-90' : ''}`}>›</span>
+          </button>
+          {expanded === 'Language' && (
+            <div className="px-4 pb-4 pt-1 flex flex-col gap-2 border-t border-gray-50 max-h-64 overflow-y-auto">
+              {SUPPORTED_LANGUAGES.map((l) => (
+                <button key={l.code} onClick={() => setLang(l.code)} className={`flex items-center justify-between p-3 rounded-xl border ${lang === l.code ? 'bg-blue-50 border-[var(--primary)] text-[var(--primary)]' : 'border-gray-100 text-[var(--dark)]'}`}>
+                  <div>
+                    <span className="font-bold text-sm block">{l.nativeName}</span>
+                    <span className="text-xs text-gray-400">{l.name}</span>
+                  </div>
+                  {lang === l.code && <span className="font-bold text-[var(--primary)]">✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* PUSH NOTIFICATIONS SETTING */}
         <div className="bg-white rounded-2xl border border-gray-100 transition-all shadow-sm overflow-hidden p-4 flex items-center gap-4 text-left">
           <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">🔔</div>
           <div className="flex-1">
-            <p className="font-bold text-[var(--dark)] text-sm">Push Notifications</p>
+            <p className="font-bold text-[var(--dark)] text-sm">{t('settings.pushNotif') || 'Push Notifications'}</p>
             <p className="text-gray-400 text-xs mt-0.5">SIPs, goals, and market updates</p>
           </div>
           <button 
@@ -71,7 +103,7 @@ export default function SettingsPage() {
           <button onClick={() => toggleExpand('App Theme')} className="w-full p-4 flex items-center gap-4 text-left">
             <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">🎨</div>
             <div className="flex-1">
-              <p className="font-bold text-[var(--dark)] text-sm">App Theme</p>
+              <p className="font-bold text-[var(--dark)] text-sm">{t('settings.appTheme') || 'App Theme'}</p>
               <p className="text-gray-400 text-xs mt-0.5">{theme.charAt(0).toUpperCase() + theme.slice(1)} Mode</p>
             </div>
             <span className={`text-gray-300 text-xl transition-transform ${expanded === 'App Theme' ? 'rotate-90' : ''}`}>›</span>
@@ -93,8 +125,8 @@ export default function SettingsPage() {
           <button onClick={() => toggleExpand('Help & Support')} className="w-full p-4 flex items-center gap-4 text-left">
             <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">❓</div>
             <div className="flex-1">
-              <p className="font-bold text-[var(--dark)] text-sm">Help & Support</p>
-              <p className="text-gray-400 text-xs mt-0.5">FAQs, Tutorials, and Contact Us</p>
+              <p className="font-bold text-[var(--dark)] text-sm">{t('settings.helpSupport') || 'Help & Support'}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t('settings.helpDesc') || 'FAQs, Tutorials, and Contact Us'}</p>
             </div>
             <span className={`text-gray-300 text-xl transition-transform ${expanded === 'Help & Support' ? 'rotate-90' : ''}`}>›</span>
           </button>
@@ -112,18 +144,55 @@ export default function SettingsPage() {
                 <a href="https://wa.me/918308816023" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl hover:border-green-500 transition-all">
                   <span className="text-xl">📱</span>
                   <div>
-                    <p className="text-sm font-bold text-[var(--dark)]">WhatsApp Support</p>
+                    <p className="text-sm font-bold text-[var(--dark)]">{t('settings.whatsapp') || 'WhatsApp Support'}</p>
                     <p className="text-xs text-gray-500">+91 8308816023</p>
                   </div>
                 </a>
                 <a href="mailto:support@TechArtha.com" className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl hover:border-blue-300 transition-all">
                   <span className="text-xl">✉️</span>
                   <div>
-                    <p className="text-sm font-bold text-[var(--dark)]">Email Support</p>
+                    <p className="text-sm font-bold text-[var(--dark)]">{t('settings.email') || 'Email Support'}</p>
                     <p className="text-xs text-gray-500">support@TechArtha.com</p>
                   </div>
                 </a>
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* LEGAL & POLICIES SETTING */}
+        <div className={`bg-white rounded-2xl border ${expanded === 'Legal' ? 'border-[var(--primary)]' : 'border-gray-100'} transition-all shadow-sm overflow-hidden`}>
+          <button onClick={() => toggleExpand('Legal')} className="w-full p-4 flex items-center gap-4 text-left">
+            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">📜</div>
+            <div className="flex-1">
+              <p className="font-bold text-[var(--dark)] text-sm">{t('settings.legal') || 'Legal & Policies'}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t('settings.legalDesc') || 'Terms of Service and Privacy Policy'}</p>
+            </div>
+            <span className={`text-gray-300 text-xl transition-transform ${expanded === 'Legal' ? 'rotate-90' : ''}`}>›</span>
+          </button>
+          {expanded === 'Legal' && (
+            <div className="px-4 pb-4 pt-2 border-t border-gray-50 flex flex-col gap-2">
+              <button 
+                onClick={() => setTermsModalOpen(true)} 
+                className="w-full flex items-center justify-between p-3.5 rounded-xl border border-gray-100 hover:border-[var(--primary)] hover:bg-gray-50/50 transition-all text-left"
+              >
+                <div>
+                  <p className="text-sm font-bold text-[var(--dark)]">Terms of Service</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Rules and conditions governing platform usage</p>
+                </div>
+                <span className="text-gray-300 font-bold text-lg">›</span>
+              </button>
+
+              <button 
+                onClick={() => setPrivacyPolicyModalOpen(true)} 
+                className="w-full flex items-center justify-between p-3.5 rounded-xl border border-gray-100 hover:border-[var(--primary)] hover:bg-gray-50/50 transition-all text-left"
+              >
+                <div>
+                  <p className="text-sm font-bold text-[var(--dark)]">Privacy Policy</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Data security, privacy practices, and compliance</p>
+                </div>
+                <span className="text-gray-300 font-bold text-lg">›</span>
+              </button>
             </div>
           )}
         </div>
@@ -155,6 +224,15 @@ export default function SettingsPage() {
       </button>
 
       <p className="text-xs text-gray-400 text-center mt-10">TechArtha v1.0.0 (Build 42)</p>
+
+      <TermsModal 
+        isOpen={termsModalOpen} 
+        onClose={() => setTermsModalOpen(false)} 
+      />
+      <PrivacyPolicyModal
+        isOpen={privacyPolicyModalOpen}
+        onClose={() => setPrivacyPolicyModalOpen(false)}
+      />
     </div>
   );
 }
