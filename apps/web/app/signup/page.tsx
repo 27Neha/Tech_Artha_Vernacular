@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import OtpVerification from '../../components/OtpVerification';
+import TermsModal from '../../components/TermsModal';
+import PrivacyPolicyModal from '../../components/PrivacyPolicyModal';
 
 
 const safeFetchJson = async (res: Response) => {
@@ -19,6 +21,10 @@ export default function SignupPage() {
   const { t } = useTranslation();
   const [step, setStep] = useState(1);
   const [authChannel, setAuthChannel] = useState<'SMS' | 'WHATSAPP' | 'EMAIL'>('SMS');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [termsWarning, setTermsWarning] = useState('');
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
+  const [privacyPolicyModalOpen, setPrivacyPolicyModalOpen] = useState(false);
   
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
@@ -44,7 +50,13 @@ export default function SignupPage() {
   
   const handleContinue = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL') => {
     setValidationError('');
+    setTermsWarning('');
     setAccountExistsWarning(false);
+
+    if (!acceptedTerms) {
+      setTermsWarning(t('signup.termsRequired', { defaultValue: 'Please agree to the Terms of Service & Privacy Policy to continue.' }));
+      return;
+    }
     
     if (channel === 'EMAIL') {
       if (!email.trim()) {
@@ -414,37 +426,45 @@ export default function SignupPage() {
                         {t('signup.goToLogin') || 'Go to Login'} →
                       </button>
                     </div>
-                  )}
-                  <button 
+                  )}                  <button 
                     onClick={() => handleContinue('EMAIL')}
-                  disabled={loading} 
-                  className="btn-primary w-full py-4 rounded-xl font-bold text-lg mb-6 shadow-sm"
-                >
-                  {t('signup.continueWithEmail') || 'Continue with Email'} →
-                </button>
-                
-                
-              </div>
-            ) : (
-              <div className="flex flex-col w-full">
-                <div className="mb-6">
-                  <label className="label text-sm text-gray-700 font-semibold mb-2 block">{t('signup.mobileNumber') || 'Mobile Number'}</label>
-                  <div className="flex w-full">
-                    <div className="flex-shrink-0 flex items-center justify-center px-4 border border-gray-200 border-r-0 rounded-l-xl bg-gray-50 text-gray-600 font-semibold">
-                      +91
+                    disabled={loading} 
+                    className="btn-primary w-full py-4 rounded-xl font-bold text-lg mb-6 shadow-sm"
+                  >
+                    {t('signup.continueWithEmail') || 'Continue with Email'} →
+                  </button>
+
+                  <button 
+                    onClick={() => { setAuthChannel('SMS'); setValidationError(''); setTermsWarning(''); }} 
+                    className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors mb-6 shadow-sm"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3C3985" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                      <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                    </svg>
+                    {t('signup.useMobileInstead') || 'Use mobile instead'}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col w-full">
+                  <div className="mb-6">
+                    <label className="label text-sm text-gray-700 font-semibold mb-2 block">{t('signup.mobileNumber') || 'Mobile Number'}</label>
+                    <div className="flex w-full">
+                      <div className="flex-shrink-0 flex items-center justify-center px-4 border border-gray-200 border-r-0 rounded-l-xl bg-gray-50 text-gray-600 font-semibold">
+                        +91
+                      </div>
+                      <input 
+                        type="tel"
+                        ref={mobileInputRef}
+                        value={mobile} 
+                        onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} 
+                        placeholder={t('signup.mobilePlaceholder') || 'Enter 10-digit mobile number'} 
+                        className="w-full p-4 border border-gray-200 rounded-r-xl focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none transition-colors" 
+                        maxLength={10}
+                        inputMode="numeric"
+                      />
                     </div>
-                    <input 
-                      type="tel"
-                      ref={mobileInputRef}
-                      value={mobile} 
-                      onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} 
-                      placeholder={t('signup.mobilePlaceholder') || 'Enter 10-digit mobile number'} 
-                      className="w-full p-4 border border-gray-200 rounded-r-xl focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none transition-colors" 
-                      maxLength={10}
-                      inputMode="numeric"
-                    />
-                  </div>
-                  {validationError && <p className="text-red-500 text-xs mt-2 font-medium">{validationError}</p>}
+                    {validationError && <p className="text-red-500 text-xs mt-2 font-medium">{validationError}</p>}
                   </div>
 
                   {accountExistsWarning && (
@@ -457,40 +477,97 @@ export default function SignupPage() {
                       </button>
                     </div>
                   )}
+
                   <button 
                     onClick={() => handleContinue('SMS')}
-                  disabled={loading} 
-                  className="btn-primary w-full py-4 rounded-xl font-bold text-lg mb-6 shadow-sm"
-                >
-                  {t('signup.continueWithSms') || 'Continue with SMS'} →
-                </button>
-                
-                <div className="relative flex items-center justify-center mb-6">
-                  <div className="border-t border-gray-200 w-full absolute"></div>
-                  <span className="bg-white px-4 text-gray-400 text-sm relative">{t('signup.or') || 'or'}</span>
-                </div>
+                    disabled={loading} 
+                    className="btn-primary w-full py-4 rounded-xl font-bold text-lg mb-6 shadow-sm"
+                  >
+                    {t('signup.continueWithSms') || 'Continue with SMS'} →
+                  </button>
+                  
+                  <div className="relative flex items-center justify-center mb-6">
+                    <div className="border-t border-gray-200 w-full absolute"></div>
+                    <span className="bg-white px-4 text-gray-400 text-sm relative">{t('signup.or') || 'or'}</span>
+                  </div>
 
-                <button 
-                  onClick={() => handleContinue('WHATSAPP')}
-                  disabled={loading} 
-                  className="w-full flex items-center justify-center gap-3 py-3 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors mb-2 shadow-sm"
-                >
-                  <span className="text-xl">💬</span>
-                  {t('signup.continueWithWa') || 'Continue with WhatsApp'}
-                </button>
-                
-                <p className="text-xs text-center text-gray-500 mb-8">
-                  {t('signup.preferWa') || 'Prefer WhatsApp? Get your OTP there instead.'}
-                  </p>
-                  <div className="flex justify-center mt-2 mb-6">
-                    <button onClick={() => setAuthChannel('EMAIL')} className="text-sm font-semibold text-[var(--primary)] hover:underline">
-                      {t('signup.useEmailInstead') || 'Use email instead'}
+                  <button 
+                    onClick={() => handleContinue('WHATSAPP')} 
+                    disabled={loading} 
+                    className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors mb-3 shadow-sm"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                    </svg>
+                    {t('signup.continueWithWa') || 'Continue with WhatsApp'}
+                  </button>
+
+                  <button 
+                    onClick={() => { setAuthChannel('EMAIL'); setValidationError(''); setTermsWarning(''); }} 
+                    className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors mb-6 shadow-sm"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3C3985" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                      <polyline points="22,6 12,13 2,6"></polyline>
+                    </svg>
+                    {t('signup.useEmailInstead') || 'Use email instead'}
+                  </button>
+                </div>
+              )}
+
+              {/* Terms of Service & Privacy Policy checkbox */}
+              <div className="mt-2 mb-6">
+                <div className="flex items-start gap-3 select-none">
+                  <input
+                    type="checkbox"
+                    id="signup-terms"
+                    checked={acceptedTerms}
+                    onChange={(e) => {
+                      setAcceptedTerms(e.target.checked);
+                      if (e.target.checked) setTermsWarning('');
+                    }}
+                    className={`mt-1 h-5 w-5 rounded border text-[var(--primary)] focus:ring-[var(--primary)] cursor-pointer ${
+                      termsWarning ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                  />
+                  <div className="text-xs sm:text-sm text-gray-600 leading-snug">
+                    <label htmlFor="signup-terms" className="cursor-pointer">
+                      {t('signup.termsPrefix') || 'I agree to the '}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setTermsModalOpen(true)}
+                      className="font-semibold text-gray-900 underline hover:text-blue-600 transition-colors inline"
+                    >
+                      {t('signup.termsOfService') || 'Terms of Service'}
+                    </button>
+                    <span>{` ${t('signup.and') || 'and'} `}</span>
+                    <button
+                      type="button"
+                      onClick={() => setPrivacyPolicyModalOpen(true)}
+                      className="font-semibold text-gray-900 underline hover:text-blue-600 transition-colors inline"
+                    >
+                      {t('signup.privacyPolicy') || 'Privacy Policy'}
+                    </button>
+                    <span> </span>
+                    <button
+                      type="button"
+                      onClick={() => setTermsModalOpen(true)}
+                      className="font-bold text-blue-600 hover:text-blue-800 underline transition-colors inline"
+                    >
+                      {t('signup.learnMore') || 'Learn more'}
                     </button>
                   </div>
                 </div>
-              )}
-        </div>
-      )}
+
+                {termsWarning && (
+                  <p className="ml-8 mt-1.5 text-xs text-red-500 font-medium animate-fade-in">
+                    {termsWarning}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
       {step === 1.5 && (
         <div className="flex-1 flex flex-col justify-start animate-fade-in">
@@ -654,6 +731,15 @@ export default function SignupPage() {
           </button>
         </div>
       )}
+
+      <TermsModal 
+        isOpen={termsModalOpen} 
+        onClose={() => setTermsModalOpen(false)} 
+      />
+      <PrivacyPolicyModal
+        isOpen={privacyPolicyModalOpen}
+        onClose={() => setPrivacyPolicyModalOpen(false)}
+      />
     </div>
   );
 }

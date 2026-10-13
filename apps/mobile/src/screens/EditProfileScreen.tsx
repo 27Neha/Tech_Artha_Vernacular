@@ -28,6 +28,8 @@ import { api } from '../services/api/client';
  */
 type Profile = {
   mobile?: string;
+  /** Present only once an emailed OTP has been verified. */
+  email?: string | null;
   profile?: { fullName?: string | null; pan?: string | null; dateOfBirth?: string | null } | null;
 };
 
@@ -42,6 +44,15 @@ export const EditProfileScreen = () => {
   const [fullName, setFullName] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
 
+  // Email verification. A non-null email on the profile means it was verified by OTP,
+  // so there is no separate "verified" flag to keep in step with it.
+  const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [emailOtp, setEmailOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const isEmailVerified = !!verifiedEmail && verifiedEmail === email.trim().toLowerCase();
+
   useEffect(() => {
     let cancelled = false;
     api
@@ -51,6 +62,8 @@ export const EditProfileScreen = () => {
         setMobile(data?.mobile ?? '');
         setPan(data?.profile?.pan ?? null);
         setFullName(data?.profile?.fullName ?? '');
+        setVerifiedEmail(data?.email ?? null);
+        setEmail(data?.email ?? '');
         setDateOfBirth((data?.profile?.dateOfBirth ?? '').slice(0, 10));
       })
       .catch((e) => Alert.alert('Could not load your profile', e instanceof Error ? e.message : 'Please try again.'))
@@ -59,6 +72,47 @@ export const EditProfileScreen = () => {
       cancelled = true;
     };
   }, []);
+
+  const sendEmailOtp = async () => {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) {
+      return Alert.alert('Check your email', 'Enter a valid email address.');
+    }
+    setEmailBusy(true);
+    try {
+      const result = await api.post<{ devOtp?: string }>('/auth/email/send-otp', { email: email.trim() });
+      setOtpSent(true);
+      // Mirrors the login screen: in development the server returns the code, so a test
+      // does not depend on inbox delivery. __DEV__ is false in any release build.
+      if (__DEV__ && result?.devOtp) {
+        setEmailOtp(result.devOtp);
+        Alert.alert('Dev code', `OTP ${result.devOtp} (prefilled - development only)`);
+        return;
+      }
+      Alert.alert('Code sent', `We have emailed a verification code to ${email.trim()}.`);
+    } catch (e) {
+      Alert.alert('Could not send the code', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const verifyEmailOtp = async () => {
+    setEmailBusy(true);
+    try {
+      const result = await api.post<{ email?: string }>('/auth/email/verify-otp', {
+        email: email.trim(),
+        otp: emailOtp.trim(),
+      });
+      setVerifiedEmail(result?.email ?? email.trim().toLowerCase());
+      setOtpSent(false);
+      setEmailOtp('');
+      Alert.alert('Email verified', 'Your email address has been verified.');
+    } catch (e) {
+      Alert.alert('Verification failed', e instanceof Error ? e.message : 'Please check the code and try again.');
+    } finally {
+      setEmailBusy(false);
+    }
+  };
 
   const save = async () => {
     if (!fullName.trim()) return Alert.alert('Check your details', 'Enter your full name.');
@@ -118,6 +172,77 @@ export const EditProfileScreen = () => {
         </View>
         <Text style={styles.hint}>Your mobile number identifies your account and cannot be changed here.</Text>
 
+        <Text style={styles.label}>Email address</Text>
+        {isEmailVerified ? (
+          <View style={styles.verifiedRow}>
+            <Text style={styles.verifiedText}>{verifiedEmail}</Text>
+            <Text style={styles.verifiedBadge}>Verified</Text>
+          </View>
+        ) : (
+          <>
+            <TextInput
+              value={email}
+              onChangeText={(next) => {
+                setEmail(next);
+                // Changing the address invalidates a code already in flight for the old one.
+                if (otpSent) {
+                  setOtpSent(false);
+                  setEmailOtp('');
+                }
+              }}
+              placeholder="you@example.com"
+              placeholderTextColor="#A0AEC0"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              textContentType="emailAddress"
+              editable={!emailBusy}
+              style={styles.input}
+            />
+            {otpSent ? (
+              <>
+                <Text style={styles.label}>Verification code</Text>
+                <TextInput
+                  value={emailOtp}
+                  onChangeText={setEmailOtp}
+                  placeholder="6-digit code"
+                  placeholderTextColor="#A0AEC0"
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  editable={!emailBusy}
+                  style={styles.input}
+                />
+                <Pressable
+                  style={[styles.smallButton, (emailBusy || emailOtp.trim().length < 6) && styles.disabled]}
+                  onPress={verifyEmailOtp}
+                  disabled={emailBusy || emailOtp.trim().length < 6}
+                >
+                  <Text style={styles.smallButtonText}>{emailBusy ? 'Verifying…' : 'Verify code'}</Text>
+                </Pressable>
+                <Pressable onPress={sendEmailOtp} disabled={emailBusy}>
+                  <Text style={styles.linkText}>Resend code</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable
+                style={[styles.smallButton, emailBusy && styles.disabled]}
+                onPress={sendEmailOtp}
+                disabled={emailBusy}
+              >
+                <Text style={styles.smallButtonText}>{emailBusy ? 'Sending…' : 'Send verification code'}</Text>
+              </Pressable>
+            )}
+          </>
+        )}
+        {/* The email is saved by the verify call, not by "Save changes" - an unverified
+            address is of no use to the AMC, which emails the statements and order
+            confirmations SEBI requires us to deliver. */}
+        <Text style={styles.hint}>
+          {isEmailVerified
+            ? 'Statements and order confirmations are sent to this address. Enter a new address below to change it.'
+            : 'We need a verified email address to send your account statements and order confirmations.'}
+        </Text>
+
         <Text style={styles.label}>PAN</Text>
         <View style={styles.readonly}>
           <Text style={styles.readonlyText}>{maskPan(pan)}</Text>
@@ -148,6 +273,12 @@ const styles = StyleSheet.create({
   readonly: { backgroundColor: '#EDF2F7', borderRadius: 12, height: 52, paddingHorizontal: 16, justifyContent: 'center' },
   readonlyText: { color: '#4A5568', fontSize: 16, fontWeight: '600' },
   hint: { color: '#718096', fontSize: 11, marginTop: 6, lineHeight: 16 },
+  verifiedRow: { backgroundColor: '#EDF7EE', borderWidth: 1, borderColor: '#BFE3C2', borderRadius: 12, minHeight: 52, paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  verifiedText: { color: '#102A54', fontSize: 15, fontWeight: '600', flexShrink: 1 },
+  verifiedBadge: { color: '#2F7D32', fontSize: 11, fontWeight: '800', letterSpacing: 0.4 },
+  smallButton: { backgroundColor: '#3C3985', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center', marginTop: 12 },
+  smallButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  linkText: { color: '#3C3985', fontSize: 13, fontWeight: '600', textAlign: 'center', marginTop: 12 },
   button: { backgroundColor: '#3C3985', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 32 },
   buttonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   outlineButton: { padding: 16, borderRadius: 12, alignItems: 'center', borderWidth: 2, borderColor: '#3C3985', marginTop: 12, marginBottom: 40 },

@@ -3,6 +3,8 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useTranslation } from '../../TranslationProvider';
 import { SUPPORTED_LANGUAGES } from '../../TranslationProvider';
+import TermsModal from '@/components/TermsModal';
+import PrivacyPolicyModal from '@/components/PrivacyPolicyModal';
 
 export default function SettingsPage() {
   const { t, lang, setLang } = useTranslation();
@@ -11,6 +13,8 @@ export default function SettingsPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [pushEnabled, setPushEnabled] = useState(true);
   const [theme, setTheme] = useState('system');
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
+  const [privacyPolicyModalOpen, setPrivacyPolicyModalOpen] = useState(false);
 
   useEffect(() => {
     setPushEnabled(localStorage.getItem('pushEnabled') !== 'false');
@@ -156,6 +160,43 @@ export default function SettingsPage() {
           )}
         </div>
 
+        {/* LEGAL & POLICIES SETTING */}
+        <div className={`bg-white rounded-2xl border ${expanded === 'Legal' ? 'border-[var(--primary)]' : 'border-gray-100'} transition-all shadow-sm overflow-hidden`}>
+          <button onClick={() => toggleExpand('Legal')} className="w-full p-4 flex items-center gap-4 text-left">
+            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">📜</div>
+            <div className="flex-1">
+              <p className="font-bold text-[var(--dark)] text-sm">{t('settings.legal') || 'Legal & Policies'}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t('settings.legalDesc') || 'Terms of Service and Privacy Policy'}</p>
+            </div>
+            <span className={`text-gray-300 text-xl transition-transform ${expanded === 'Legal' ? 'rotate-90' : ''}`}>›</span>
+          </button>
+          {expanded === 'Legal' && (
+            <div className="px-4 pb-4 pt-2 border-t border-gray-50 flex flex-col gap-2">
+              <button 
+                onClick={() => setTermsModalOpen(true)} 
+                className="w-full flex items-center justify-between p-3.5 rounded-xl border border-gray-100 hover:border-[var(--primary)] hover:bg-gray-50/50 transition-all text-left"
+              >
+                <div>
+                  <p className="text-sm font-bold text-[var(--dark)]">Terms of Service</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Rules and conditions governing platform usage</p>
+                </div>
+                <span className="text-gray-300 font-bold text-lg">›</span>
+              </button>
+
+              <button 
+                onClick={() => setPrivacyPolicyModalOpen(true)} 
+                className="w-full flex items-center justify-between p-3.5 rounded-xl border border-gray-100 hover:border-[var(--primary)] hover:bg-gray-50/50 transition-all text-left"
+              >
+                <div>
+                  <p className="text-sm font-bold text-[var(--dark)]">Privacy Policy</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Data security, privacy practices, and compliance</p>
+                </div>
+                <span className="text-gray-300 font-bold text-lg">›</span>
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* OTHER SETTINGS (Mocked) */}
         {[
           { icon: '🔒', label: 'Privacy & Security', desc: 'App Lock, Biometrics, and Data Privacy' },
@@ -183,6 +224,15 @@ export default function SettingsPage() {
       </button>
 
       <p className="text-xs text-gray-400 text-center mt-10">TechArtha v1.0.0 (Build 42)</p>
+
+      <TermsModal 
+        isOpen={termsModalOpen} 
+        onClose={() => setTermsModalOpen(false)} 
+      />
+      <PrivacyPolicyModal
+        isOpen={privacyPolicyModalOpen}
+        onClose={() => setPrivacyPolicyModalOpen(false)}
+      />
     </div>
   );
 }

@@ -16,6 +16,8 @@ import {
   TECH_ARTHA_SUPPORT,
 } from '../utils/contact';
 import { SupportQuerySection } from '../components/SupportQuerySection';
+import { TermsModal } from '../components/TermsModal';
+import { PrivacyPolicyModal } from '../components/PrivacyPolicyModal';
 
 const SUPPORTED_LANGUAGES = [
   { code: 'en', name: 'English', nativeName: 'English' },
@@ -40,6 +42,8 @@ export const SettingsScreen = () => {
   const [expanded, setExpanded] = useState<string | null>(route.params?.expand ?? 'Contact Us');
   const [theme, setTheme] = useState('system');
   const [notifStatus, setNotifStatus] = useState<string>('granted');
+  const [termsModalVisible, setTermsModalVisible] = useState(false);
+  const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
 
   useEffect(() => {
     loadTheme();
@@ -217,7 +221,7 @@ export const SettingsScreen = () => {
                   {t('settings.contactUs', { defaultValue: 'Contact Us' })}
                 </Text>
                 <Text style={styles.cardSub}>
-                  {t('settings.contactDesc', { defaultValue: 'Chat with our team on WhatsApp or send an email' })}
+                  {t('settings.contactDesc', { defaultValue: 'Chat on WhatsApp, send email, or submit a support query' })}
                 </Text>
               </View>
               <Text style={[styles.chevron, expanded === 'Contact Us' && { transform: [{ rotate: '90deg' }] }]}>›</Text>
@@ -289,6 +293,73 @@ export const SettingsScreen = () => {
           </View>
         </View>
 
+        {/* LEGAL & COMPLIANCE (TERMS & PRIVACY POLICY MODALS) */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionLabel}>
+            {t('settings.legal', { defaultValue: 'Legal & Policies' })}
+          </Text>
+          <View style={[styles.card, expanded === 'Legal' && styles.cardActive]}>
+            <Pressable
+              style={styles.cardHeader}
+              onPress={() => toggleExpand('Legal')}
+              accessibilityRole="button"
+              accessibilityLabel="Legal and Policies"
+              accessibilityState={{ expanded: expanded === 'Legal' }}
+            >
+              <View style={[styles.iconBox, { backgroundColor: '#EEF0FB' }]}>
+                <Ionicons name="shield-checkmark-outline" size={20} color="#36358D" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>
+                  {t('settings.legalTitle', { defaultValue: 'Terms & Privacy Policy' })}
+                </Text>
+                <Text style={styles.cardSub}>
+                  {t('settings.legalDesc', { defaultValue: 'Platform terms of service and data protection policy' })}
+                </Text>
+              </View>
+              <Text style={[styles.chevron, expanded === 'Legal' && { transform: [{ rotate: '90deg' }] }]}>›</Text>
+            </Pressable>
+
+            {expanded === 'Legal' && (
+              <View style={styles.expandedContent}>
+                <Pressable 
+                  style={[styles.langItem, { paddingVertical: 14 }]} 
+                  onPress={() => setTermsModalVisible(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="View Terms of Service"
+                >
+                  <View>
+                    <Text style={[styles.langNative, { fontSize: 14.5, fontWeight: '700' }]}>
+                      {t('signup.termsOfService', { defaultValue: 'Terms of Service' })}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
+                      {t('termsModal.subtitle', { defaultValue: 'Rules and conditions governing platform usage' })}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#36358D" />
+                </Pressable>
+
+                <Pressable 
+                  style={[styles.langItem, { paddingVertical: 14 }]} 
+                  onPress={() => setPrivacyModalVisible(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="View Privacy Policy"
+                >
+                  <View>
+                    <Text style={[styles.langNative, { fontSize: 14.5, fontWeight: '700' }]}>
+                      {t('signup.privacyPolicy', { defaultValue: 'Privacy Policy' })}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
+                      {t('privacyModal.subtitle', { defaultValue: 'Data security, privacy practices, and compliance' })}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#36358D" />
+                </Pressable>
+              </View>
+            )}
+          </View>
+        </View>
+
         {/* LEGAL & DISCLOSURE */}
         <View style={styles.disclosureCard}>
           <Text style={styles.disclosureText}>
@@ -307,6 +378,16 @@ export const SettingsScreen = () => {
           TechArtha {Constants.expoConfig?.version ?? '1.0.0'} · AMFI Registered Distributor
         </Text>
       </ScrollView>
+
+      {/* Rashi's Terms & Privacy Modals */}
+      <TermsModal 
+        visible={termsModalVisible} 
+        onClose={() => setTermsModalVisible(false)} 
+      />
+      <PrivacyPolicyModal
+        visible={privacyModalVisible}
+        onClose={() => setPrivacyModalVisible(false)}
+      />
     </SafeAreaView>
   );
 };

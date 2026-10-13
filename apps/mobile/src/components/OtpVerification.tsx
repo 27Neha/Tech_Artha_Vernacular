@@ -4,6 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { styles as globalStyles } from '../theme/styles';
 
 interface OtpVerificationProps {
+  /**
+   * The code the server returned in its own response, which it only does outside
+   * production and only when AUTH_DEV_BYPASS is on. Prefilled here so testing does not
+   * depend on SMS or WhatsApp actually arriving.
+   */
+  devOtp?: string | null;
   identifierType: 'MOBILE' | 'EMAIL';
   initialChannel: 'SMS' | 'WHATSAPP' | 'EMAIL';
   identifierValue: string;
@@ -24,7 +30,8 @@ export const OtpVerification = ({
   onChangeIdentifier,
   loading,
   error,
-  setError
+  setError,
+  devOtp,
 }: OtpVerificationProps) => {
   const { t } = useTranslation('common');
   const [otp, setOtp] = useState('');
@@ -42,6 +49,14 @@ export const OtpVerification = ({
   useEffect(() => {
     setTimer(120);
   }, []);
+
+  // __DEV__ is compiled out of release bundles by Metro, so neither the prefill nor the
+  // notice below can reach a production build even if the server ever sent a devOtp.
+  const bypassOtp = __DEV__ ? devOtp : null;
+
+  useEffect(() => {
+    if (bypassOtp) setOtp(bypassOtp);
+  }, [bypassOtp]);
 
   const handleResend = async () => {
     try {
@@ -71,6 +86,15 @@ export const OtpVerification = ({
           <Text style={{color: '#3C3985', fontWeight: '800', fontSize: 14, textDecorationLine: 'underline'}}>{t('login.changeNumber', { defaultValue: 'Change' })}</Text>
         </Pressable>
       </View>
+
+      {bypassOtp ? (
+        <View style={styles.devNotice}>
+          <Text style={styles.devNoticeText}>
+            Dev bypass: code {bypassOtp} came back from the server and has been filled in.
+            No SMS or WhatsApp message is needed.
+          </Text>
+        </View>
+      ) : null}
 
       <Text style={[globalStyles.label, { marginTop: 24 }]}>{t('login.otpLabel', { defaultValue: 'Verification Code' })}</Text>
       
@@ -119,6 +143,8 @@ export const OtpVerification = ({
 };
 
 const styles = StyleSheet.create({
+  devNotice: { backgroundColor: '#FFF8E1', borderWidth: 1, borderColor: '#F0D48A', borderRadius: 10, padding: 12, marginTop: 20 },
+  devNoticeText: { color: '#7A5B00', fontSize: 12, lineHeight: 18, fontWeight: '600' },
   container: { width: '100%' },
   changeBtn: { alignSelf: 'flex-start', marginTop: 4 },
   changeText: { color: '#3C3985', fontWeight: '600', fontSize: 14 },

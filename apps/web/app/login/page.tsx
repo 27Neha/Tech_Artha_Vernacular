@@ -3,6 +3,8 @@ import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import OtpVerification from '../../components/OtpVerification';
+import TermsModal from '../../components/TermsModal';
+import PrivacyPolicyModal from '../../components/PrivacyPolicyModal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -15,6 +17,10 @@ export default function LoginPage() {
   const [identifierType, setIdentifierType] = useState<'MOBILE' | 'EMAIL'>('MOBILE');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [termsWarning, setTermsWarning] = useState('');
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
+  const [privacyPolicyModalOpen, setPrivacyPolicyModalOpen] = useState(false);
   
   const [otpSent, setOtpSent] = useState(false);
   const mobileInputRef = useRef<HTMLInputElement>(null);
@@ -27,7 +33,13 @@ export default function LoginPage() {
     
   const handleContinue = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL' | 'PASSWORD') => {
     setValidationError('');
+    setTermsWarning('');
     setAccountNotExistsWarning(false);
+
+    if (!acceptedTerms) {
+      setTermsWarning(t('signup.termsRequired', { defaultValue: 'Please agree to the Terms of Service & Privacy Policy to continue.' }));
+      return;
+    }
     
     if (channel === 'EMAIL' || (channel === 'PASSWORD' && identifierType === 'EMAIL')) {
       if (!email.trim()) {
@@ -290,44 +302,118 @@ export default function LoginPage() {
               <div className="animate-fade-in">
 
                   
-                                    {identifierType === 'EMAIL' ? (
-                  <button 
-                    onClick={() => handleContinue('EMAIL')}
-                    disabled={loading} 
-                    className="btn-primary w-full py-4 rounded-xl font-bold text-lg mb-6 shadow-sm"
-                  >
-                    {t('signup.continueWithEmail') || 'Continue with Email'} →
-                  </button>
-                ) : (
-                  <>
-                    <button 
-                      onClick={() => handleContinue('SMS')}
-                      disabled={loading} 
-                      className="btn-primary w-full py-4 rounded-xl font-bold text-lg mb-6 shadow-sm"
-                    >
-                      {t('signup.continueWithSms') || 'Continue with SMS'} →
-                    </button>
-                    
-                    <div className="relative flex items-center justify-center mb-6">
-                      <div className="border-t border-gray-200 w-full absolute"></div>
-                      <span className="bg-white px-4 text-gray-400 text-sm relative">{t('signup.or') || 'or'}</span>
-                    </div>
+                    {identifierType === 'EMAIL' ? (
+                      <div>
+                        <button 
+                          onClick={() => handleContinue('EMAIL')}
+                          disabled={loading} 
+                          className="btn-primary w-full py-4 rounded-xl font-bold text-lg mb-6 shadow-sm"
+                        >
+                          {t('signup.continueWithEmail') || 'Continue with Email'} →
+                        </button>
 
-                    <button 
-                      onClick={() => handleContinue('WHATSAPP')} 
-                      disabled={loading}
-                      className="w-full flex items-center justify-center gap-3 py-3 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors shadow-sm"
-                    >
-                      <span className="text-xl">💬</span>
-                      {t('login.useWaInstead') || 'Continue with WhatsApp'}
-                      </button>
-                      <div className="flex justify-center mt-2 mb-6">
-                        <button onClick={() => { setIdentifierType('EMAIL'); setAuthChannel('EMAIL'); }} className="text-sm font-semibold text-[var(--primary)] hover:underline">
+                        <button 
+                          onClick={() => { setIdentifierType('MOBILE'); setAuthChannel('SMS'); setValidationError(''); setTermsWarning(''); }} 
+                          className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors mb-6 shadow-sm"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3C3985" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                            <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                          </svg>
+                          {t('signup.useMobileInstead') || 'Use mobile instead'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <button 
+                          onClick={() => handleContinue('SMS')}
+                          disabled={loading} 
+                          className="btn-primary w-full py-4 rounded-xl font-bold text-lg mb-6 shadow-sm"
+                        >
+                          {t('signup.continueWithSms') || 'Continue with SMS'} →
+                        </button>
+                        
+                        <div className="relative flex items-center justify-center mb-6">
+                          <div className="border-t border-gray-200 w-full absolute"></div>
+                          <span className="bg-white px-4 text-gray-400 text-sm relative">{t('signup.or') || 'or'}</span>
+                        </div>
+
+                        <button 
+                          onClick={() => handleContinue('WHATSAPP')} 
+                          disabled={loading}
+                          className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors mb-3 shadow-sm"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                          </svg>
+                          {t('login.useWaInstead') || 'Continue with WhatsApp'}
+                        </button>
+
+                        <button 
+                          onClick={() => { setIdentifierType('EMAIL'); setAuthChannel('EMAIL'); setValidationError(''); setTermsWarning(''); }} 
+                          className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors mb-6 shadow-sm"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3C3985" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                            <polyline points="22,6 12,13 2,6"></polyline>
+                          </svg>
                           {t('signup.useEmailInstead') || 'Use email instead'}
                         </button>
                       </div>
-                    </>
-                  )}
+                    )}
+
+                  {/* Terms & Conditions Checkbox and Learn More */}
+                  {/* Terms of Service & Privacy Policy checkbox */}
+                  <div className="mt-2 mb-6">
+                    <div className="flex items-start gap-3 select-none">
+                      <input
+                        type="checkbox"
+                        id="login-terms"
+                        checked={acceptedTerms}
+                        onChange={(e) => {
+                          setAcceptedTerms(e.target.checked);
+                          if (e.target.checked) setTermsWarning('');
+                        }}
+                        className={`mt-1 h-5 w-5 rounded border text-[var(--primary)] focus:ring-[var(--primary)] cursor-pointer ${
+                          termsWarning ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                      />
+                      <div className="text-xs sm:text-sm text-gray-600 leading-snug">
+                        <label htmlFor="login-terms" className="cursor-pointer">
+                          {t('signup.termsPrefix') || 'I agree to the '}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setTermsModalOpen(true)}
+                          className="font-semibold text-gray-900 underline hover:text-blue-600 transition-colors inline"
+                        >
+                          {t('signup.termsOfService') || 'Terms of Service'}
+                        </button>
+                        <span>{` ${t('signup.and') || 'and'} `}</span>
+                        <button
+                          type="button"
+                          onClick={() => setPrivacyPolicyModalOpen(true)}
+                          className="font-semibold text-gray-900 underline hover:text-blue-600 transition-colors inline"
+                        >
+                          {t('signup.privacyPolicy') || 'Privacy Policy'}
+                        </button>
+                        <span> </span>
+                        <button
+                          type="button"
+                          onClick={() => setTermsModalOpen(true)}
+                          className="font-bold text-blue-600 hover:text-blue-800 underline transition-colors inline"
+                        >
+                          {t('signup.learnMore') || 'Learn more'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {termsWarning && (
+                      <p className="ml-8 mt-1.5 text-xs text-red-500 font-medium animate-fade-in">
+                        {termsWarning}
+                      </p>
+                    )}
+                  </div>
               </div>
             )}
           </div>
@@ -349,15 +435,20 @@ export default function LoginPage() {
           </div>
         )}
 
-
-        <p className="text-xs text-gray-400 text-center mt-6"> {t('login.terms') || 'By continuing, you agree to our'} <span className="underline">{t('login.termsLink') || 'Terms'}</span> {t('login.and') || 'and'} <span className="underline">{t('login.privacyLink') || 'Privacy Policy'}</span>.
-        </p>
-
         <p className="text-sm text-center mt-6">
           <span className="text-gray-500"> {t('login.noAccount') || 'Not have an account?'} </span>
           <button onClick={() => router.push('/signup')} className="font-bold text-[var(--primary)] hover:underline">{t('login.signUp') || 'Sign up'}</button>
         </p>
       </div>
+
+      <TermsModal 
+        isOpen={termsModalOpen} 
+        onClose={() => setTermsModalOpen(false)} 
+      />
+      <PrivacyPolicyModal
+        isOpen={privacyPolicyModalOpen}
+        onClose={() => setPrivacyPolicyModalOpen(false)}
+      />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -13,6 +13,8 @@ const OTP_RATE_LIMIT_COUNT = 5;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
       private readonly prisma: PrismaService, 
       private readonly jwtService: JwtService,
@@ -126,6 +128,108 @@ export class AuthService {
       await this.prisma.device.upsert({ where: { deviceId }, update: { userId: user.id, lastActiveAt: new Date() }, create: { userId: user.id, deviceId } });
     }
     return this.createSession(user, deviceId);
+  }
+
+  /**
+   * Email verification, for the distributor compliance requirement that an investor's
+   * email be verified rather than merely typed in.
+   *
+   * Deliberately NOT routed through sendOtp(): that applies normalizeMobile() before it
+   * looks at the channel, so an email address is rejected as "not a valid 10-digit
+   * Indian mobile number" long before EmailOtpProvider is reached. A separate entry
+   * point avoids changing the mobile login path, which works.
+   *
+   * The OTP itself reuses the existing storage and validateOtp(), so expiry, attempt
+   * limits and the timing-safe comparison all behave identically - the identifier
+   * column just holds an email instead of a number.
+   */
+  private normalizeEmail(email: string) {
+    const normalized = (email ?? '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normalized)) {
+      throw new BadRequestException('Enter a valid email address.');
+    }
+    return normalized;
+  }
+
+  async sendEmailOtp(userId: string, email: string) {
+    const normalizedEmail = this.normalizeEmail(email);
+
+    // Someone else having verified this address would let one account claim another's
+    // email, so it is rejected before a code is ever sent.
+    const taken = await this.prisma.user.findFirst({
+      where: { email: normalizedEmail, NOT: { id: userId } },
+      select: { id: true },
+    });
+    if (taken) throw new BadRequestException('This email is already in use on another account.');
+
+    const requestedSince = new Date(Date.now() - OTP_RATE_LIMIT_WINDOW_MS);
+    const requests = await this.prisma.otpVerification.count({
+      where: { mobile: normalizedEmail, createdAt: { gte: requestedSince } },
+    });
+    if (requests >= OTP_RATE_LIMIT_COUNT) {
+      throw new HttpException('Too many requests. Please wait before trying again.', HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    const code = randomInt(100000, 1000000).toString();
+
+    await this.prisma.otpVerification.updateMany({
+      where: { mobile: normalizedEmail, status: 'PENDING' },
+      data: { status: 'SUPERSEDED' },
+    });
+    await this.prisma.otpVerification.create({
+      data: {
+        mobile: normalizedEmail,
+        otpHash: this.hash(`${normalizedEmail}:${code}`),
+        expiresAt: new Date(Date.now() + OTP_TTL_MS),
+        channel: 'EMAIL',
+        status: 'PENDING',
+      },
+    });
+
+    const devBypass = process.env.NODE_ENV !== 'production' && process.env.AUTH_DEV_BYPASS === 'true';
+
+    try {
+      // EmailOtpProvider takes the recipient in its `mobile` field - the name is wrong,
+      // the behaviour is right.
+      await new EmailOtpProvider().send({ mobile: normalizedEmail, code, channel: 'EMAIL' });
+    } catch (e) {
+      // In production a failed send must fail the request: the code is unreachable, and
+      // reporting SENT would leave the investor waiting for an email that never arrives.
+      if (!devBypass) throw e;
+      // Under the dev bypass the code comes back in the response instead, so an invalid
+      // or unconfigured ZeptoMail token does not block testing the rest of the flow.
+      this.logger.warn(
+        `Email OTP delivery to ${normalizedEmail} failed; returning the code inline because AUTH_DEV_BYPASS is on. ${
+          e instanceof Error ? e.message : e
+        }`,
+      );
+    }
+
+    return {
+      status: 'SENT',
+      channel: 'EMAIL',
+      expiresInSeconds: OTP_TTL_MS / 1000,
+      devOtp: devBypass ? code : undefined,
+    };
+  }
+
+  async verifyEmailOtp(userId: string, email: string, otp: string) {
+    const normalizedEmail = this.normalizeEmail(email);
+    await this.validateOtp(normalizedEmail, otp);
+
+    // User.email is only ever written after a verified code, so a non-null email IS the
+    // verification flag - there is no separate boolean to fall out of sync with it.
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { email: normalizedEmail },
+      select: { id: true, email: true },
+    });
+
+    await this.prisma.auditLog.create({
+      data: { userId, action: 'EMAIL_VERIFIED', details: JSON.stringify({ channel: 'EMAIL' }) },
+    });
+
+    return { verified: true, email: user.email };
   }
 
   async validateOtp(normalizedMobile: string, otp: string) {
@@ -245,15 +349,6 @@ export class AuthService {
     throw new BadRequestException('Mobile or Email is required');
   }
 
-  
-
-  private normalizeEmail(email: string) {
-    const normalized = email.trim().toLowerCase();
-    if (!/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/.test(normalized)) {
-      throw new BadRequestException('Enter a valid email address.');
-    }
-    return normalized;
-  }
 
   async sendOtpEmail(email: string) {
     const normalizedEmail = this.normalizeEmail(email);
@@ -408,7 +503,7 @@ async loginPassword(identifier: string, isEmail: boolean, password?: string, dev
       include: { profile: true, riskProfile: true, onboardingProgress: true }
     });
     if (!user) throw new Error('User not found');
-    return { id: user.id, mobile: user.mobile, clientType: user.clientType, profile: user.profile, riskProfile: user.riskProfile, onboardingProgress: user.onboardingProgress };
+    return { id: user.id, mobile: user.mobile, email: user.email, clientType: user.clientType, profile: user.profile, riskProfile: user.riskProfile, onboardingProgress: user.onboardingProgress };
   }
 
   async setPassword(userId: string, password: string) {

@@ -1,6 +1,7 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { api, configureApi } from '../services/api/client';
+import { authStore, setAuthStoreSilently, subscribeToAuthStore } from './auth';
 
 /**
  * Authentication state.
@@ -13,6 +14,11 @@ import { api, configureApi } from '../services/api/client';
  * Tokens live in the device keychain/keystore via expo-secure-store - not AsyncStorage,
  * which is unencrypted and unsuitable for a credential granting access to KYC and
  * investment data.
+ *
+ * The token itself is held in ./auth, because the screens merged from b657c9f assign to
+ * `authStore.accessToken` directly. This provider owns the persistence and the status
+ * around it, so those assignments get the keychain and the navigator reset for free
+ * instead of being a second, divergent session.
  */
 
 const ACCESS_TOKEN_KEY = 'techartha.accessToken';
@@ -47,19 +53,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [language, setLanguage] = useState<string | null>(null);
 
-  // The client reads the token synchronously on every request, so it is kept in a ref
-  // as well as state - state alone would hand out a stale token within the same tick.
-  const accessTokenRef = useRef<string | null>(null);
+  // authStore is read synchronously on every request, by this client and by the merged
+  // screens that build their own fetch headers. State alone would hand out a stale token
+  // within the same tick, which is why the token does not live in useState.
 
   const signOut = useCallback(async () => {
     // Tell the server first so the session row is deactivated, but never let a failed
     // or offline logout trap the user in a signed-in shell.
     try {
-      if (accessTokenRef.current) await api.post('/auth/logout');
+      if (authStore.accessToken) await api.post('/auth/logout');
     } catch {
       // Ignored deliberately - local sign-out must always succeed.
     }
-    accessTokenRef.current = null;
+    // Silently: this provider is the origin of the change, so it must not react to its
+    // own write and recurse back into signOut.
+    setAuthStoreSilently(null, null);
     setUser(null);
     setStatus('anonymous');
     await Promise.all([
@@ -70,7 +78,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signIn = useCallback(async (session: Session) => {
-    accessTokenRef.current = session.accessToken;
+    setAuthStoreSilently(session.accessToken, session.user?.id ?? null);
     setUser(session.user);
     setStatus('authenticated');
     await Promise.all([
@@ -82,7 +90,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Register with the API client before any screen can fire a request.
   configureApi({
-    getAccessToken: () => accessTokenRef.current,
+    getAccessToken: () => authStore.accessToken,
     onUnauthorized: () => {
       // The server rejected the token; drop straight to the login stack rather than
       // leaving the user tapping a screen that silently fails.
@@ -102,8 +110,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (cancelled) return;
 
         if (token && rawUser) {
-          accessTokenRef.current = token;
-          setUser(JSON.parse(rawUser) as AuthUser);
+          const hydrated = JSON.parse(rawUser) as AuthUser;
+          setAuthStoreSilently(token, hydrated.id ?? null);
+          setUser(hydrated);
           setStatus('authenticated');
           return;
         }
@@ -117,6 +126,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       cancelled = true;
     };
   }, []);
+
+  // A screen assigning authStore.accessToken after its own login fetch is a sign-in that
+  // did not come through signIn(), so persist it and move the navigator. Assigning null
+  // is a sign-out. Without this the merged screens would hold a token that vanished on
+  // restart and never reached the keychain.
+  useEffect(
+    () =>
+      subscribeToAuthStore(() => {
+        const token = authStore.accessToken;
+        if (!token) {
+          void signOut();
+          return;
+        }
+        const nextUser: AuthUser = { id: authStore.userId ?? '', mobile: user?.mobile ?? '' };
+        setUser(nextUser);
+        setStatus('authenticated');
+        void Promise.all([
+          SecureStore.setItemAsync(ACCESS_TOKEN_KEY, token),
+          SecureStore.setItemAsync(USER_KEY, JSON.stringify(nextUser)),
+        ]).catch(() => undefined);
+      }),
+    [signOut, user?.mobile],
+  );
 
   const value = useMemo<AuthContextValue>(
     () => ({ status, user, language, signIn, signOut, setLanguage }),

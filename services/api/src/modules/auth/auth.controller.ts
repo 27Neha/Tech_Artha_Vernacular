@@ -100,6 +100,27 @@ export class AuthController {
     return result;
   }
 
+  /**
+   * Email verification for an already signed-in investor - guarded, because this
+   * attaches an address to their account rather than authenticating them.
+   */
+  @UseGuards(AccessTokenGuard)
+  @Post('email/send-otp')
+  @HttpCode(202)
+  async sendEmailOtp(@CurrentUser() user: AuthenticatedUser, @Body() body: { email?: string }) {
+    return this.authService.sendEmailOtp(user.id, body.email ?? '');
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Post('email/verify-otp')
+  @HttpCode(200)
+  async verifyEmailOtp(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { email?: string; otp?: string },
+  ) {
+    return this.authService.verifyEmailOtp(user.id, body.email ?? '', body.otp ?? '');
+  }
+
   @Post('logout')
   @UseGuards(AccessTokenGuard)
   @HttpCode(204)

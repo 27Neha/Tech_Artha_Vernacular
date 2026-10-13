@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, ActivityIndicator } from 'react-native';
 import './src/i18n/i18n';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { HomeIcon, TrendingIcon, WalletIcon, HeadsetIcon, UserIcon } from './src/components/Icons';
 
@@ -32,7 +32,6 @@ import { PlanSummaryScreen } from './src/screens/PlanSummaryScreen';
 import { PlanScreen } from './src/screens/PlanScreen';
 import { InvestScreen } from './src/screens/InvestScreen';
 import { FundDetailScreen } from './src/screens/FundDetailScreen';
-import { FundDetailsScreen } from './src/screens/FundDetailsScreen';
 import { EditProfileScreen } from './src/screens/EditProfileScreen';
 import { FamilyPortfolioScreen } from './src/screens/FamilyPortfolioScreen';
 import { ArticleScreen } from './src/screens/ArticleScreen';
@@ -42,11 +41,12 @@ import { MinorGuardianScreen } from './src/screens/minor/MinorGuardianScreen';
 import { MinorVerifyScreen } from './src/screens/minor/MinorVerifyScreen';
 import { MinorConsentScreen } from './src/screens/minor/MinorConsentScreen';
 import { MinorReviewScreen } from './src/screens/minor/MinorReviewScreen';
-import { AuthProvider } from './src/store/AuthContext';
-import { API_URL } from './src/services/api/apiClient';
+import { AuthProvider, useAuth } from './src/store/AuthContext';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export const navigationRef = createNavigationContainerRef();
 
@@ -112,7 +112,9 @@ function MainTabs({ route }: any) {
         },
       })}
     >
-      <Tab.Screen name="Home">{(props) => <HomeScreen {...props} name={name} />}</Tab.Screen>
+      <Tab.Screen name="Home">
+        {(props) => <HomeScreen {...props} name={name} />}
+      </Tab.Screen>
       <Tab.Screen name="Portfolio" component={PortfolioScreen} />
       <Tab.Screen name="Expenses" component={ExpensesScreen} />
       <Tab.Screen name="Assistant" component={AssistantScreen} />
@@ -121,54 +123,81 @@ function MainTabs({ route }: any) {
   );
 }
 
+function RootNavigator() {
+  const { status } = useAuth();
+  const previousStatus = useRef(status);
+
+  useEffect(() => {
+    if (previousStatus.current === 'authenticated' && status === 'anonymous' && navigationRef.isReady()) {
+      navigationRef.reset({ index: 0, routes: [{ name: 'Welcome' as never }] });
+    }
+    previousStatus.current = status;
+  }, [status]);
+
+  if (status === 'loading') {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color="#36358D" />
+      </View>
+    );
+  }
+
+  return (
+    <Stack.Navigator
+      screenOptions={{ headerShown: false }}
+      initialRouteName={status === 'authenticated' ? 'MainTabs' : 'Welcome'}
+    >
+      <Stack.Screen name="Welcome" component={WelcomeScreen} />
+      <Stack.Screen name="Language" component={LanguageScreen} />
+      <Stack.Screen name="Signup">
+        {(props) => <SignupScreen {...props} apiUrl={API_URL} />}
+      </Stack.Screen>
+      <Stack.Screen name="Login">
+        {(props) => <LoginScreen {...props} apiUrl={API_URL} />}
+      </Stack.Screen>
+      <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
+      <Stack.Screen name="ParentalApproval" component={ParentalApprovalScreen} />
+      <Stack.Screen name="KYC">
+        {(props) => <KycScreen {...props} apiUrl={API_URL} />}
+      </Stack.Screen>
+      <Stack.Screen name="RiskAssessment" component={RiskAssessmentScreen} />
+      <Stack.Screen name="RiskResult" component={RiskResultScreen} />
+      <Stack.Screen name="RiskProfileResult" component={RiskResultScreen} />
+      <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
+      <Stack.Screen name="GoalDetails" component={GoalDetailsScreen} />
+      <Stack.Screen name="EditGoal" component={EditGoalScreen} />
+      <Stack.Screen name="InvestmentBuckets" component={InvestmentBucketsScreen} />
+      <Stack.Screen name="CustomBucket" component={CustomBucketScreen} />
+      <Stack.Screen name="PlanSummary" component={PlanSummaryScreen} />
+      <Stack.Screen name="Plan" component={PlanScreen} />
+      <Stack.Screen name="MainTabs" component={MainTabs} />
+      <Stack.Screen name="Funds">
+        {(props) => <FundsScreen {...props} apiUrl={API_URL} />}
+      </Stack.Screen>
+      <Stack.Screen name="Invest" component={InvestScreen} />
+      <Stack.Screen name="FundDetail" component={FundDetailScreen} />
+      <Stack.Screen name="FundDetails" component={FundDetailScreen} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+      <Stack.Screen name="FamilyPortfolio" component={FamilyPortfolioScreen} />
+      <Stack.Screen name="Article" component={ArticleScreen} />
+      <Stack.Screen name="Learn" component={LearnScreen} />
+      <Stack.Screen name="Assistant" component={AssistantScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="MinorGuardian" component={MinorGuardianScreen} />
+      <Stack.Screen name="MinorVerify" component={MinorVerifyScreen} />
+      <Stack.Screen name="MinorGuardianVerification" component={MinorVerifyScreen} />
+      <Stack.Screen name="MinorConsent" component={MinorConsentScreen} />
+      <Stack.Screen name="MinorReview" component={MinorReviewScreen} />
+    </Stack.Navigator>
+  );
+}
+
 export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
         <NavigationContainer ref={navigationRef}>
-          <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Welcome">
-            <Stack.Screen name="Welcome" component={WelcomeScreen} />
-            <Stack.Screen name="Language" component={LanguageScreen} />
-            <Stack.Screen name="Signup">
-              {(props) => <SignupScreen {...props} apiUrl={API_URL} />}
-            </Stack.Screen>
-            <Stack.Screen name="Login">
-              {(props) => <LoginScreen {...props} apiUrl={API_URL} />}
-            </Stack.Screen>
-            <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
-            <Stack.Screen name="ParentalApproval" component={ParentalApprovalScreen} />
-            <Stack.Screen name="KYC">
-              {(props) => <KycScreen {...props} apiUrl={API_URL} />}
-            </Stack.Screen>
-            <Stack.Screen name="RiskAssessment" component={RiskAssessmentScreen} />
-            <Stack.Screen name="RiskResult" component={RiskResultScreen} />
-            <Stack.Screen name="RiskProfileResult" component={RiskResultScreen} />
-            <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
-            <Stack.Screen name="GoalDetails" component={GoalDetailsScreen} />
-            <Stack.Screen name="EditGoal" component={EditGoalScreen} />
-            <Stack.Screen name="InvestmentBuckets" component={InvestmentBucketsScreen} />
-            <Stack.Screen name="CustomBucket" component={CustomBucketScreen} />
-            <Stack.Screen name="PlanSummary" component={PlanSummaryScreen} />
-            <Stack.Screen name="Plan" component={PlanScreen} />
-            <Stack.Screen name="MainTabs" component={MainTabs} />
-            <Stack.Screen name="Funds">
-              {(props) => <FundsScreen {...props} apiUrl={API_URL} />}
-            </Stack.Screen>
-            <Stack.Screen name="Invest" component={InvestScreen} />
-            <Stack.Screen name="FundDetail" component={FundDetailScreen} />
-            <Stack.Screen name="FundDetails" component={FundDetailScreen} />
-            <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-            <Stack.Screen name="FamilyPortfolio" component={FamilyPortfolioScreen} />
-            <Stack.Screen name="Article" component={ArticleScreen} />
-            <Stack.Screen name="Learn" component={LearnScreen} />
-            <Stack.Screen name="Assistant" component={AssistantScreen} />
-            <Stack.Screen name="Settings" component={SettingsScreen} />
-            <Stack.Screen name="MinorGuardian" component={MinorGuardianScreen} />
-            <Stack.Screen name="MinorVerify" component={MinorVerifyScreen} />
-            <Stack.Screen name="MinorGuardianVerification" component={MinorVerifyScreen} />
-            <Stack.Screen name="MinorConsent" component={MinorConsentScreen} />
-            <Stack.Screen name="MinorReview" component={MinorReviewScreen} />
-          </Stack.Navigator>
+          <RootNavigator />
         </NavigationContainer>
       </AuthProvider>
     </SafeAreaProvider>

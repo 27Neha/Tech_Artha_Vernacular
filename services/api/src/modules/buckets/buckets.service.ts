@@ -142,6 +142,12 @@ export class BucketsService {
     if (kyc?.panStatus !== 'VERIFIED') {
       throw new BadRequestException('Your PAN must be verified before investing.');
     }
+    // Enforced here rather than trusting dto.email: the AMC emails the statements and
+    // order confirmations we are required to deliver, so the address has to be one the
+    // investor proved they control via POST /auth/email/verify-otp.
+    if (!user?.email) {
+      throw new BadRequestException('Verify your email address before investing.');
+    }
 
     const dobStr = profile.dateOfBirth.toISOString().slice(0, 10);
 
@@ -197,9 +203,13 @@ export class BucketsService {
       });
 
       // folio_defaults fields are references to separately-created contact resources, not inline values.
+      const emailToUse = user?.email || dto.email;
+      if (!emailToUse) {
+        throw new BadRequestException('A verified email address is required to create an investment account.');
+      }
       const [email, phone, address] = await Promise.all([
-        this.cybrilla.createEmailAddress(fpProfileId, dto.email),
-        this.cybrilla.createPhoneNumber(fpProfileId, '91', (user!.mobile || '').replace(/^\+?91/, '')),
+        this.cybrilla.createEmailAddress(fpProfileId, emailToUse),
+        this.cybrilla.createPhoneNumber(fpProfileId, '91', (user?.mobile || '').replace(/^\+?91/, '')),
         this.cybrilla.createAddress(fpProfileId, dto.addressLine1, 'IN', dto.postalCode),
       ]);
 
@@ -240,11 +250,15 @@ export class BucketsService {
     // never progresses until it is explicitly confirmed with the investor's consent.
     // Skipping this is why every order we placed ended up `failed` with
     // `confirmed_at: null`.
+    const emailForOrder = user?.email || dto.email;
+    if (!emailForOrder) {
+      throw new BadRequestException('A verified email address is required to place an investment order.');
+    }
     let confirmed = orderResult;
     try {
       confirmed = await this.cybrilla.confirmPurchaseOrder({
         fpOrderId: orderResult.id,
-        email: dto.email,
+        email: emailForOrder,
         mobile: (user?.mobile ?? '').replace(/^\+?91/, ''),
       });
     } catch (e) {
