@@ -1,14 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { Ionicons } from '@expo/vector-icons';
 import { authStore } from '../store/auth';
 import { useAuth } from '../store/AuthContext';
+import {
+  openWhatsAppSupport,
+  openEmailSupport,
+  TECH_ARTHA_SUPPORT,
+} from '../utils/contact';
+import { SupportQuerySection } from '../components/SupportQuerySection';
 
 const SUPPORTED_LANGUAGES = [
   { code: 'en', name: 'English', nativeName: 'English' },
@@ -28,8 +35,9 @@ const SUPPORTED_LANGUAGES = [
 export const SettingsScreen = () => {
   const { t, i18n } = useTranslation('common');
   const navigation = useNavigation<any>();
-  const { signOut } = useAuth();
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const route = useRoute<any>();
+  const { signOut, user } = useAuth();
+  const [expanded, setExpanded] = useState<string | null>(route.params?.expand ?? 'Contact Us');
   const [theme, setTheme] = useState('system');
   const [notifStatus, setNotifStatus] = useState<string>('granted');
 
@@ -37,9 +45,41 @@ export const SettingsScreen = () => {
     loadTheme();
   }, []);
 
+  useEffect(() => {
+    if (route.params?.expand) {
+      setExpanded(route.params.expand);
+    }
+  }, [route.params?.expand]);
+
   const loadTheme = async () => {
     const savedTheme = await AsyncStorage.getItem('appTheme');
     if (savedTheme) setTheme(savedTheme);
+  };
+
+  const handleWhatsApp = async () => {
+    await openWhatsAppSupport({
+      onError: () => {
+        Alert.alert(
+          t('settings.whatsappErrorTitle', { defaultValue: 'Unable to open WhatsApp' }),
+          t('settings.whatsappErrorDesc', {
+            defaultValue: `Please message us directly at ${TECH_ARTHA_SUPPORT.displayPhone} or check your browser.`,
+          })
+        );
+      },
+    });
+  };
+
+  const handleEmail = async () => {
+    await openEmailSupport({
+      onError: () => {
+        Alert.alert(
+          t('settings.emailErrorTitle', { defaultValue: 'No Email App Found' }),
+          t('settings.emailErrorDesc', {
+            defaultValue: `Please send an email to ${TECH_ARTHA_SUPPORT.email} from your preferred mail client.`,
+          })
+        );
+      },
+    });
   };
 
   const toggleExpand = (section: string) => {
@@ -156,43 +196,97 @@ export const SettingsScreen = () => {
           )}
         </View>
 
-        {/* HELP & SUPPORT */}
-        <View style={[styles.card, expanded === 'Help & Support' && styles.cardActive]}>
-          <Pressable style={styles.cardHeader} onPress={() => toggleExpand('Help & Support')}>
-            <View style={styles.iconBox}><Text style={styles.iconText}>❓</Text></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{t('settings.helpSupport', { defaultValue: 'Help & Support' })}</Text>
-              <Text style={styles.cardSub}>{t('settings.helpDesc', { defaultValue: 'Contact us or get instant AI help' })}</Text>
-            </View>
-            <Text style={[styles.chevron, expanded === 'Help & Support' && { transform: [{ rotate: '90deg' }] }]}>›</Text>
-          </Pressable>
-          {expanded === 'Help & Support' && (
-            <View style={styles.expandedContent}>
-              <View style={styles.aiBox}>
-                <Text style={styles.aiBoxLabel}>24/7 AI ASSISTANT</Text>
-                <Pressable style={styles.aiBtn} onPress={() => navigation.navigate('Assistant')}>
-                  <Text style={styles.aiBtnText}>🤖 Start Live AI Chat</Text>
-                </Pressable>
+        {/* CONTACT US */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionLabel}>
+            {t('settings.contactUs', { defaultValue: 'Contact Us' })}
+          </Text>
+          <View style={[styles.card, expanded === 'Contact Us' && styles.cardActive]}>
+            <Pressable
+              style={styles.cardHeader}
+              onPress={() => toggleExpand('Contact Us')}
+              accessibilityRole="button"
+              accessibilityLabel="Contact Us"
+              accessibilityState={{ expanded: expanded === 'Contact Us' }}
+            >
+              <View style={[styles.iconBox, { backgroundColor: '#EEF0FB' }]}>
+                <Ionicons name="chatbubbles-outline" size={20} color="#36358D" />
               </View>
-              <Text style={styles.sectionLabelContact}>Contact TechArtha</Text>
-              <View style={{ gap: 8 }}>
-                <Pressable style={styles.contactBtn} onPress={() => Linking.openURL('https://wa.me/918308816023')}>
-                  <Text style={{ fontSize: 20 }}>💬</Text>
-                  <View>
-                    <Text style={styles.contactTitle}>{t('settings.whatsapp', { defaultValue: 'WhatsApp Support' })}</Text>
-                    <Text style={styles.contactSub}>+91 8308816023</Text>
-                  </View>
-                </Pressable>
-                <Pressable style={styles.contactBtn} onPress={() => Linking.openURL('mailto:support@techartha.com')}>
-                  <Text style={{ fontSize: 20 }}>✉️</Text>
-                  <View>
-                    <Text style={styles.contactTitle}>{t('settings.email', { defaultValue: 'Email Support' })}</Text>
-                    <Text style={styles.contactSub}>support@techartha.com</Text>
-                  </View>
-                </Pressable>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>
+                  {t('settings.contactUs', { defaultValue: 'Contact Us' })}
+                </Text>
+                <Text style={styles.cardSub}>
+                  {t('settings.contactDesc', { defaultValue: 'Chat with our team on WhatsApp or send an email' })}
+                </Text>
               </View>
-            </View>
-          )}
+              <Text style={[styles.chevron, expanded === 'Contact Us' && { transform: [{ rotate: '90deg' }] }]}>›</Text>
+            </Pressable>
+
+            {expanded === 'Contact Us' && (
+              <View style={styles.expandedContent}>
+                {/* Option 1: WhatsApp Support */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.contactOption,
+                    pressed && styles.contactOptionPressed,
+                  ]}
+                  onPress={handleWhatsApp}
+                  accessibilityRole="button"
+                  accessibilityLabel="WhatsApp Support"
+                  accessibilityHint="Opens WhatsApp to chat with TechArtha support at +91 83088 16023"
+                >
+                  <View style={[styles.contactIconWrap, { backgroundColor: '#E8FDF0', borderColor: '#BBF7D0' }]}>
+                    <Ionicons name="logo-whatsapp" size={22} color="#25D366" />
+                  </View>
+                  <View style={styles.contactDetails}>
+                    <View style={styles.contactTitleRow}>
+                      <Text style={styles.contactOptionTitle}>
+                        {t('settings.whatsapp', { defaultValue: 'WhatsApp Support' })}
+                      </Text>
+                      <View style={styles.fastPill}>
+                        <Text style={styles.fastPillText}>Fastest</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.contactOptionSub}>
+                      {t('settings.whatsappSub', { defaultValue: 'Chat with our support team' })}
+                    </Text>
+                    <Text style={styles.contactOptionMeta}>{TECH_ARTHA_SUPPORT.displayPhone}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </Pressable>
+
+                {/* Option 2: Email Support */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.contactOption,
+                    pressed && styles.contactOptionPressed,
+                  ]}
+                  onPress={handleEmail}
+                  accessibilityRole="button"
+                  accessibilityLabel="Email Support"
+                  accessibilityHint="Opens default email client to send questions to support@techartha.com"
+                >
+                  <View style={[styles.contactIconWrap, { backgroundColor: '#EEF0FB', borderColor: '#D6D6F5' }]}>
+                    <Ionicons name="mail-outline" size={22} color="#36358D" />
+                  </View>
+                  <View style={styles.contactDetails}>
+                    <Text style={styles.contactOptionTitle}>
+                      {t('settings.email', { defaultValue: 'Email Support' })}
+                    </Text>
+                    <Text style={styles.contactOptionSub}>
+                      {t('settings.emailSub', { defaultValue: 'Send us your questions or feedback' })}
+                    </Text>
+                    <Text style={styles.contactOptionMeta}>{TECH_ARTHA_SUPPORT.email}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </Pressable>
+
+                {/* Option 3: Support Query Submission & Tracking Desk */}
+                <SupportQuerySection userEmail={(user as any)?.email} />
+              </View>
+            )}
+          </View>
         </View>
 
         {/* LEGAL & DISCLOSURE */}
@@ -235,19 +329,71 @@ const styles = StyleSheet.create({
   langNative: { fontSize: 14, fontWeight: '800', color: '#102A54' },
   langName: { fontSize: 12, color: '#A0AEC0', marginTop: 2 },
   permissionsContainer: { marginBottom: 12, marginTop: 4 },
+  sectionContainer: { marginBottom: 12, marginTop: 4 },
   sectionLabel: { fontSize: 10, fontWeight: '800', color: '#A0AEC0', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginLeft: 4 },
-  sectionLabelContact: { fontSize: 10, fontWeight: '800', color: '#A0AEC0', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: 16 },
   toggleBtn: { width: 48, height: 24, borderRadius: 12, backgroundColor: '#E2E8F0', padding: 2 },
   toggleBtnActive: { backgroundColor: '#3C3985' },
   toggleKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
   toggleKnobActive: { transform: [{ translateX: 24 }] },
-  aiBox: { backgroundColor: '#EBEBFA', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#D6D6F5' },
-  aiBoxLabel: { fontSize: 10, fontWeight: '800', color: '#3C3985', marginBottom: 8 },
-  aiBtn: { backgroundColor: '#3C3985', borderRadius: 12, padding: 12, alignItems: 'center' },
-  aiBtnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
-  contactBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#EDF2F7' },
-  contactTitle: { fontSize: 14, fontWeight: '800', color: '#102A54' },
-  contactSub: { fontSize: 12, color: '#718096' },
+  contactOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#EDF2F7',
+    backgroundColor: '#FFFFFF',
+    gap: 12,
+  },
+  contactOptionPressed: {
+    backgroundColor: '#F8F9FE',
+    borderColor: '#D6D6F5',
+  },
+  contactIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  contactDetails: {
+    flex: 1,
+  },
+  contactTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+  },
+  contactOptionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#102A54',
+  },
+  fastPill: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  fastPillText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#166534',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  contactOptionSub: {
+    fontSize: 12,
+    color: '#718096',
+    marginBottom: 2,
+  },
+  contactOptionMeta: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#36358D',
+  },
   disclosureCard: { backgroundColor: '#EBEAF8', borderRadius: 16, padding: 16, marginTop: 12, marginBottom: 16 },
   disclosureText: { color: '#3C3985', fontSize: 12, lineHeight: 18, textAlign: 'center' },
   signOutBtn: { backgroundColor: '#FFF5F5', padding: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#FEB2B2', marginBottom: 16 },

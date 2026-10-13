@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import Svg, {
   Defs,
@@ -10,8 +10,6 @@ import Svg, {
   Line,
 } from 'react-native-svg';
 import { colors } from '../theme/tokens';
-
-const AnimatedG = Animated.createAnimatedComponent(G);
 
 interface RiskometerGaugeProps {
   score: number; // typically 12 to 60
@@ -35,20 +33,22 @@ export const RiskometerGauge: React.FC<RiskometerGaugeProps> = ({
 
   // Needle angle: -90 degrees (far left / Conservative) to +90 degrees (far right / Aggressive)
   const targetAngle = -90 + progressPercent * 180;
+  const [needleAngle, setNeedleAngle] = useState(-90);
 
   useEffect(() => {
+    const id = animValue.addListener(({ value }) => {
+      setNeedleAngle(-90 + value * (targetAngle - (-90)));
+    });
     Animated.timing(animValue, {
       toValue: 1,
       duration: 1200,
       easing: Easing.out(Easing.back(1.4)),
       useNativeDriver: false,
     }).start();
-  }, [animValue, score]);
-
-  const currentRotation = animValue.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-90, targetAngle],
-  });
+    return () => {
+      animValue.removeListener(id);
+    };
+  }, [animValue, score, targetAngle]);
 
   const width = size;
   const height = size * 0.58;
@@ -121,18 +121,8 @@ export const RiskometerGauge: React.FC<RiskometerGaugeProps> = ({
           return <Line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#FFFFFF" strokeWidth={2.5} />;
         })()}
 
-        {/* Animated Needle Layer */}
-        <AnimatedG
-          transform={
-            currentRotation.interpolate({
-              inputRange: [-90, 90],
-              outputRange: [
-                `rotate(-90, ${cx}, ${cy})`,
-                `rotate(90, ${cx}, ${cy})`,
-              ],
-            }) as any
-          }
-        >
+        {/* Needle Layer */}
+        <G rotation={needleAngle} originX={cx} originY={cy}>
           {/* Needle drop shadow */}
           <Path
             d={`M ${cx - 3.5} ${cy} L ${cx} ${cy - radius + 10} L ${cx + 3.5} ${cy} Z`}
@@ -141,7 +131,7 @@ export const RiskometerGauge: React.FC<RiskometerGaugeProps> = ({
           />
           {/* Needle highlight accent tip */}
           <Circle cx={cx} cy={cy - radius + 11} r={3} fill="#F7941D" />
-        </AnimatedG>
+        </G>
 
         {/* 3D Center Hub / Pivot Cap */}
         <Circle cx={cx} cy={cy} r={14} fill="#E2E8F0" />

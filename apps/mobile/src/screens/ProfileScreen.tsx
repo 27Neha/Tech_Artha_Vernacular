@@ -158,7 +158,7 @@ export const ProfileScreen = () => {
           {/* Contact */}
           <Pressable
             style={styles.card}
-            onPress={() => Alert.alert('Contact Support', 'Email: support@techartha.com\nPhone: 1800-123-4567')}
+            onPress={() => navigation.navigate('Settings', { expand: 'Contact Us' })}
           >
             <View style={styles.cardHeader}>
               <View style={[styles.iconBox, { backgroundColor: '#F0FFF4' }]}>

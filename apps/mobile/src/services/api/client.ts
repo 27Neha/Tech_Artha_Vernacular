@@ -39,6 +39,7 @@ type RequestOptions = {
   /** Skips the Authorization header for the handful of public routes. */
   anonymous?: boolean;
   signal?: AbortSignal;
+  headers?: Record<string, string>;
 };
 
 async function request<T>(
@@ -50,7 +51,7 @@ async function request<T>(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers ?? {}) };
   if (!options.anonymous) {
     const token = getAccessToken();
     if (token) headers.Authorization = `Bearer ${token}`;
