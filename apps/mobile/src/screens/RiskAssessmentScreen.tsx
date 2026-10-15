@@ -126,7 +126,7 @@ export const RiskAssessmentScreen = () => {
     }
   };
 
-  // Revert back to the previous question and allow choosing a different option
+  // Revert back to the question and allow choosing a different option
   const handleGoBackToQuestion = (targetIndex: number) => {
     if (isBotTyping || submitting) return;
     // Slice history to before the target question
@@ -134,12 +134,6 @@ export const RiskAssessmentScreen = () => {
     setHistory(updatedHistory);
     setCurrentIndex(targetIndex);
     scrollToBottom();
-  };
-
-  const handleStepBackOne = () => {
-    if (currentIndex > 0) {
-      handleGoBackToQuestion(currentIndex - 1);
-    }
   };
 
   const currentQ = questions[currentIndex];
@@ -226,11 +220,11 @@ export const RiskAssessmentScreen = () => {
                     <Text style={styles.userText}>{t(`risk.q${qItem?.id}.${item.selectedScore}`, { defaultValue: item.selectedLabel })}</Text>
                   </View>
                   <Pressable
-                    style={styles.changeAnswerBtn}
+                    style={styles.editAnswerPill}
                     onPress={() => handleGoBackToQuestion(item.questionIndex)}
                     hitSlop={8}
                   >
-                    <Text style={styles.changeAnswerText}>✏️ Edit answer</Text>
+                    <Text style={styles.editAnswerPillText}>✏️ Edit answer</Text>
                   </Pressable>
                 </View>
                 <View style={styles.userAvatarSmall}>
@@ -263,15 +257,6 @@ export const RiskAssessmentScreen = () => {
               <View style={styles.optionsContainer}>
                 <View style={styles.optionsHeaderRow}>
                   <Text style={styles.tapInstruction}>Tap an option to respond:</Text>
-                  {currentIndex > 0 && (
-                    <Pressable
-                      style={styles.backQuestionBtn}
-                      onPress={handleStepBackOne}
-                      hitSlop={10}
-                    >
-                      <Text style={styles.backQuestionText}>← Previous Question</Text>
-                    </Pressable>
-                  )}
                 </View>
                 {currentQ.options.map((opt, i) => (
                   <Pressable
@@ -340,14 +325,12 @@ const styles = StyleSheet.create({
   userBubble: { backgroundColor: '#FFFFFF', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 16, borderTopRightRadius: 4, borderWidth: 1.5, borderColor: '#CBD5E1', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
   userRoleLabel: { fontSize: 10, fontWeight: '800', color: '#64748B', textTransform: 'uppercase', marginBottom: 2, textAlign: 'right' },
   userText: { color: '#0F172A', fontSize: 15, fontWeight: '700', lineHeight: 21 },
-  changeAnswerBtn: { marginTop: 4, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6, backgroundColor: '#F1F5F9' },
-  changeAnswerText: { fontSize: 11, fontWeight: '700', color: '#3C3985' },
+  editAnswerPill: { marginTop: 6, backgroundColor: '#F0EFFB', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#D4D2F5' },
+  editAnswerPillText: { fontSize: 11, fontWeight: '700', color: '#3C3985' },
   
   optionsContainer: { marginLeft: 38, marginTop: 4, gap: 8 },
   optionsHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   tapInstruction: { fontSize: 12, color: '#718096', fontWeight: '700' },
-  backQuestionBtn: { backgroundColor: '#F0EFFB', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#D4D2F5' },
-  backQuestionText: { fontSize: 11, fontWeight: '700', color: '#3C3985' },
   optionCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: '#E2E8F0' },
   optionCardPressed: { borderColor: '#3C3985', backgroundColor: '#F0EFFF' },
   optionLetter: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#F0F3F8', alignItems: 'center', justifyContent: 'center', marginRight: 12 },

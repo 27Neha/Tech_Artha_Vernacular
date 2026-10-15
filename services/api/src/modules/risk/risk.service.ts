@@ -22,7 +22,16 @@ export class RiskService {
     const score = values.reduce((sum, value) => sum + value, 0);
     const maxScore = values.length * 5;
     const ratio = score / maxScore;
-    const category = ratio < 0.5 ? 'CONSERVATIVE' : ratio < 0.75 ? 'MODERATE' : 'AGGRESSIVE';
+    const category =
+      ratio < 0.35
+        ? 'CONSERVATIVE'
+        : ratio < 0.50
+        ? 'MODERATELY_LOW'
+        : ratio < 0.70
+        ? 'MODERATE'
+        : ratio < 0.85
+        ? 'MODERATELY_HIGH'
+        : 'AGGRESSIVE';
     const reasons = this.reasons(normalized, category);
 
     await this.consents.grant({ userId, type: 'RISK', source: 'APP' });
@@ -72,7 +81,8 @@ export class RiskService {
   }
 
   private reasons(answers: Record<string, number>, category: string) {
-    const reasons: string[] = [`Your responses currently indicate a ${category.toLowerCase()} investor profile.`];
+    const formattedCat = category.replace(/_/g, ' ').toLowerCase();
+    const reasons: string[] = [`Your responses currently indicate a ${formattedCat} investor profile.`];
     if ((answers.horizon ?? 0) <= 2) reasons.push('A shorter investment horizon means preserving access to money is important.');
     if ((answers.loss_tolerance ?? 0) >= 3) reasons.push('You indicated you can stay with a suitable plan through temporary market falls.');
     if ((answers.liquidity ?? 0) <= 2) reasons.push('Near-term money needs should be kept separate from market-linked investments.');

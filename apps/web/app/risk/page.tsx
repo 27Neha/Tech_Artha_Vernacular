@@ -247,12 +247,6 @@ export default function RiskPage() {
     setCurrentIndex(targetIndex);
   };
 
-  const handleStepBackOne = () => {
-    if (currentIndex > 0) {
-      handleGoBackToQuestion(currentIndex - 1);
-    }
-  };
-
   const currentQ = questions[currentIndex];
   const progressPercent = questions.length
     ? Math.min(100, Math.round((history.length / questions.length) * 100))
@@ -343,7 +337,7 @@ export default function RiskPage() {
                     </div>
                     <button
                       onClick={() => handleGoBackToQuestion(item.questionIndex)}
-                      className="text-[11px] font-bold text-[var(--primary)] hover:underline flex items-center gap-1 bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-md transition-all cursor-pointer"
+                      className="text-[11px] font-bold text-[#3C3985] bg-[#F0EFFB] hover:bg-[#E0DEFA] border border-[#D4D2F5] px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-xs"
                     >
                       <span>✏️</span> Edit answer
                     </button>
@@ -371,19 +365,11 @@ export default function RiskPage() {
                 </div>
               </div>
 
-              {/* Tappable Choice Cards + Back Button */}
+              {/* Tappable Choice Cards */}
               {!isBotTyping && (
                 <div className="ml-11 flex flex-col gap-2.5 max-w-md">
-                  <div className="flex justify-between items-center mb-1">
+                  <div className="mb-1">
                     <span className="text-xs text-gray-500 font-bold">Choose an answer below:</span>
-                    {currentIndex > 0 && (
-                      <button
-                        onClick={handleStepBackOne}
-                        className="text-xs font-bold text-[var(--primary)] bg-[var(--primary-light)] hover:bg-[#E0DEFA] px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer"
-                      >
-                        ← Previous Question
-                      </button>
-                    )}
                   </div>
                   {currentQ.options.map((opt, i) => (
                     <button
