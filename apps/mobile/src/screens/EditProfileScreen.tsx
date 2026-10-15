@@ -205,17 +205,17 @@ export const EditProfileScreen = () => {
                 <TextInput
                   value={emailOtp}
                   onChangeText={setEmailOtp}
-                  placeholder="6-digit code"
+                  placeholder="4-digit code"
                   placeholderTextColor="#A0AEC0"
                   keyboardType="number-pad"
-                  maxLength={6}
+                  maxLength={4}
                   editable={!emailBusy}
                   style={styles.input}
                 />
                 <Pressable
-                  style={[styles.smallButton, (emailBusy || emailOtp.trim().length < 6) && styles.disabled]}
+                  style={[styles.smallButton, (emailBusy || emailOtp.trim().length < 4) && styles.disabled]}
                   onPress={verifyEmailOtp}
-                  disabled={emailBusy || emailOtp.trim().length < 6}
+                  disabled={emailBusy || emailOtp.trim().length < 4}
                 >
                   <Text style={styles.smallButtonText}>{emailBusy ? 'Verifying…' : 'Verify code'}</Text>
                 </Pressable>

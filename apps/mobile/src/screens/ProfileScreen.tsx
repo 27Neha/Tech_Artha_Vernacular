@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -14,10 +15,6 @@ export const ProfileScreen = () => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
 
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
-  const [nominees, setNominees] = useState<any[]>([]);
-  const [mandates, setMandates] = useState<any[]>([]);
   // Real account data, replacing the placeholder avatar initial and +91 XXXXX XXXXX.
   const [profile, setProfile] = useState<{
     mobile?: string;
@@ -32,10 +29,6 @@ export const ProfileScreen = () => {
       if (!token) return;
 
       setProfile(await api.get('/auth/profile'));
-      
-      // We assume user profile id is fetched and then we fetch cybrilla details.
-      // Mocking the arrays for now since profile id is needed for the Cybrilla Sandbox API calls as per Web
-      // In the real implementation, this would depend on the user's fpProfileId
     } catch (e) {
       console.error(e);
     }
@@ -46,10 +39,6 @@ export const ProfileScreen = () => {
       fetchProfileData();
     }, [fetchProfileData])
   );
-
-  const toggleExpand = (section: string) => {
-    setExpanded(prev => prev === section ? null : section);
-  };
 
   const handleLogout = () => {
     authStore.accessToken = null;
@@ -80,132 +69,79 @@ export const ProfileScreen = () => {
 
         {/* MENU */}
         <View style={{ gap: 12, marginBottom: 24 }}>
-          {/* Restored after the b657c9f merge: this version of the screen had no route to
-              EditProfile, which left the email verification unreachable, and no way back
-              into the investment funnel for anyone who deferred it. */}
+          {/* Edit Profile */}
           <Pressable style={styles.card} onPress={() => navigation.navigate('EditProfile')}>
             <View style={styles.cardHeader}>
-              <View style={[styles.iconBox, { backgroundColor: '#EBEAF8' }]}><Text style={styles.iconText}>ID</Text></View>
+              <View style={[styles.iconBox, { backgroundColor: '#EBEAF8' }]}>
+                <Ionicons name="person-circle-outline" size={22} color="#3C3985" />
+              </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{t('profile.editProfile', { defaultValue: 'Edit profile' })}</Text>
+                <Text style={styles.cardTitle}>{t('profile.editProfile', { defaultValue: 'Personal Information' })}</Text>
                 <Text style={styles.cardSub}>
                   {profile?.email
                     ? profile.email
-                    : t('profile.verifyEmail', { defaultValue: 'Verify your email address' })}
+                    : t('profile.verifyEmail', { defaultValue: 'PAN, DOB, and email verification' })}
                 </Text>
               </View>
-              <Text style={styles.chevron}>&gt;</Text>
+              <Ionicons name="chevron-forward" size={18} color="#CBD5E0" />
             </View>
           </Pressable>
 
-          {/* Risk assessment first when it is missing - bucket eligibility derives from it. */}
-          <Pressable
-            style={styles.card}
-            onPress={() => navigation.navigate(profile?.riskProfile ? 'GoalSelection' : 'RiskAssessment')}
-          >
+          {/* Bank Accounts Dedicated Screen */}
+          <Pressable style={styles.card} onPress={() => navigation.navigate('BankAccounts')}>
             <View style={styles.cardHeader}>
-              <View style={[styles.iconBox, { backgroundColor: '#EDF7EE' }]}><Text style={styles.iconText}>+</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>
-                  {profile?.riskProfile
-                    ? t('profile.choosePlan', { defaultValue: 'Choose an investment plan' })
-                    : t('profile.completeRisk', { defaultValue: 'Complete your risk assessment' })}
-                </Text>
-                <Text style={styles.cardSub}>
-                  {profile?.riskProfile?.category ??
-                    t('profile.riskNeeded', { defaultValue: 'Needed before we can recommend investments' })}
-                </Text>
+              <View style={[styles.iconBox, { backgroundColor: '#E0E7FF' }]}>
+                <Ionicons name="business-outline" size={20} color="#3730A3" />
               </View>
-              <Text style={styles.chevron}>&gt;</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>{t('prof.bank', { defaultValue: 'Bank Accounts' })}</Text>
+                <Text style={styles.cardSub}>{t('profile.primaryBank', { defaultValue: 'Manage linked bank accounts for SIP & payouts' })}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#CBD5E0" />
             </View>
           </Pressable>
+
+          {/* Nominee Details Dedicated Screen */}
+          <Pressable style={styles.card} onPress={() => navigation.navigate('NomineeDetails')}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.iconBox, { backgroundColor: '#FAF5FF' }]}>
+                <Ionicons name="people-outline" size={20} color="#6B21A8" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>{t('prof.nominee', { defaultValue: 'Nominee Details' })}</Text>
+                <Text style={styles.cardSub}>{t('profile.nomineeDesc', { defaultValue: 'SEBI compliance: Add up to 3 legal nominees' })}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#CBD5E0" />
+            </View>
+          </Pressable>
+
           {/* Family Portfolio */}
           <Pressable style={styles.card} onPress={() => navigation.navigate('FamilyPortfolio')}>
             <View style={styles.cardHeader}>
-              <View style={[styles.iconBox, { backgroundColor: '#FFF5F5' }]}><Text style={styles.iconText}>dY`"??</Text></View>
+              <View style={[styles.iconBox, { backgroundColor: '#FFF5F5' }]}>
+                <Ionicons name="folder-open-outline" size={20} color="#C53030" />
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>{t('profile.familyPortfolio', { defaultValue: 'Family Portfolio' })}</Text>
-                <Text style={styles.cardSub}>{t('profile.familyDesc', { defaultValue: 'Manage wealth together' })}</Text>
+                <Text style={styles.cardSub}>{t('profile.familyDesc', { defaultValue: 'Manage wealth together with family members' })}</Text>
               </View>
-              <Text style={styles.chevron}>&gt;</Text>
+              <Ionicons name="chevron-forward" size={18} color="#CBD5E0" />
             </View>
           </Pressable>
 
-        </View>
-
-        {/* EXPANDABLE SECTIONS */}
-        <View style={{ gap: 12, marginBottom: 24 }}>
-          {/* Bank Accounts */}
-          <View style={[styles.card, expanded === 'Bank Accounts' && styles.cardActive]}>
-            <Pressable style={styles.cardHeader} onPress={() => toggleExpand('Bank Accounts')}>
-              <View style={[styles.iconBox, { backgroundColor: '#E0E7FF' }]}><Text style={styles.iconText}>dY?</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{t('prof.bank', { defaultValue: 'Bank Accounts' })}</Text>
-                <Text style={styles.cardSub}>{t('profile.primaryBank', { defaultValue: 'Manage linked bank accounts' })}</Text>
+          {/* Active Mandates Dedicated Screen */}
+          <Pressable style={styles.card} onPress={() => navigation.navigate('ActiveMandates')}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.iconBox, { backgroundColor: '#F0FFF4' }]}>
+                <Ionicons name="card-outline" size={20} color="#276749" />
               </View>
-              <Text style={[styles.chevron, expanded === 'Bank Accounts' && { transform: [{ rotate: '90deg' }] }]}>&gt;</Text>
-            </Pressable>
-            {expanded === 'Bank Accounts' && (
-              <View style={styles.expandedContent}>
-                {bankAccounts.length === 0 ? (
-                  <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-                    <Text style={{ color: '#A0AEC0', fontSize: 12, fontWeight: '700', marginBottom: 12 }}>{t('prof.noBank', { defaultValue: 'No bank accounts linked.' })}</Text>
-                    <Pressable style={styles.smBtnOutlined} onPress={() => Alert.alert('Coming Soon', 'Bank integration coming soon!')}>
-                      <Text style={styles.smBtnOutlinedText}>{t('prof.addBank', { defaultValue: '+ Add Bank Account' })}</Text>
-                    </Pressable>
-                  </View>
-                ) : null}
-              </View>
-            )}
-          </View>
-
-          {/* Nominees */}
-          <View style={[styles.card, expanded === 'Nominees' && styles.cardActive]}>
-            <Pressable style={styles.cardHeader} onPress={() => toggleExpand('Nominees')}>
-              <View style={[styles.iconBox, { backgroundColor: '#FAF5FF' }]}><Text style={styles.iconText}>dY`"</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{t('prof.nominee', { defaultValue: 'Nominees' })}</Text>
-                <Text style={styles.cardSub}>{t('profile.nomineeDesc', { defaultValue: 'Manage your portfolio nominees' })}</Text>
-              </View>
-              <Text style={[styles.chevron, expanded === 'Nominees' && { transform: [{ rotate: '90deg' }] }]}>&gt;</Text>
-            </Pressable>
-            {expanded === 'Nominees' && (
-              <View style={styles.expandedContent}>
-                {nominees.length === 0 ? (
-                  <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-                    <Text style={{ color: '#A0AEC0', fontSize: 12, fontWeight: '700', marginBottom: 12 }}>{t('prof.noNominee', { defaultValue: 'No nominees added yet.' })}</Text>
-                    <Pressable style={styles.smBtnOutlined} onPress={() => Alert.alert('Coming Soon', 'Nominee integration coming soon!')}>
-                      <Text style={styles.smBtnOutlinedText}>{t('prof.addNominee', { defaultValue: '+ Add Nominee' })}</Text>
-                    </Pressable>
-                  </View>
-                ) : null}
-              </View>
-            )}
-          </View>
-
-          {/* Mandates */}
-          <View style={[styles.card, expanded === 'Mandates' && styles.cardActive]}>
-            <Pressable style={styles.cardHeader} onPress={() => toggleExpand('Mandates')}>
-              <View style={[styles.iconBox, { backgroundColor: '#F0FFF4' }]}><Text style={styles.iconText}>dY"</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>{t('prof.mandate', { defaultValue: 'Active Mandates' })}</Text>
-                <Text style={styles.cardSub}>{t('profile.mandateDesc', { defaultValue: 'Manage your auto-pay mandates' })}</Text>
+                <Text style={styles.cardSub}>{t('profile.mandateDesc', { defaultValue: 'Manage e-Mandate auto-pay limits & NPCI authorizations' })}</Text>
               </View>
-              <Text style={[styles.chevron, expanded === 'Mandates' && { transform: [{ rotate: '90deg' }] }]}>&gt;</Text>
-            </Pressable>
-            {expanded === 'Mandates' && (
-              <View style={styles.expandedContent}>
-                {mandates.length === 0 ? (
-                  <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-                    <Text style={{ color: '#A0AEC0', fontSize: 12, fontWeight: '700', marginBottom: 12 }}>{t('prof.noMandates', { defaultValue: 'No active mandates.' })}</Text>
-                    <Pressable style={styles.smBtnOutlined} onPress={() => Alert.alert('Coming Soon', 'Mandate creation coming soon!')}>
-                      <Text style={styles.smBtnOutlinedText}>{t('prof.createMandate', { defaultValue: '+ Create Mandate' })}</Text>
-                    </Pressable>
-                  </View>
-                ) : null}
-              </View>
-            )}
-          </View>
+              <Ionicons name="chevron-forward" size={18} color="#CBD5E0" />
+            </View>
+          </Pressable>
         </View>
 
         <Pressable style={styles.logoutBtn} onPress={handleLogout}>

@@ -22,6 +22,7 @@ import { InteraktModule } from './integrations/interakt/interakt.module';
 import { CybrillaModule } from './modules/cybrilla/cybrilla.module';
 import { MinorModule } from './modules/minor/minor.module';
 import { CrmModule } from './modules/crm/crm.module';
+import { SupportModule } from './modules/support/support.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { CrmModule } from './modules/crm/crm.module';
     CybrillaModule,
     MinorModule,
     CrmModule,
+    SupportModule,
   ],
   controllers: [AppController],
   providers: [AppService],

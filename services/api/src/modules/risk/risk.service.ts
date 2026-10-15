@@ -33,6 +33,38 @@ export class RiskService {
     return { data: profile, explanation: reasons, disclaimer: 'This investor profile is not a scheme Risk-o-Meter and does not guarantee performance.' };
   }
 
+  async getHistory(userId: string) {
+    const assessments = await this.prisma.riskAssessment.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' }
+    });
+    return assessments.map(a => ({
+      id: a.id,
+      version: a.version,
+      score: a.score,
+      category: a.category,
+      answers: typeof a.answers === 'string' ? JSON.parse(a.answers) : a.answers,
+      reasons: typeof a.reasons === 'string' ? JSON.parse(a.reasons) : a.reasons,
+      createdAt: a.createdAt
+    }));
+  }
+
+  async getLatestAssessment(userId: string) {
+    const profile = await this.prisma.riskProfile.findUnique({
+      where: { userId }
+    });
+    if (!profile) return null;
+    return {
+      id: profile.id,
+      version: profile.version,
+      score: profile.score,
+      category: profile.category,
+      answers: typeof profile.answers === 'string' ? JSON.parse(profile.answers) : profile.answers,
+      reasons: typeof profile.reasons === 'string' ? JSON.parse(profile.reasons) : profile.reasons,
+      createdAt: profile.updatedAt || profile.createdAt
+    };
+  }
+
   private normalizeAnswers(answers: Answers): Record<string, number> {
     if (Array.isArray(answers)) return Object.fromEntries(answers.map((value, index) => [RISK_QUESTIONS[index]?.id ?? `question_${index + 1}`, Number(value)]));
     if (!answers || typeof answers !== 'object') throw new BadRequestException('Risk answers must be a list or question-answer map.');

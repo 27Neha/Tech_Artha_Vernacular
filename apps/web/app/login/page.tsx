@@ -196,6 +196,15 @@ export default function LoginPage() {
                         {step === 1 && !otpSent && (
           <div className="animate-fade-in flex flex-col justify-start max-w-md w-full mx-auto mt-4">
             <h1 className="text-2xl font-bold text-[var(--dark)] mb-6">{t('login.welcomeBack') || 'Welcome back'}</h1>
+
+            {termsWarning && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 animate-fade-in">
+                <span className="text-xl">⚠️</span>
+                <p className="text-sm font-bold text-red-600 leading-snug">
+                  {termsWarning}
+                </p>
+              </div>
+            )}
               {accountNotExistsWarning && (
                 <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl flex flex-col items-center justify-center text-center">
                   <p className="text-sm text-red-600 mb-2 font-medium">
@@ -365,6 +374,7 @@ export default function LoginPage() {
                   {/* Terms & Conditions Checkbox and Learn More */}
                   {/* Terms of Service & Privacy Policy checkbox */}
                   <div className="mt-2 mb-6">
+
                     <div className="flex items-start gap-3 select-none">
                       <input
                         type="checkbox"
@@ -407,12 +417,6 @@ export default function LoginPage() {
                         </button>
                       </div>
                     </div>
-
-                    {termsWarning && (
-                      <p className="ml-8 mt-1.5 text-xs text-red-500 font-medium animate-fade-in">
-                        {termsWarning}
-                      </p>
-                    )}
                   </div>
               </div>
             )}

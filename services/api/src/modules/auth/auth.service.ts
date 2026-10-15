@@ -66,9 +66,9 @@ export class AuthService {
     const requests = await this.prisma.otpVerification.count({ where: { mobile: normalizedMobile, createdAt: { gte: requestedSince } } });
     if (requests >= OTP_RATE_LIMIT_COUNT) throw new HttpException('Too many OTP requests. Please wait before trying again.', HttpStatus.TOO_MANY_REQUESTS);
 
-    let code = randomInt(100000, 1000000).toString();
+    let code = randomInt(1000, 10000).toString();
     if (channel === 'SMS' && process.env.OTP_SMS_MODE === 'mock') {
-      code = '123456';
+      code = '1234';
     }
     await this.prisma.otpVerification.updateMany({
       where: { mobile: normalizedMobile, status: 'PENDING' },
@@ -143,7 +143,7 @@ export class AuthService {
       throw new HttpException('Too many requests. Please wait before trying again.', HttpStatus.TOO_MANY_REQUESTS);
     }
 
-    const code = randomInt(100000, 1000000).toString();
+    const code = randomInt(1000, 10000).toString();
 
     await this.prisma.otpVerification.updateMany({
       where: { mobile: normalizedEmail, status: 'PENDING' },
@@ -206,7 +206,7 @@ export class AuthService {
   }
 
   async validateOtp(normalizedMobile: string, otp: string) {
-    if (!/^\d{6}$/.test(otp)) throw new BadRequestException('Enter the 6-digit code.');
+    if (!/^\d{4,6}$/.test(otp)) throw new BadRequestException('Enter the 4-digit code.');
     const record = await this.prisma.otpVerification.findFirst({
       where: { mobile: normalizedMobile, status: 'PENDING' },
       orderBy: { createdAt: 'desc' },
@@ -327,17 +327,17 @@ export class AuthService {
     await this.prisma.session.updateMany({ where: { id: sessionId }, data: { isActive: false } });
   }
 
-  private async createSession(user: { id: string; mobile: string }, deviceId?: string, replacingSessionId?: string) {
+  private async createSession(user: { id: string; mobile?: string | null }, deviceId?: string, replacingSessionId?: string) {
     if (replacingSessionId) await this.prisma.session.update({ where: { id: replacingSessionId }, data: { isActive: false } });
     const sessionId = randomUUID();
     const refreshToken = randomUUID() + randomUUID();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    const accessToken = await this.jwtService.signAsync({ sub: user.id, mobile: user.mobile, sid: sessionId });
+    const accessToken = await this.jwtService.signAsync({ sub: user.id, mobile: user.mobile ?? '', sid: sessionId });
     await this.prisma.session.create({
       data: { id: sessionId, userId: user.id, token: this.hash(accessToken), refreshToken: this.hash(refreshToken), expiresAt, deviceId },
     });
     await this.prisma.auditLog.create({ data: { userId: user.id, action: 'SESSION_CREATED', details: JSON.stringify({ deviceBound: Boolean(deviceId) }) } });
-    return { accessToken, access_token: accessToken, refreshToken, expiresAt, user: { id: user.id, mobile: user.mobile } };
+    return { accessToken, access_token: accessToken, refreshToken, expiresAt, user: { id: user.id, mobile: user.mobile ?? '' } };
   }
 
   async getProfile(userId: string) {

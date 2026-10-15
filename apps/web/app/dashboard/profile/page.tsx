@@ -83,63 +83,38 @@ export default function ProfilePage() {
       <div className="flex flex-col gap-3 mb-6">
 
         {/* MY GOALS */}
-
         <div className={`bg-white rounded-2xl border ${expanded === 'My Goals' ? 'border-[var(--primary)]' : 'border-gray-100'} transition-all shadow-sm overflow-hidden`}>
-
           <button onClick={() => toggleExpand('My Goals')} className="w-full p-4 flex items-center gap-4 text-left">
-
-            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-xl shrink-0">📋</div>
-
+            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-[var(--primary)] shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            </div>
             <div className="flex-1">
-
               <p className="font-bold text-[var(--dark)] text-sm">My Goals</p>
-
               <p className="text-gray-400 text-xs mt-0.5">View and manage your financial goals</p>
-
             </div>
-
             <span className={`text-gray-300 text-xl transition-transform ${expanded === 'My Goals' ? 'rotate-90' : ''}`}>›</span>
-
           </button>
-
           {expanded === 'My Goals' && (
-
             <div className="px-4 pb-4 pt-2 border-t border-gray-50">
-
               <div className="text-center py-6">
-
                 <p className="text-gray-400 text-sm font-bold mb-2">No active goals found.</p>
-
                 <button onClick={() => alert("This feature will be available once the Cybrilla/ONDC integration is complete.")} className="text-xs font-bold text-white bg-[var(--primary)] px-4 py-2 rounded-lg">Create a Goal</button>
-
               </div>
-
             </div>
-
           )}
-
         </div>
 
-
-
         {/* BANK ACCOUNTS */}
-
         <div className={`bg-white rounded-2xl border ${expanded === 'Bank Accounts' ? 'border-[var(--primary)]' : 'border-gray-100'} transition-all shadow-sm overflow-hidden`}>
-
           <button onClick={() => toggleExpand('Bank Accounts')} className="w-full p-4 flex items-center gap-4 text-left">
-
-            <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-xl shrink-0">🏦</div>
-
-            <div className="flex-1">
-
-              <p className="font-bold text-[var(--dark)] text-sm">Bank Accounts</p>
-
-              <p className="text-gray-400 text-xs mt-0.5">Primary bank for SIPs and withdrawals</p>
-
+            <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v4M12 14v4M16 14v4"/></svg>
             </div>
-
+            <div className="flex-1">
+              <p className="font-bold text-[var(--dark)] text-sm">Bank Accounts</p>
+              <p className="text-gray-400 text-xs mt-0.5">Primary bank for SIPs and withdrawals</p>
+            </div>
             <span className={`text-gray-300 text-xl transition-transform ${expanded === 'Bank Accounts' ? 'rotate-90' : ''}`}>›</span>
-
           </button>
 
           {expanded === 'Bank Accounts' && (
@@ -163,176 +138,103 @@ export default function ProfilePage() {
 
 
         {/* MANDATES & AUTOPAY */}
-
         <div className={`bg-white rounded-2xl border ${expanded === 'Mandates & Autopay' ? 'border-[var(--primary)]' : 'border-gray-100'} transition-all shadow-sm overflow-hidden`}>
-
           <button onClick={() => toggleExpand('Mandates & Autopay')} className="w-full p-4 flex items-center gap-4 text-left">
-
-            <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-xl shrink-0">📝</div>
-
+            <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            </div>
             <div className="flex-1">
-
               <p className="font-bold text-[var(--dark)] text-sm">Mandates & Autopay</p>
-
               <p className="text-gray-400 text-xs mt-0.5">Active NACH/Biller SIP mandates</p>
-
             </div>
-
             <span className={`text-gray-300 text-xl transition-transform ${expanded === 'Mandates & Autopay' ? 'rotate-90' : ''}`}>›</span>
-
           </button>
-
           {expanded === 'Mandates & Autopay' && (
-
             <div className="px-4 pb-4 pt-2 border-t border-gray-50">
-
               <div className="text-center py-6">
-
                 <p className="text-gray-400 text-sm font-bold mb-1">No active mandates found.</p>
-
                 <p className="text-gray-400 text-[10px]">Set up a bank account first to create a mandate.</p>
-
               </div>
-
             </div>
-
           )}
-
         </div>
-
-
 
         {/* NOMINEE DETAILS */}
-
         <div className={`bg-white rounded-2xl border ${expanded === 'Nominee Details' ? 'border-[var(--primary)]' : 'border-gray-100'} transition-all shadow-sm overflow-hidden`}>
-
           <button onClick={() => toggleExpand('Nominee Details')} className="w-full p-4 flex items-center gap-4 text-left">
-
-            <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center text-xl shrink-0">👥</div>
-
+            <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
             <div className="flex-1">
-
               <p className="font-bold text-[var(--dark)] text-sm">Nominee Details</p>
-
               <p className="text-gray-400 text-xs mt-0.5">SEBI regulatory requirement</p>
-
             </div>
-
             <span className={`text-gray-300 text-xl transition-transform ${expanded === 'Nominee Details' ? 'rotate-90' : ''}`}>›</span>
-
           </button>
-
           {expanded === 'Nominee Details' && (
-
             <div className="px-4 pb-4 pt-2 border-t border-gray-50">
-
               <div className="text-center py-6">
-
                 <p className="text-gray-400 text-sm font-bold mb-2">No nominee added yet.</p>
-
                 <button onClick={() => alert("This feature will be available once the Cybrilla/ONDC integration is complete.")} className="text-xs font-bold text-white bg-[var(--primary)] px-4 py-2 rounded-lg">+ Add Nominee</button>
-
               </div>
-
             </div>
-
           )}
-
         </div>
-
-
 
         {/* STATEMENTS & TAX */}
-
         <div className={`bg-white rounded-2xl border ${expanded === 'Statements & Tax' ? 'border-[var(--primary)]' : 'border-gray-100'} transition-all shadow-sm overflow-hidden`}>
-
           <button onClick={() => toggleExpand('Statements & Tax')} className="w-full p-4 flex items-center gap-4 text-left">
-
-            <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-xl shrink-0">📂</div>
-
+            <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-600 shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            </div>
             <div className="flex-1">
-
               <p className="font-bold text-[var(--dark)] text-sm">Statements & Tax</p>
-
               <p className="text-gray-400 text-xs mt-0.5">CAS, Capital Gains, Tax proofs</p>
-
             </div>
-
             <span className={`text-gray-300 text-xl transition-transform ${expanded === 'Statements & Tax' ? 'rotate-90' : ''}`}>›</span>
-
           </button>
-
           {expanded === 'Statements & Tax' && (
-
             <div className="px-4 pb-4 pt-2 border-t border-gray-50">
-
                <div className="flex flex-col gap-2">
-
                  <button onClick={() => alert('Statement generation will be connected to the Cybrilla/ONDC provider soon.')} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl hover:border-[var(--primary)] transition-all">
-
                     <div>
-
                       <p className="text-sm font-bold text-[var(--dark)] text-left">Consolidated Account Statement</p>
-
                       <p className="text-[10px] text-gray-500 text-left mt-0.5">Detailed holdings and folios (CAS)</p>
-
                     </div>
-
                     <span className="text-gray-300">›</span>
-
                  </button>
-
                  <button onClick={() => alert('Statement generation will be connected to the Cybrilla/ONDC provider soon.')} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl hover:border-[var(--primary)] transition-all">
-
                     <div>
-
                       <p className="text-sm font-bold text-[var(--dark)] text-left">Capital Gains Statement</p>
-
                       <p className="text-[10px] text-gray-500 text-left mt-0.5">For Income Tax (ITR) filing</p>
-
                     </div>
-
                     <span className="text-gray-300">›</span>
-
                  </button>
-
                  <button onClick={() => alert('Statement generation will be connected to the Cybrilla/ONDC provider soon.')} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl hover:border-[var(--primary)] transition-all">
-
                     <div>
-
                       <p className="text-sm font-bold text-[var(--dark)] text-left">ELSS Tax Proof (80C)</p>
-
                       <p className="text-[10px] text-gray-500 text-left mt-0.5">Investment proof for tax deductions</p>
-
                     </div>
-
                     <span className="text-gray-300">›</span>
-
                  </button>
-
                </div>
-
             </div>
-
           )}
-
         </div>
-
       </div>
 
-      
-
-      
-        {/* RISK PROFILE */}
-        <div className={`bg-white rounded-2xl border ${expanded === 'Risk Profile' ? 'border-[var(--primary)]' : 'border-gray-100'} transition-all shadow-sm overflow-hidden`}>
-          <button onClick={() => toggleExpand('Risk Profile')} className="w-full p-4 flex items-center gap-4 text-left">
-            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-xl shrink-0">🎯</div>
-            <div className="flex-1">
-              <p className="font-bold text-[var(--dark)] text-sm">Risk Profile</p>
-              <p className="text-gray-400 text-xs mt-0.5">View and manage your risk assessment</p>
-            </div>
-            <span className={`text-gray-300 text-xl transition-transform ${expanded === 'Risk Profile' ? 'rotate-90' : ''}`}>›</span>
-          </button>
+      {/* RISK PROFILE */}
+      <div className={`bg-white rounded-2xl border ${expanded === 'Risk Profile' ? 'border-[var(--primary)]' : 'border-gray-100'} transition-all shadow-sm overflow-hidden`}>
+        <button onClick={() => toggleExpand('Risk Profile')} className="w-full p-4 flex items-center gap-4 text-left">
+          <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+          </div>
+          <div className="flex-1">
+            <p className="font-bold text-[var(--dark)] text-sm">Risk Profile</p>
+            <p className="text-gray-400 text-xs mt-0.5">View and manage your risk assessment</p>
+          </div>
+          <span className={`text-gray-300 text-xl transition-transform ${expanded === 'Risk Profile' ? 'rotate-90' : ''}`}>›</span>
+        </button>
           {expanded === 'Risk Profile' && (
             <div className="px-4 pb-4 pt-2 border-t border-gray-50">
                <div className="flex flex-col gap-3">

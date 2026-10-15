@@ -14,7 +14,7 @@ export const WelcomeScreen = () => {
   return (
     <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
       <StatusBar style="dark" />
-      <Header title="" />
+      <Header title="" showSettings={false} />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         
         <View style={styles.content}>

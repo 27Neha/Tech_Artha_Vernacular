@@ -205,7 +205,7 @@ export class BucketsService {
       // folio_defaults fields are references to separately-created contact resources, not inline values.
       const [email, phone, address] = await Promise.all([
         this.cybrilla.createEmailAddress(fpProfileId, user.email),
-        this.cybrilla.createPhoneNumber(fpProfileId, '91', user!.mobile.replace(/^\+?91/, '')),
+        this.cybrilla.createPhoneNumber(fpProfileId, '91', (user.mobile || '').replace(/^\+?91/, '')),
         this.cybrilla.createAddress(fpProfileId, dto.addressLine1, 'IN', dto.postalCode),
       ]);
 
@@ -250,8 +250,8 @@ export class BucketsService {
     try {
       confirmed = await this.cybrilla.confirmPurchaseOrder({
         fpOrderId: orderResult.id,
-        email: user!.email!,
-        mobile: user!.mobile.replace(/^\+?91/, ''),
+        email: user.email!,
+        mobile: (user.mobile || '').replace(/^\+?91/, ''),
       });
     } catch (e) {
       // The order exists either way; surface it as in-progress rather than losing the

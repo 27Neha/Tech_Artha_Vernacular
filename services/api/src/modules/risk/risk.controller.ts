@@ -1,4 +1,4 @@
-﻿import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { AccessTokenGuard, CurrentUser } from '../../common/auth';
 import type { AuthenticatedUser } from '../../common/auth';
 import { RiskService } from './risk.service';
@@ -13,8 +13,19 @@ export class RiskController {
     return this.riskService.questionnaire();
   }
 
+  @Get('history')
+  history(@CurrentUser() user: AuthenticatedUser) {
+    return this.riskService.getHistory(user.id);
+  }
+
+  @Get('latest')
+  latest(@CurrentUser() user: AuthenticatedUser) {
+    return this.riskService.getLatestAssessment(user.id);
+  }
+
   @Post('calculate')
   calculateRisk(@CurrentUser() user: AuthenticatedUser, @Body() body: { answers?: Record<string, number> | number[]; consent?: boolean }) {
     return this.riskService.calculateRisk(user.id, body.answers ?? [], Boolean(body.consent));
   }
 }
+

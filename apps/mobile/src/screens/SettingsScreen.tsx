@@ -8,6 +8,9 @@ import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TermsModal } from '../components/TermsModal';
 import { PrivacyPolicyModal } from '../components/PrivacyPolicyModal';
+import { Ionicons } from '@expo/vector-icons';
+import { openWhatsAppSupport, openEmailSupport, TECH_ARTHA_SUPPORT } from '../utils/contact';
+import { SupportQuerySection } from '../components/SupportQuerySection';
 
 const SUPPORTED_LANGUAGES = [
   { code: 'en', name: 'English', nativeName: 'English' },
@@ -73,19 +76,19 @@ export const SettingsScreen = () => {
   return (
     <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
       <StatusBar style="dark" />
-      <Header title={t('settings.title', { defaultValue: 'Settings' })} onBack={() => navigation.goBack()} />
+      <Header title={t('settings.title', { defaultValue: 'Settings' })} onBack={() => navigation.goBack()} showSettings={false} />
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.pageTitle}>{t('settings.title', { defaultValue: 'Settings' })}</Text>
         
         {/* LANGUAGE */}
         <View style={[styles.card, expanded === 'Language' && styles.cardActive]}>
           <Pressable style={styles.cardHeader} onPress={() => toggleExpand('Language')}>
-            <View style={styles.iconBox}><Text style={styles.iconText}>dYO?</Text></View>
+            <View style={styles.iconBox}><Ionicons name="language-outline" size={20} color="#3C3985" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{t('settings.language', { defaultValue: 'Language' })}</Text>
               <Text style={styles.cardSub}>{t('settings.changeLang', { defaultValue: 'Change your preferred language' })}</Text>
             </View>
-            <Text style={[styles.chevron, expanded === 'Language' && { transform: [{ rotate: '90deg' }] }]}>?</Text>
+            <Text style={[styles.chevron, expanded === 'Language' && { transform: [{ rotate: '90deg' }] }]}>›</Text>
           </Pressable>
           {expanded === 'Language' && (
             <View style={styles.expandedContent}>
@@ -99,7 +102,7 @@ export const SettingsScreen = () => {
                     <Text style={[styles.langNative, i18n.language === l.code && { color: '#3C3985' }]}>{l.nativeName}</Text>
                     <Text style={styles.langName}>{l.name}</Text>
                   </View>
-                  {i18n.language === l.code && <Text style={{ color: '#3C3985', fontWeight: 'bold' }}>o"</Text>}
+                  {i18n.language === l.code && <Text style={{ color: '#3C3985', fontWeight: 'bold' }}>✓</Text>}
                 </Pressable>
               ))}
             </View>
@@ -111,7 +114,7 @@ export const SettingsScreen = () => {
           <Text style={styles.sectionLabel}>{t('settings.permissions', { defaultValue: 'Permissions' })}</Text>
           <View style={[styles.card, { marginBottom: 0 }]}>
             <View style={[styles.cardHeader, { paddingBottom: 0 }]}>
-              <View style={styles.iconBox}><Text style={styles.iconText}>dY""</Text></View>
+              <View style={styles.iconBox}><Ionicons name="notifications-outline" size={20} color="#3C3985" /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>{t('settings.deviceNotif', { defaultValue: 'Notifications' })}</Text>
                 <Text style={[styles.cardSub, { color: notifStatus === 'granted' ? '#10B981' : '#EF4444' }]}>
@@ -128,12 +131,12 @@ export const SettingsScreen = () => {
         {/* APP THEME */}
         <View style={[styles.card, expanded === 'App Theme' && styles.cardActive]}>
           <Pressable style={styles.cardHeader} onPress={() => toggleExpand('App Theme')}>
-            <View style={styles.iconBox}><Text style={styles.iconText}>dYZ"</Text></View>
+            <View style={styles.iconBox}><Ionicons name="color-palette-outline" size={20} color="#3C3985" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{t('settings.appTheme', { defaultValue: 'App Theme' })}</Text>
               <Text style={styles.cardSub}>{theme.charAt(0).toUpperCase() + theme.slice(1)} Mode</Text>
             </View>
-            <Text style={[styles.chevron, expanded === 'App Theme' && { transform: [{ rotate: '90deg' }] }]}>?</Text>
+            <Text style={[styles.chevron, expanded === 'App Theme' && { transform: [{ rotate: '90deg' }] }]}>›</Text>
           </Pressable>
           {expanded === 'App Theme' && (
             <View style={styles.expandedContent}>
@@ -144,7 +147,7 @@ export const SettingsScreen = () => {
                   onPress={() => handleThemeChange(tType)}
                 >
                   <Text style={[styles.langNative, theme === tType && { color: '#3C3985', textTransform: 'capitalize' }, theme !== tType && { textTransform: 'capitalize' }]}>{tType}</Text>
-                  {theme === tType && <Text style={{ color: '#3C3985', fontWeight: 'bold' }}>o"</Text>}
+                  {theme === tType && <Text style={{ color: '#3C3985', fontWeight: 'bold' }}>✓</Text>}
                 </Pressable>
               ))}
             </View>
@@ -154,38 +157,44 @@ export const SettingsScreen = () => {
         {/* HELP & SUPPORT */}
         <View style={[styles.card, expanded === 'Help & Support' && styles.cardActive]}>
           <Pressable style={styles.cardHeader} onPress={() => toggleExpand('Help & Support')}>
-            <View style={styles.iconBox}><Text style={styles.iconText}>?"</Text></View>
+            <View style={styles.iconBox}><Ionicons name="help-circle-outline" size={20} color="#3C3985" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{t('settings.helpSupport', { defaultValue: 'Help & Support' })}</Text>
               <Text style={styles.cardSub}>{t('settings.helpDesc', { defaultValue: 'Contact us or get instant AI help' })}</Text>
             </View>
-            <Text style={[styles.chevron, expanded === 'Help & Support' && { transform: [{ rotate: '90deg' }] }]}>?</Text>
+            <Text style={[styles.chevron, expanded === 'Help & Support' && { transform: [{ rotate: '90deg' }] }]}>›</Text>
           </Pressable>
           {expanded === 'Help & Support' && (
             <View style={styles.expandedContent}>
               <View style={styles.aiBox}>
                 <Text style={styles.aiBoxLabel}>24/7 AI ASSISTANT</Text>
                 <Pressable style={styles.aiBtn}>
-                  <Text style={styles.aiBtnText}>dY' Start Live AI Chat</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="chatbubbles-outline" size={17} color="#fff" />
+                    <Text style={styles.aiBtnText}>Start Live AI Chat</Text>
+                  </View>
                 </Pressable>
               </View>
               <Text style={styles.sectionLabelContact}>Contact TechArtha</Text>
               <View style={{ gap: 8 }}>
-                <Pressable style={styles.contactBtn} onPress={() => Linking.openURL('https://wa.me/918308816023')}>
-                  <Text style={{ fontSize: 20 }}>dY"</Text>
+                <Pressable style={styles.contactBtn} onPress={() => openWhatsAppSupport()}>
+                  <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
                   <View>
                     <Text style={styles.contactTitle}>{t('settings.whatsapp', { defaultValue: 'WhatsApp Support' })}</Text>
-                    <Text style={styles.contactSub}>+91 8308816023</Text>
+                    <Text style={styles.contactSub}>{TECH_ARTHA_SUPPORT.displayPhone}</Text>
                   </View>
                 </Pressable>
-                <Pressable style={styles.contactBtn} onPress={() => Linking.openURL('mailto:support@techartha.com')}>
-                  <Text style={{ fontSize: 20 }}>o%,?</Text>
+                <Pressable style={styles.contactBtn} onPress={() => openEmailSupport()}>
+                  <Ionicons name="mail-outline" size={20} color="#3C3985" />
                   <View>
                     <Text style={styles.contactTitle}>{t('settings.email', { defaultValue: 'Email Support' })}</Text>
-                    <Text style={styles.contactSub}>support@techartha.com</Text>
+                    <Text style={styles.contactSub}>{TECH_ARTHA_SUPPORT.email}</Text>
                   </View>
                 </Pressable>
               </View>
+
+              {/* Submit a Support Query Form & Tracking */}
+              <SupportQuerySection />
             </View>
           )}
         </View>
@@ -193,7 +202,7 @@ export const SettingsScreen = () => {
         {/* LEGAL & POLICIES */}
         <View style={[styles.card, expanded === 'Legal' && styles.cardActive]}>
           <Pressable style={styles.cardHeader} onPress={() => toggleExpand('Legal')}>
-            <View style={styles.iconBox}><Text style={styles.iconText}>📜</Text></View>
+            <View style={styles.iconBox}><Ionicons name="document-text-outline" size={20} color="#3C3985" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{t('settings.legal', { defaultValue: 'Legal & Policies' })}</Text>
               <Text style={styles.cardSub}>{t('settings.legalDesc', { defaultValue: 'Terms of Service and Privacy Policy' })}</Text>
@@ -238,7 +247,7 @@ export const SettingsScreen = () => {
         {/* OTHER SETTINGS */}
         <Pressable style={styles.card} onPress={() => Alert.alert('Coming Soon', 'Privacy settings will be available shortly.')}>
           <View style={styles.cardHeader}>
-            <View style={styles.iconBox}><Text style={styles.iconText}>dY"'</Text></View>
+            <View style={styles.iconBox}><Ionicons name="lock-closed-outline" size={20} color="#3C3985" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{t('settings.privacyTitle', { defaultValue: 'Privacy & Security' })}</Text>
               <Text style={styles.cardSub}>{t('settings.privacyDesc', { defaultValue: 'App Lock, Biometrics, and Data Privacy' })}</Text>
@@ -248,7 +257,7 @@ export const SettingsScreen = () => {
 
         <Pressable style={styles.card} onPress={() => Alert.alert('Coming Soon', 'Device management will be available shortly.')}>
           <View style={styles.cardHeader}>
-            <View style={styles.iconBox}><Text style={styles.iconText}>dY"</Text></View>
+            <View style={styles.iconBox}><Ionicons name="hardware-chip-outline" size={20} color="#3C3985" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{t('settings.devicesTitle', { defaultValue: 'Linked Devices' })}</Text>
               <Text style={styles.cardSub}>{t('settings.devicesDesc', { defaultValue: 'Manage devices logged into your account' })}</Text>

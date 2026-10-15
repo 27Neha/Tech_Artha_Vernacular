@@ -6,10 +6,15 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { useNavigation } from '@react-navigation/native';
+
+import { Ionicons } from '@expo/vector-icons';
+
 interface HeaderProps {
   title: string;
   back?: Screen;
   onBack?: (screen: Screen) => void;
+  showSettings?: boolean;
 }
 
 const LANGUAGES = [
@@ -26,8 +31,9 @@ const LANGUAGES = [
   { code: 'as', label: 'Assamese', native: 'অসমীয়া' },
 ];
 
-export const Header = ({ title, back, onBack }: HeaderProps) => {
+export const Header = ({ title, back, onBack, showSettings = true }: HeaderProps) => {
   const { i18n } = useTranslation();
+  const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const [modalVisible, setModalVisible] = useState(false);
   
@@ -53,9 +59,46 @@ export const Header = ({ title, back, onBack }: HeaderProps) => {
       
       <View style={{ flex: 1, justifyContent: 'center' }} />
 
-      <Pressable onPress={() => setModalVisible(true)} hitSlop={10} style={{ padding: 4 }}>
-        <Text style={styles.language}>{currentLangObj.label}</Text>
-      </Pressable>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        {/* Language Selection Button with Dropdown Indicator */}
+        <Pressable 
+          onPress={() => setModalVisible(true)} 
+          hitSlop={10} 
+          style={{ 
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 8, 
+            backgroundColor: '#F0EFFB', 
+            borderWidth: 1, 
+            borderColor: '#E2E8F0',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 4
+          }}
+        >
+          <Text style={[styles.language, { color: '#3C3985', fontWeight: '700' }]}>{currentLangObj.label}</Text>
+          <Ionicons name="chevron-down" size={14} color="#3C3985" />
+        </Pressable>
+
+        {/* Settings button on the right of language selection */}
+        {showSettings ? (
+          <Pressable 
+            onPress={() => navigation.navigate('Settings')} 
+            hitSlop={10} 
+            style={{ 
+              padding: 6,
+              borderRadius: 8, 
+              backgroundColor: '#F0EFFB', 
+              borderWidth: 1, 
+              borderColor: '#E2E8F0',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <Ionicons name="settings-outline" size={19} color="#3C3985" />
+          </Pressable>
+        ) : null}
+      </View>
 
       <Modal
         visible={modalVisible}
