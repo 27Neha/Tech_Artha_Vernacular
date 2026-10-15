@@ -91,7 +91,7 @@ export const RiskAssessmentScreen = () => {
         setIsBotTyping(false);
         setCurrentIndex((prev) => prev + 1);
         scrollToBottom();
-      }, 600);
+      }, 500);
     } else {
       // Completed all questions -> submit to backend
       setSubmitting(true);
@@ -123,6 +123,22 @@ export const RiskAssessmentScreen = () => {
         console.log('Failed to save risk profile to backend', err);
         setSubmitting(false);
       }
+    }
+  };
+
+  // Revert back to the previous question and allow choosing a different option
+  const handleGoBackToQuestion = (targetIndex: number) => {
+    if (isBotTyping || submitting) return;
+    // Slice history to before the target question
+    const updatedHistory = history.slice(0, targetIndex);
+    setHistory(updatedHistory);
+    setCurrentIndex(targetIndex);
+    scrollToBottom();
+  };
+
+  const handleStepBackOne = () => {
+    if (currentIndex > 0) {
+      handleGoBackToQuestion(currentIndex - 1);
     }
   };
 
@@ -202,11 +218,20 @@ export const RiskAssessmentScreen = () => {
                 </View>
               </View>
 
-              {/* User selected answer bubble with User avatar */}
+              {/* User selected answer bubble with User avatar & Change Option Button */}
               <View style={styles.userRow}>
-                <View style={styles.userBubble}>
-                  <Text style={styles.userRoleLabel}>You</Text>
-                  <Text style={styles.userText}>{t(`risk.q${qItem?.id}.${item.selectedScore}`, { defaultValue: item.selectedLabel })}</Text>
+                <View style={styles.userBubbleWrapper}>
+                  <View style={styles.userBubble}>
+                    <Text style={styles.userRoleLabel}>You</Text>
+                    <Text style={styles.userText}>{t(`risk.q${qItem?.id}.${item.selectedScore}`, { defaultValue: item.selectedLabel })}</Text>
+                  </View>
+                  <Pressable
+                    style={styles.changeAnswerBtn}
+                    onPress={() => handleGoBackToQuestion(item.questionIndex)}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.changeAnswerText}>✏️ Edit answer</Text>
+                  </Pressable>
                 </View>
                 <View style={styles.userAvatarSmall}>
                   <UserIcon color="#4A5568" size={16} />
@@ -236,7 +261,18 @@ export const RiskAssessmentScreen = () => {
             {/* Answer Options Cards */}
             {!isBotTyping && (
               <View style={styles.optionsContainer}>
-                <Text style={styles.tapInstruction}>Tap an option to respond:</Text>
+                <View style={styles.optionsHeaderRow}>
+                  <Text style={styles.tapInstruction}>Tap an option to respond:</Text>
+                  {currentIndex > 0 && (
+                    <Pressable
+                      style={styles.backQuestionBtn}
+                      onPress={handleStepBackOne}
+                      hitSlop={10}
+                    >
+                      <Text style={styles.backQuestionText}>← Previous Question</Text>
+                    </Pressable>
+                  )}
+                </View>
                 {currentQ.options.map((opt, i) => (
                   <Pressable
                     key={`opt-${i}`}
@@ -300,12 +336,18 @@ const styles = StyleSheet.create({
   // User side styling (clean white/neutral card with border, matching bot side, with user avatar)
   userRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'flex-end', gap: 8, marginTop: 6, marginBottom: 12 },
   userAvatarSmall: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#EDF2F7', alignItems: 'center', justifyContent: 'center', marginTop: 2 },
-  userBubble: { backgroundColor: '#FFFFFF', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 16, borderTopRightRadius: 4, borderWidth: 1.5, borderColor: '#CBD5E1', maxWidth: '80%', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
+  userBubbleWrapper: { alignItems: 'flex-end', maxWidth: '82%' },
+  userBubble: { backgroundColor: '#FFFFFF', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 16, borderTopRightRadius: 4, borderWidth: 1.5, borderColor: '#CBD5E1', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
   userRoleLabel: { fontSize: 10, fontWeight: '800', color: '#64748B', textTransform: 'uppercase', marginBottom: 2, textAlign: 'right' },
   userText: { color: '#0F172A', fontSize: 15, fontWeight: '700', lineHeight: 21 },
+  changeAnswerBtn: { marginTop: 4, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6, backgroundColor: '#F1F5F9' },
+  changeAnswerText: { fontSize: 11, fontWeight: '700', color: '#3C3985' },
   
   optionsContainer: { marginLeft: 38, marginTop: 4, gap: 8 },
-  tapInstruction: { fontSize: 12, color: '#718096', fontWeight: '700', marginBottom: 4 },
+  optionsHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  tapInstruction: { fontSize: 12, color: '#718096', fontWeight: '700' },
+  backQuestionBtn: { backgroundColor: '#F0EFFB', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#D4D2F5' },
+  backQuestionText: { fontSize: 11, fontWeight: '700', color: '#3C3985' },
   optionCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: '#E2E8F0' },
   optionCardPressed: { borderColor: '#3C3985', backgroundColor: '#F0EFFF' },
   optionLetter: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#F0F3F8', alignItems: 'center', justifyContent: 'center', marginRight: 12 },

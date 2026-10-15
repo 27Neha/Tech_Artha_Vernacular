@@ -89,6 +89,29 @@ export class InteraktOtpProvider implements OtpProvider {
   }
 }
 
+/** Live Integration for Mtalkz DLT SMS API. */
+export class MtalkzOtpProvider implements OtpProvider {
+  readonly mode = 'CONNECTED' as const;
+  private readonly logger = new Logger(MtalkzOtpProvider.name);
+
+  constructor(private readonly mtalkzService?: any) {}
+
+  async send(input: { mobile: string; code: string; channel: OtpChannel }): Promise<void> {
+    if (input.channel !== 'SMS') {
+      this.logger.warn(`Skipping Mtalkz delivery. Requested channel is ${input.channel}.`);
+      return;
+    }
+    // Only pass exactly the variable count defined in DLT template. For OTP it's usually just the code.
+    if (this.mtalkzService) {
+      await this.mtalkzService.sendTemplateSms(input.mobile, [input.code]);
+    } else {
+      const { MtalkzService } = require('../mtalkz/mtalkz.service');
+      const service = new MtalkzService();
+      await service.sendTemplateSms(input.mobile, [input.code]);
+    }
+  }
+}
+
 /** Router that selects provider based on the channel. */
 export class ChannelRoutingOtpProvider implements OtpProvider {
   readonly mode = 'ROUTED' as const;
@@ -97,6 +120,7 @@ export class ChannelRoutingOtpProvider implements OtpProvider {
     private readonly interaktProvider: InteraktOtpProvider,
     private readonly mockProvider: MockOtpProvider,
     private readonly emailProvider: EmailOtpProvider,
+    private readonly mtalkzProvider: MtalkzOtpProvider = new MtalkzOtpProvider(),
     private readonly msg91Provider: Msg91OtpProvider = new Msg91OtpProvider(),
   ) {}
 
@@ -110,7 +134,11 @@ export class ChannelRoutingOtpProvider implements OtpProvider {
     }
     
     if (input.channel === 'SMS') {
-      const smsMode = process.env.OTP_SMS_MODE; // 'mock' or 'msg91'
+      const smsMode = process.env.OTP_SMS_MODE; // 'mock' or 'msg91' or 'mtalkz'
+
+      if (smsMode === 'mtalkz') {
+        return this.mtalkzProvider.send(input);
+      }
 
       if (smsMode === 'msg91') {
         return this.msg91Provider.send(input);
@@ -121,7 +149,7 @@ export class ChannelRoutingOtpProvider implements OtpProvider {
       }
 
       if (smsMode !== 'mock') {
-         throw new BadRequestException("SMS Provider is not currently configured. Please set OTP_SMS_MODE to 'mock' or 'msg91'.");
+         throw new BadRequestException("SMS Provider is not currently configured. Please set OTP_SMS_MODE to 'mock', 'msg91', or 'mtalkz'.");
       }
 
       return this.mockProvider.send(input);

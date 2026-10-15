@@ -240,6 +240,19 @@ export default function RiskPage() {
     }
   };
 
+  const handleGoBackToQuestion = (targetIndex: number) => {
+    if (isBotTyping || loading) return;
+    const updatedHistory = history.slice(0, targetIndex);
+    setHistory(updatedHistory);
+    setCurrentIndex(targetIndex);
+  };
+
+  const handleStepBackOne = () => {
+    if (currentIndex > 0) {
+      handleGoBackToQuestion(currentIndex - 1);
+    }
+  };
+
   const currentQ = questions[currentIndex];
   const progressPercent = questions.length
     ? Math.min(100, Math.round((history.length / questions.length) * 100))
@@ -319,13 +332,21 @@ export default function RiskPage() {
                   </div>
                 </div>
 
-                {/* User answer bubble with user emoji and neutral card design */}
+                {/* User answer bubble with user emoji and Edit Answer button */}
                 <div className="flex items-start justify-end gap-3">
-                  <div className="bg-white border border-gray-300 px-5 py-3 rounded-2xl rounded-tr-sm shadow-sm max-w-md">
-                    <span className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wide block text-right mb-0.5">
-                      You
-                    </span>
-                    <p className="text-sm font-bold text-[#0F172A] leading-snug">{item.selectedLabel}</p>
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="bg-white border border-gray-300 px-5 py-3 rounded-2xl rounded-tr-sm shadow-sm max-w-md">
+                      <span className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wide block text-right mb-0.5">
+                        You
+                      </span>
+                      <p className="text-sm font-bold text-[#0F172A] leading-snug">{item.selectedLabel}</p>
+                    </div>
+                    <button
+                      onClick={() => handleGoBackToQuestion(item.questionIndex)}
+                      className="text-[11px] font-bold text-[var(--primary)] hover:underline flex items-center gap-1 bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-md transition-all cursor-pointer"
+                    >
+                      <span>✏️</span> Edit answer
+                    </button>
                   </div>
                   <div className="w-8 h-8 rounded-full bg-gray-100 border border-gray-200 text-gray-700 flex items-center justify-center text-sm font-bold shrink-0 mt-1 shadow-sm">
                     👤
@@ -350,10 +371,20 @@ export default function RiskPage() {
                 </div>
               </div>
 
-              {/* Tappable Choice Cards */}
+              {/* Tappable Choice Cards + Back Button */}
               {!isBotTyping && (
                 <div className="ml-11 flex flex-col gap-2.5 max-w-md">
-                  <span className="text-xs text-gray-500 font-bold mb-1">Choose an answer below:</span>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs text-gray-500 font-bold">Choose an answer below:</span>
+                    {currentIndex > 0 && (
+                      <button
+                        onClick={handleStepBackOne}
+                        className="text-xs font-bold text-[var(--primary)] bg-[var(--primary-light)] hover:bg-[#E0DEFA] px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        ← Previous Question
+                      </button>
+                    )}
+                  </div>
                   {currentQ.options.map((opt, i) => (
                     <button
                       key={i}
