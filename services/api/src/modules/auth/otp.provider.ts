@@ -73,22 +73,6 @@ export class Msg91OtpProvider implements OtpProvider {
   }
 }
 
-/** Live Integration for Mtalkz DLT SMS API. */
-export class MtalkzOtpProvider implements OtpProvider {
-  readonly mode = 'CONNECTED' as const;
-  private readonly logger = new Logger(MtalkzOtpProvider.name);
-
-  constructor(private readonly mtalkzService?: any) {}
-
-  async send(input: { mobile: string; code: string; channel: OtpChannel }): Promise<void> {
-    if (input.channel !== 'SMS') {
-      this.logger.warn(`Skipping Mtalkz delivery. Requested channel is ${input.channel}.`);
-      return;
-    }
-    // Only pass exactly the variable count defined in DLT template. For OTP it's usually just the code.
-    await this.mtalkzService.sendTemplateSms(input.mobile, [input.code]);
-  }
-}
 
 /** Live Integration for Interakt WhatsApp API. */
 export class InteraktOtpProvider implements OtpProvider {
@@ -103,6 +87,29 @@ export class InteraktOtpProvider implements OtpProvider {
     }
     await this.interaktService.sendAuthenticationOtp(input.mobile, input.code);
     console.log(`[OTP] channel=WHATSAPP provider=INTERAKT send=success`);
+  }
+}
+
+/** Live Integration for Mtalkz DLT SMS API. */
+export class MtalkzOtpProvider implements OtpProvider {
+  readonly mode = 'CONNECTED' as const;
+  private readonly logger = new Logger(MtalkzOtpProvider.name);
+
+  constructor(private readonly mtalkzService?: any) {}
+
+  async send(input: { mobile: string; code: string; channel: OtpChannel }): Promise<void> {
+    if (input.channel !== 'SMS') {
+      this.logger.warn(`Skipping Mtalkz delivery. Requested channel is ${input.channel}.`);
+      return;
+    }
+    // Only pass exactly the variable count defined in DLT template. For OTP it's usually just the code.
+    if (this.mtalkzService) {
+      await this.mtalkzService.sendTemplateSms(input.mobile, [input.code]);
+    } else {
+      const { MtalkzService } = require('../mtalkz/mtalkz.service');
+      const service = new MtalkzService();
+      await service.sendTemplateSms(input.mobile, [input.code]);
+    }
   }
 }
 

@@ -3,272 +3,197 @@ import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { exitOnboarding } from '../utils/navigation';
 import { useTranslation } from 'react-i18next';
 import { Header } from '../components/Header';
-import { RiskometerGauge } from '../components/RiskometerGauge';
-import { colors, radii, shadows } from '../theme/tokens';
-
-type RiskPayload = {
-  data?: { score?: number; category?: string };
-  category?: string;
-  score?: number;
-  explanation?: string[];
-  disclaimer?: string;
-};
+import { RiskometerGauge, RISK_CATEGORIES } from '../components/RiskometerGauge';
 
 export const RiskResultScreen = () => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
 
-  const payload: RiskPayload = route.params?.profile ?? {};
-  const rawCat = route.params?.category ?? payload.data?.category ?? payload.category ?? 'MODERATE';
-  const category = String(rawCat).toUpperCase();
-  const score = route.params?.score ?? payload.data?.score ?? payload.score ?? 35;
-  const reasons = payload.explanation ?? [];
+  const rawCategory = (route.params?.category || 'MODERATE').toUpperCase().replace(/\s+/g, '_');
+  const score = Number(route.params?.score) || 35;
 
-  let label = 'Moderate';
+  // Category Configuration
+  const categoryConfig =
+    RISK_CATEGORIES.find((c) => c.key === rawCategory) ||
+    RISK_CATEGORIES.find((c) => c.key === 'MODERATE')!;
+
+  const label = categoryConfig.label;
+  const color = categoryConfig.color;
+
   let desc = 'You prefer a balanced approach, seeking growth while taking measured risks to protect your capital.';
-  let themeColor = colors.risk.moderate;
-  let bgBadgeColor = colors.risk.moderateMuted;
+  let recommendedSplit = '55% / 45%';
 
-  if (category === 'CONSERVATIVE') {
-    label = 'Conservative';
-    desc = 'You prioritize capital preservation over high returns. You prefer stable, low-risk investments.';
-    themeColor = colors.risk.conservative;
-    bgBadgeColor = colors.risk.conservativeMuted;
-  } else if (category === 'AGGRESSIVE') {
-    label = 'Aggressive';
-    desc = 'You are willing to accept higher market volatility for the potential of significant long-term growth.';
-    themeColor = colors.risk.aggressive;
-    bgBadgeColor = colors.risk.aggressiveMuted;
+  if (rawCategory === 'CONSERVATIVE') {
+    desc = 'You prioritize capital preservation over high returns. You prefer stable, low-risk instruments.';
+    recommendedSplit = '20% / 80%';
+  } else if (rawCategory === 'MODERATELY_LOW') {
+    desc = 'You seek capital stability with modest growth, willing to accept minimal short-term market fluctuations.';
+    recommendedSplit = '35% / 65%';
+  } else if (rawCategory === 'MODERATE') {
+    desc = 'You prefer a balanced approach, seeking wealth growth while taking measured risks across assets.';
+    recommendedSplit = '55% / 45%';
+  } else if (rawCategory === 'MODERATELY_HIGH') {
+    desc = 'You are focused on long-term capital appreciation and comfortable with moderate market volatility.';
+    recommendedSplit = '70% / 30%';
+  } else if (rawCategory === 'AGGRESSIVE') {
+    desc = 'You are willing to accept higher market volatility for the potential of significant long-term wealth growth.';
+    recommendedSplit = '85% / 15%';
   }
 
   return (
     <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
       <StatusBar style="dark" />
       <Header title="Your Risk Profile" />
-      
+
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {/* 3D Elevated Results Card */}
         <View style={styles.card}>
-          <Text style={styles.cardHeaderEyebrow}>Assessed Investor Profile</Text>
-          
-          <View style={[styles.categoryBadge, { backgroundColor: bgBadgeColor, borderColor: themeColor }]}>
-            <Text style={[styles.categoryText, { color: themeColor }]}>{label}</Text>
+          <Text style={styles.title}>Your Risk Profile is</Text>
+          <View style={[styles.categoryBadge, { backgroundColor: `${color}18`, borderColor: `${color}40` }]}>
+            <Text style={[styles.category, { color }]}>{label}</Text>
           </View>
 
-          {/* Precision Animated Vector Riskometer */}
-          <RiskometerGauge
-            score={Number(score)}
-            category={category}
-            size={280}
-          />
+          {/* 5-Tier SEBI-Compliant Riskometer Gauge */}
+          <View style={styles.gaugeWrapper}>
+            <RiskometerGauge score={score} category={rawCategory} size={290} showLabels={true} />
+          </View>
 
           <Text style={styles.description}>{desc}</Text>
 
-          {/* Score & Bucket Summary */}
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
               <Text style={styles.statLabel}>Calculated Score</Text>
               <Text style={styles.statValue}>{score} / 60</Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={styles.statLabel}>Matching Bucket</Text>
-              <Text style={[styles.statValue, { color: themeColor }]}>{label} Bucket</Text>
+              <Text style={styles.statLabel}>Recommended</Text>
+              <Text style={styles.statValue}>Equity {recommendedSplit}</Text>
             </View>
           </View>
-
-          {reasons.length > 0 && (
-            <View style={styles.reasonsBox}>
-              <Text style={styles.reasonsTitle}>Assessment Rationale</Text>
-              {reasons.map((reason, i) => (
-                <Text key={i} style={styles.reasonText}>• {reason}</Text>
-              ))}
-            </View>
-          )}
-
-          <Text style={styles.disclaimer}>
-            {payload.disclaimer ??
-              'This investor profile is a suitability assessment conducted per AMFI/SEBI norms and does not guarantee investment returns. Mutual fund investments are subject to market risks.'}
-          </Text>
         </View>
 
-        {/* Action Controls */}
-        <View style={styles.actionBlock}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.primaryBtn,
-              pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] },
-            ]}
-            onPress={() => navigation.navigate('GoalSelection')}
-          >
-            <Text style={styles.primaryBtnText}>Continue to Goal Planner</Text>
-            <Text style={styles.primaryBtnText}>→</Text>
-          </Pressable>
+        <Pressable style={styles.primaryBtn} onPress={() => navigation.navigate('GoalSelection')}>
+          <Text style={styles.primaryBtnText}>Continue to Goal Planner</Text>
+          <Text style={styles.primaryBtnText}>→</Text>
+        </Pressable>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.outlineBtn,
-              pressed && { backgroundColor: '#F1F5F9' },
-            ]}
-            onPress={() => navigation.navigate('RiskAssessment')}
-          >
-            <Text style={styles.outlineBtnText}>Retake Assessment</Text>
-          </Pressable>
-
-          <Pressable style={styles.skipBtn} onPress={() => navigation.navigate('MainTabs')} hitSlop={10}>
-            <Text style={styles.skipBtnText}>Skip for now</Text>
-          </Pressable>
-        </View>
+        {/* Reset rather than navigate: onboarding stack must not stay behind */}
+        <Pressable style={styles.skipBtn} onPress={() => exitOnboarding(navigation)}>
+          <Text style={styles.skipBtnText}>Skip for now</Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.canvas },
+  safe: { flex: 1, backgroundColor: '#F8F9FB' },
   container: { padding: 20, paddingBottom: 40, alignItems: 'center' },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: radii['2xl'],
-    padding: 24,
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 22,
     width: '100%',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E8ECF4',
-    ...shadows.cardElevated,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
     marginBottom: 20,
   },
-  cardHeaderEyebrow: {
-    fontSize: 12,
+  title: {
+    fontSize: 13,
     fontWeight: '800',
-    color: colors.textMuted,
+    color: '#718096',
     textTransform: 'uppercase',
-    letterSpacing: 1.2,
-    marginBottom: 10,
+    letterSpacing: 1,
+    marginBottom: 8,
   },
   categoryBadge: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     paddingVertical: 6,
-    borderRadius: radii.full,
+    borderRadius: 16,
     borderWidth: 1.5,
     marginBottom: 16,
   },
-  categoryText: {
-    fontSize: 24,
+  category: {
+    fontSize: 26,
     fontWeight: '900',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
+  },
+  gaugeWrapper: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
   },
   description: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: '#4A5568',
     textAlign: 'center',
-    lineHeight: 22,
-    marginTop: 6,
-    marginBottom: 20,
-    paddingHorizontal: 8,
+    lineHeight: 21,
+    marginBottom: 24,
+    paddingHorizontal: 10,
+    fontWeight: '500',
   },
   statsRow: {
     flexDirection: 'row',
     gap: 12,
     width: '100%',
-    marginBottom: 16,
   },
   statBox: {
     flex: 1,
-    backgroundColor: '#F8F9FD',
-    padding: 14,
-    borderRadius: radii.lg,
+    backgroundColor: '#F8F9FB',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 16,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#EDF2F7',
   },
   statLabel: {
     fontSize: 10,
-    fontWeight: '800',
-    color: colors.textMuted,
+    fontWeight: '700',
+    color: '#A0AEC0',
     textTransform: 'uppercase',
     marginBottom: 4,
   },
   statValue: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: colors.textPrimary,
-  },
-  reasonsBox: {
-    alignSelf: 'stretch',
-    backgroundColor: '#F8F9FD',
-    borderRadius: radii.md,
-    padding: 14,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  reasonsTitle: {
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: 8,
-  },
-  reasonText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 18,
-    marginBottom: 4,
-  },
-  disclaimer: {
-    fontSize: 11,
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 16,
-    marginTop: 8,
-    paddingHorizontal: 8,
-  },
-  actionBlock: {
-    width: '100%',
-    gap: 10,
+    color: '#102A54',
   },
   primaryBtn: {
     width: '100%',
-    backgroundColor: colors.primary,
+    backgroundColor: '#3C3985',
     paddingVertical: 16,
     paddingHorizontal: 24,
-    borderRadius: radii.lg,
+    borderRadius: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    ...shadows.buttonPrimary,
   },
   primaryBtnText: {
-    color: '#FFFFFF',
-    fontSize: 15,
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '800',
-  },
-  outlineBtn: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 14,
-    borderRadius: radii.lg,
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-    alignItems: 'center',
-    ...shadows.card,
-  },
-  outlineBtnText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '700',
   },
   skipBtn: {
     width: '100%',
-    paddingVertical: 10,
+    paddingVertical: 14,
     alignItems: 'center',
+    marginTop: 6,
   },
   skipBtnText: {
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '600',
+    color: '#3C3985',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
 

@@ -23,9 +23,9 @@ function isNavRecent(navDate: string | null, maxAgeDays = 45): boolean {
 }
 
 const BUCKETS: Bucket[] = [
-  { id: 'stable', name: 'Stable foundation', eligibleFor: ['CONSERVATIVE', 'MODERATE'], allocation: { equity: 20, debt: 55, liquid: 25 }, horizon: '1–3 years', explanation: 'Designed to prioritise stability and access. It can still move in value.' },
-  { id: 'balanced', name: 'Balanced growth', eligibleFor: ['MODERATE', 'AGGRESSIVE'], allocation: { equity: 55, debt: 35, liquid: 10 }, horizon: '3–7 years', explanation: 'Balances long-term growth potential with stabilising assets.' },
-  { id: 'growth', name: 'Long-term growth', eligibleFor: ['AGGRESSIVE'], allocation: { equity: 75, debt: 20, liquid: 5 }, horizon: '7+ years', explanation: 'Built for a long horizon and the ability to accept larger temporary falls.' },
+  { id: 'stable', name: 'Stable foundation', eligibleFor: ['CONSERVATIVE', 'MODERATELY_LOW', 'MODERATE'], allocation: { equity: 20, debt: 55, liquid: 25 }, horizon: '1–3 years', explanation: 'Designed to prioritise stability and access. It can still move in value.' },
+  { id: 'balanced', name: 'Balanced growth', eligibleFor: ['MODERATELY_LOW', 'MODERATE', 'MODERATELY_HIGH', 'AGGRESSIVE'], allocation: { equity: 55, debt: 35, liquid: 10 }, horizon: '3–7 years', explanation: 'Balances long-term growth potential with stabilising assets.' },
+  { id: 'growth', name: 'Long-term growth', eligibleFor: ['MODERATE', 'MODERATELY_HIGH', 'AGGRESSIVE'], allocation: { equity: 75, debt: 20, liquid: 5 }, horizon: '7+ years', explanation: 'Built for a long horizon and the ability to accept larger temporary falls.' },
 ];
 
 // Real Cybrilla sandbox test funds (verified live against the "techartha" tenant), one per bucket.

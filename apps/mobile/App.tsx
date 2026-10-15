@@ -37,6 +37,9 @@ import { FamilyPortfolioScreen } from './src/screens/FamilyPortfolioScreen';
 import { ArticleScreen } from './src/screens/ArticleScreen';
 import { ProfileSetupScreen } from './src/screens/ProfileSetupScreen';
 import { ParentalApprovalScreen } from './src/screens/ParentalApprovalScreen';
+import { BankAccountsScreen } from './src/screens/BankAccountsScreen';
+import { NomineeDetailsScreen } from './src/screens/NomineeDetailsScreen';
+import { ActiveMandatesScreen } from './src/screens/ActiveMandatesScreen';
 import { MinorGuardianScreen } from './src/screens/minor/MinorGuardianScreen';
 import { MinorVerifyScreen } from './src/screens/minor/MinorVerifyScreen';
 import { MinorConsentScreen } from './src/screens/minor/MinorConsentScreen';
@@ -183,6 +186,9 @@ function RootNavigator() {
       <Stack.Screen name="Learn" component={LearnScreen} />
       <Stack.Screen name="Assistant" component={AssistantScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="BankAccounts" component={BankAccountsScreen} />
+      <Stack.Screen name="NomineeDetails" component={NomineeDetailsScreen} />
+      <Stack.Screen name="ActiveMandates" component={ActiveMandatesScreen} />
       <Stack.Screen name="MinorGuardian" component={MinorGuardianScreen} />
       <Stack.Screen name="MinorVerify" component={MinorVerifyScreen} />
       <Stack.Screen name="MinorGuardianVerification" component={MinorVerifyScreen} />

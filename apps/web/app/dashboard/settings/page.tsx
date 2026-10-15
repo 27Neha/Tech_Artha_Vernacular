@@ -61,7 +61,9 @@ export default function SettingsPage() {
         {/* LANGUAGE SETTING */}
         <div className={`bg-white rounded-2xl border ${expanded === 'Language' ? 'border-[var(--primary)]' : 'border-gray-100'} transition-all shadow-sm overflow-hidden`}>
           <button onClick={() => toggleExpand('Language')} className="w-full p-4 flex items-center gap-4 text-left">
-            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">🌐</div>
+            <div className="w-10 h-10 rounded-full bg-[var(--primary-light)] flex items-center justify-center text-[var(--primary)] shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+            </div>
             <div className="flex-1">
               <p className="font-bold text-[var(--dark)] text-sm">{t('settings.language') || 'Language'}</p>
               <p className="text-gray-400 text-xs mt-0.5">{t('settings.changeLang') || 'Change app language'}</p>
@@ -85,7 +87,9 @@ export default function SettingsPage() {
 
         {/* PUSH NOTIFICATIONS SETTING */}
         <div className="bg-white rounded-2xl border border-gray-100 transition-all shadow-sm overflow-hidden p-4 flex items-center gap-4 text-left">
-          <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">🔔</div>
+          <div className="w-10 h-10 rounded-full bg-[var(--primary-light)] flex items-center justify-center text-[var(--primary)] shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+          </div>
           <div className="flex-1">
             <p className="font-bold text-[var(--dark)] text-sm">{t('settings.pushNotif') || 'Push Notifications'}</p>
             <p className="text-gray-400 text-xs mt-0.5">SIPs, goals, and market updates</p>
@@ -101,7 +105,9 @@ export default function SettingsPage() {
         {/* APP THEME SETTING */}
         <div className={`bg-white rounded-2xl border ${expanded === 'App Theme' ? 'border-[var(--primary)]' : 'border-gray-100'} transition-all shadow-sm overflow-hidden`}>
           <button onClick={() => toggleExpand('App Theme')} className="w-full p-4 flex items-center gap-4 text-left">
-            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">🎨</div>
+            <div className="w-10 h-10 rounded-full bg-[var(--primary-light)] flex items-center justify-center text-[var(--primary)] shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r=".5"></circle><circle cx="17.5" cy="10.5" r=".5"></circle><circle cx="8.5" cy="7.5" r=".5"></circle><circle cx="6.5" cy="12.5" r=".5"></circle><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path></svg>
+            </div>
             <div className="flex-1">
               <p className="font-bold text-[var(--dark)] text-sm">{t('settings.appTheme') || 'App Theme'}</p>
               <p className="text-gray-400 text-xs mt-0.5">{theme.charAt(0).toUpperCase() + theme.slice(1)} Mode</p>
@@ -123,7 +129,9 @@ export default function SettingsPage() {
         {/* HELP & SUPPORT SETTING */}
         <div className={`bg-white rounded-2xl border ${expanded === 'Help & Support' ? 'border-[var(--primary)]' : 'border-gray-100'} transition-all shadow-sm overflow-hidden`}>
           <button onClick={() => toggleExpand('Help & Support')} className="w-full p-4 flex items-center gap-4 text-left">
-            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">❓</div>
+            <div className="w-10 h-10 rounded-full bg-[var(--primary-light)] flex items-center justify-center text-[var(--primary)] shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            </div>
             <div className="flex-1">
               <p className="font-bold text-[var(--dark)] text-sm">{t('settings.helpSupport') || 'Help & Support'}</p>
               <p className="text-gray-400 text-xs mt-0.5">{t('settings.helpDesc') || 'FAQs, Tutorials, and Contact Us'}</p>
@@ -135,21 +143,26 @@ export default function SettingsPage() {
               <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-3">
                 <p className="text-xs font-bold text-[var(--primary)] uppercase tracking-wider mb-2">24/7 AI Assistant</p>
                 <button onClick={() => router.push('/dashboard/support/chat')} className="w-full bg-[var(--primary)] text-white text-sm font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-800 transition-all shadow-sm">
-                  <span>💬</span> Start Live AI Chat
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                  Start Live AI Chat
                 </button>
               </div>
               
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 mt-4">Contact TechArtha</p>
               <div className="flex flex-col gap-2">
                 <a href="https://wa.me/918308816023" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl hover:border-green-500 transition-all">
-                  <span className="text-xl">📱</span>
+                  <div className="w-8 h-8 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                  </div>
                   <div>
                     <p className="text-sm font-bold text-[var(--dark)]">{t('settings.whatsapp') || 'WhatsApp Support'}</p>
                     <p className="text-xs text-gray-500">+91 8308816023</p>
                   </div>
                 </a>
                 <a href="mailto:support@TechArtha.com" className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl hover:border-blue-300 transition-all">
-                  <span className="text-xl">✉️</span>
+                  <div className="w-8 h-8 rounded-full bg-blue-50 text-[var(--primary)] flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                  </div>
                   <div>
                     <p className="text-sm font-bold text-[var(--dark)]">{t('settings.email') || 'Email Support'}</p>
                     <p className="text-xs text-gray-500">support@TechArtha.com</p>
@@ -163,7 +176,9 @@ export default function SettingsPage() {
         {/* LEGAL & POLICIES SETTING */}
         <div className={`bg-white rounded-2xl border ${expanded === 'Legal' ? 'border-[var(--primary)]' : 'border-gray-100'} transition-all shadow-sm overflow-hidden`}>
           <button onClick={() => toggleExpand('Legal')} className="w-full p-4 flex items-center gap-4 text-left">
-            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">📜</div>
+            <div className="w-10 h-10 rounded-full bg-[var(--primary-light)] flex items-center justify-center text-[var(--primary)] shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            </div>
             <div className="flex-1">
               <p className="font-bold text-[var(--dark)] text-sm">{t('settings.legal') || 'Legal & Policies'}</p>
               <p className="text-gray-400 text-xs mt-0.5">{t('settings.legalDesc') || 'Terms of Service and Privacy Policy'}</p>
@@ -199,11 +214,23 @@ export default function SettingsPage() {
 
         {/* OTHER SETTINGS (Mocked) */}
         {[
-          { icon: '🔒', label: 'Privacy & Security', desc: 'App Lock, Biometrics, and Data Privacy' },
-          { icon: '📱', label: 'Linked Devices', desc: 'Manage devices logged into your account' },
+          { 
+            icon: (
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            ), 
+            label: 'Privacy & Security', 
+            desc: 'App Lock, Biometrics, and Data Privacy' 
+          },
+          { 
+            icon: (
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>
+            ), 
+            label: 'Linked Devices', 
+            desc: 'Manage devices logged into your account' 
+          },
         ].map((item) => (
           <button key={item.label} onClick={() => alert(`${item.label} configuration coming soon!`)} className="bg-white p-4 rounded-2xl flex items-center gap-4 text-left border border-gray-100 hover:border-[var(--primary)] transition-all shadow-sm">
-            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-xl shrink-0">{item.icon}</div>
+            <div className="w-10 h-10 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0">{item.icon}</div>
             <div className="flex-1">
               <p className="font-bold text-[var(--dark)] text-sm">{item.label}</p>
               <p className="text-gray-400 text-xs mt-0.5">{item.desc}</p>

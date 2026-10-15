@@ -210,6 +210,13 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
           <View style={localStyles.content}>
             <Text style={styles.title}>{t('login.welcomeBack', { defaultValue: 'Welcome Back' })}</Text>
             <Text style={styles.description}>{t('login.subtitle', { defaultValue: 'Securely login to your TechArtha account.' })}</Text>
+
+            {termsWarning ? (
+              <View style={localStyles.topWarningBanner}>
+                <Text style={localStyles.topWarningIcon}>⚠️</Text>
+                <Text style={localStyles.topWarningText}>{termsWarning}</Text>
+              </View>
+            ) : null}
             
             {identifierType === 'EMAIL' ? (
               <View style={localStyles.inputGroup}>
@@ -383,10 +390,6 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
                   </Text>
                 </Text>
               </View>
-
-              {termsWarning ? (
-                <Text style={localStyles.termsWarningText}>{termsWarning}</Text>
-              ) : null}
             </View>
             
             <View style={localStyles.footer}>
@@ -467,7 +470,20 @@ const localStyles = StyleSheet.create({
   checkMark: { color: '#fff', fontSize: 13, fontWeight: 'bold' },
   consentText: { color: '#718096', fontSize: 12, flex: 1, lineHeight: 18 },
   learnMoreText: { color: '#2B6CB0', fontSize: 12, fontWeight: '700', textDecorationLine: 'underline' },
-  termsWarningText: { color: '#E53E3E', fontSize: 12, fontWeight: '600', marginLeft: 32, marginTop: 6 },
+  topWarningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF5F5',
+    borderWidth: 1,
+    borderColor: '#FEB2B2',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  topWarningIcon: { fontSize: 16, marginRight: 8 },
+  topWarningText: { flex: 1, color: '#C53030', fontSize: 13, fontWeight: '700', lineHeight: 18 },
+  termsWarningText: { color: '#E53E3E', fontSize: 12, fontWeight: '600', marginBottom: 8 },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 12 },
   footerText: { color: '#718096', fontSize: 14 },
   link: { color: '#3C3985', fontSize: 14, fontWeight: '700' },

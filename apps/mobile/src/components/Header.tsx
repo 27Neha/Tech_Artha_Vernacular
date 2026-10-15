@@ -9,7 +9,7 @@ import { colors, radii } from '../theme/tokens';
 
 export interface HeaderProps {
   title?: string;
-  back?: string;
+  back?: any;
   onBack?: () => void;
   showLogo?: boolean;
   logoSize?: 'small' | 'medium' | 'large';
@@ -42,8 +42,8 @@ export const Header: React.FC<HeaderProps> = ({
   showLanguage = true,
 }) => {
   const { i18n } = useTranslation();
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const [modalVisible, setModalVisible] = useState(false);
 
   const shouldShowLogo = showLogo !== undefined ? showLogo : !title;
@@ -112,6 +112,7 @@ export const Header: React.FC<HeaderProps> = ({
             <Text style={localStyles.languagePillChevron}>▾</Text>
           </Pressable>
         )}
+
 
         {showSettings && (
           <Pressable

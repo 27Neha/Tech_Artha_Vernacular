@@ -23,6 +23,8 @@ import { CybrillaModule } from './modules/cybrilla/cybrilla.module';
 import { MinorModule } from './modules/minor/minor.module';
 import { CrmModule } from './modules/crm/crm.module';
 import { SupportModule } from './modules/support/support.module';
+import { MtalkzModule } from './modules/mtalkz/mtalkz.module';
+import { ZohoModule } from './modules/zoho/zoho.module';
 
 @Module({
   imports: [
@@ -48,6 +50,8 @@ import { SupportModule } from './modules/support/support.module';
     MinorModule,
     CrmModule,
     SupportModule,
+    MtalkzModule,
+    ZohoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

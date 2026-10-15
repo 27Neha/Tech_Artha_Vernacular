@@ -19,6 +19,7 @@ import { SupportQuerySection } from '../components/SupportQuerySection';
 import { TermsModal } from '../components/TermsModal';
 import { PrivacyPolicyModal } from '../components/PrivacyPolicyModal';
 
+
 const SUPPORTED_LANGUAGES = [
   { code: 'en', name: 'English', nativeName: 'English' },
   { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी' },
@@ -119,14 +120,14 @@ export const SettingsScreen = () => {
   return (
     <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
       <StatusBar style="dark" />
-      <Header title={t('settings.title', { defaultValue: 'Settings' })} onBack={() => navigation.goBack()} />
+      <Header title={t('settings.title', { defaultValue: 'Settings' })} onBack={() => navigation.goBack()} showSettings={false} />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <Text style={styles.pageTitle}>{t('settings.title', { defaultValue: 'Settings' })}</Text>
         
         {/* LANGUAGE */}
         <View style={[styles.card, expanded === 'Language' && styles.cardActive]}>
           <Pressable style={styles.cardHeader} onPress={() => toggleExpand('Language')}>
-            <View style={styles.iconBox}><Text style={styles.iconText}>🌐</Text></View>
+            <View style={styles.iconBox}><Ionicons name="language-outline" size={20} color="#3C3985" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{t('settings.language', { defaultValue: 'Language' })}</Text>
               <Text style={styles.cardSub}>{t('settings.changeLang', { defaultValue: 'Change your preferred language' })}</Text>
@@ -157,7 +158,7 @@ export const SettingsScreen = () => {
           <Text style={styles.sectionLabel}>{t('settings.permissions', { defaultValue: 'Permissions' })}</Text>
           <View style={[styles.card, { marginBottom: 0 }]}>
             <View style={[styles.cardHeader, { paddingBottom: 0 }]}>
-              <View style={styles.iconBox}><Text style={styles.iconText}>🔔</Text></View>
+              <View style={styles.iconBox}><Ionicons name="notifications-outline" size={20} color="#3C3985" /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>{t('settings.deviceNotif', { defaultValue: 'Notifications' })}</Text>
                 <Text style={[styles.cardSub, { color: notifStatus === 'granted' ? '#10B981' : '#EF4444' }]}>
@@ -177,7 +178,7 @@ export const SettingsScreen = () => {
         {/* APP THEME */}
         <View style={[styles.card, expanded === 'App Theme' && styles.cardActive]}>
           <Pressable style={styles.cardHeader} onPress={() => toggleExpand('App Theme')}>
-            <View style={styles.iconBox}><Text style={styles.iconText}>🎨</Text></View>
+            <View style={styles.iconBox}><Ionicons name="color-palette-outline" size={20} color="#3C3985" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{t('settings.appTheme', { defaultValue: 'App Theme' })}</Text>
               <Text style={styles.cardSub}>{theme.charAt(0).toUpperCase() + theme.slice(1)} Mode</Text>
@@ -320,6 +321,7 @@ export const SettingsScreen = () => {
               <Text style={[styles.chevron, expanded === 'Legal' && { transform: [{ rotate: '90deg' }] }]}>›</Text>
             </Pressable>
 
+
             {expanded === 'Legal' && (
               <View style={styles.expandedContent}>
                 <Pressable 
@@ -359,6 +361,27 @@ export const SettingsScreen = () => {
             )}
           </View>
         </View>
+
+        {/* OTHER SETTINGS */}
+        <Pressable style={styles.card} onPress={() => Alert.alert('Coming Soon', 'Privacy settings will be available shortly.')}>
+          <View style={styles.cardHeader}>
+            <View style={styles.iconBox}><Ionicons name="lock-closed-outline" size={20} color="#3C3985" /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>{t('settings.privacyTitle', { defaultValue: 'Privacy & Security' })}</Text>
+              <Text style={styles.cardSub}>{t('settings.privacyDesc', { defaultValue: 'App Lock, Biometrics, and Data Privacy' })}</Text>
+            </View>
+          </View>
+        </Pressable>
+
+        <Pressable style={styles.card} onPress={() => Alert.alert('Coming Soon', 'Device management will be available shortly.')}>
+          <View style={styles.cardHeader}>
+            <View style={styles.iconBox}><Ionicons name="hardware-chip-outline" size={20} color="#3C3985" /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>{t('settings.devicesTitle', { defaultValue: 'Linked Devices' })}</Text>
+              <Text style={styles.cardSub}>{t('settings.devicesDesc', { defaultValue: 'Manage devices logged into your account' })}</Text>
+            </View>
+          </View>
+        </Pressable>
 
         {/* LEGAL & DISCLOSURE */}
         <View style={styles.disclosureCard}>
