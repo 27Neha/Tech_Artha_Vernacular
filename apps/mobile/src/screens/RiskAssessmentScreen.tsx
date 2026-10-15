@@ -226,7 +226,7 @@ export const RiskAssessmentScreen = () => {
                       hitSlop={10}
                       accessibilityLabel="Edit answer"
                     >
-                      <EditIcon color="#3C3985" size={13} />
+                      <EditIcon color="#3C3985" size={11} />
                     </Pressable>
                   </View>
                 </View>
@@ -325,10 +325,10 @@ const styles = StyleSheet.create({
   userRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'flex-end', gap: 8, marginTop: 6, marginBottom: 12 },
   userAvatarSmall: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#EDF2F7', alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   userBubbleWrapper: { alignItems: 'flex-end', maxWidth: '82%' },
-  userBubble: { backgroundColor: '#FFFFFF', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 16, borderTopRightRadius: 4, borderWidth: 1.5, borderColor: '#CBD5E1', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1, minWidth: 120, paddingBottom: 10, paddingRight: 32, position: 'relative' },
+  userBubble: { backgroundColor: '#FFFFFF', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 16, borderTopRightRadius: 4, borderWidth: 1.5, borderColor: '#CBD5E1', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1, minWidth: 110, paddingBottom: 10, paddingRight: 26, position: 'relative' },
   userRoleLabel: { fontSize: 10, fontWeight: '800', color: '#64748B', textTransform: 'uppercase', marginBottom: 2, textAlign: 'right' },
   userText: { color: '#0F172A', fontSize: 15, fontWeight: '700', lineHeight: 21 },
-  editIconBtn: { position: 'absolute', right: 8, bottom: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: '#F0EFFB', borderWidth: 1, borderColor: '#D4D2F5', alignItems: 'center', justifyContent: 'center' },
+  editIconBtn: { position: 'absolute', right: 6, bottom: 6, width: 18, height: 18, borderRadius: 9, backgroundColor: '#F0EFFB', borderWidth: 1, borderColor: '#D4D2F5', alignItems: 'center', justifyContent: 'center' },
   editIconBtnPressed: { backgroundColor: '#D4D2F5', opacity: 0.8 },
   
   optionsContainer: { marginLeft: 38, marginTop: 4, gap: 8 },
