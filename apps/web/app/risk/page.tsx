@@ -328,19 +328,27 @@ export default function RiskPage() {
 
                 {/* User answer bubble with user emoji and Edit Answer button */}
                 <div className="flex items-start justify-end gap-3">
-                  <div className="flex flex-col items-end gap-1">
-                    <div className="bg-white border border-gray-300 px-5 py-3 rounded-2xl rounded-tr-sm shadow-sm max-w-md">
+                  <div className="flex flex-col items-end">
+                    <div className="bg-white border border-gray-300 px-5 pt-3 pb-3 pr-9 rounded-2xl rounded-tr-sm shadow-sm max-w-md relative group min-w-[140px]">
                       <span className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wide block text-right mb-0.5">
                         You
                       </span>
                       <p className="text-sm font-bold text-[#0F172A] leading-snug">{item.selectedLabel}</p>
+
+                      {/* Professional Edit Icon button positioned at bottom-right of answer box */}
+                      <button
+                        type="button"
+                        onClick={() => handleGoBackToQuestion(item.questionIndex)}
+                        title="Edit answer"
+                        aria-label="Edit answer"
+                        className="absolute right-2 bottom-2 w-6 h-6 rounded-full bg-[#F0EFFB] hover:bg-[#E0DEFA] border border-[#D4D2F5] text-[#3C3985] flex items-center justify-center transition-all cursor-pointer shadow-xs hover:scale-105 active:scale-95"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                        </svg>
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleGoBackToQuestion(item.questionIndex)}
-                      className="text-[11px] font-bold text-[#3C3985] bg-[#F0EFFB] hover:bg-[#E0DEFA] border border-[#D4D2F5] px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-xs"
-                    >
-                      <span>✏️</span> Edit answer
-                    </button>
                   </div>
                   <div className="w-8 h-8 rounded-full bg-gray-100 border border-gray-200 text-gray-700 flex items-center justify-center text-sm font-bold shrink-0 mt-1 shadow-sm">
                     👤

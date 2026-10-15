@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { authStore } from '../store/auth';
 import { api } from '../services/api/client';
-import { HeadsetIcon, UserIcon } from '../components/Icons';
+import { HeadsetIcon, UserIcon, EditIcon } from '../components/Icons';
 
 const FALLBACK_QUESTIONS = [
   { id: 'net_worth', question: "Current market value of net worth (Assets - Liabilities)", options: [{ label: "Negative/0", score: 1 }, { label: "< 10L", score: 2 }, { label: "10L-50L", score: 3 }, { label: "> 50L", score: 4 }, { label: "> 1Cr", score: 5 }] },
@@ -212,20 +212,23 @@ export const RiskAssessmentScreen = () => {
                 </View>
               </View>
 
-              {/* User selected answer bubble with User avatar & Change Option Button */}
+              {/* User selected answer bubble with User avatar & bottom-right Edit Icon */}
               <View style={styles.userRow}>
                 <View style={styles.userBubbleWrapper}>
                   <View style={styles.userBubble}>
                     <Text style={styles.userRoleLabel}>You</Text>
                     <Text style={styles.userText}>{t(`risk.q${qItem?.id}.${item.selectedScore}`, { defaultValue: item.selectedLabel })}</Text>
+                    
+                    {/* Professional edit icon on the right bottom of the answer box */}
+                    <Pressable
+                      style={({ pressed }) => [styles.editIconBtn, pressed && styles.editIconBtnPressed]}
+                      onPress={() => handleGoBackToQuestion(item.questionIndex)}
+                      hitSlop={10}
+                      accessibilityLabel="Edit answer"
+                    >
+                      <EditIcon color="#3C3985" size={13} />
+                    </Pressable>
                   </View>
-                  <Pressable
-                    style={styles.editAnswerPill}
-                    onPress={() => handleGoBackToQuestion(item.questionIndex)}
-                    hitSlop={8}
-                  >
-                    <Text style={styles.editAnswerPillText}>✏️ Edit answer</Text>
-                  </Pressable>
                 </View>
                 <View style={styles.userAvatarSmall}>
                   <UserIcon color="#4A5568" size={16} />
@@ -322,11 +325,11 @@ const styles = StyleSheet.create({
   userRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'flex-end', gap: 8, marginTop: 6, marginBottom: 12 },
   userAvatarSmall: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#EDF2F7', alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   userBubbleWrapper: { alignItems: 'flex-end', maxWidth: '82%' },
-  userBubble: { backgroundColor: '#FFFFFF', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 16, borderTopRightRadius: 4, borderWidth: 1.5, borderColor: '#CBD5E1', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
+  userBubble: { backgroundColor: '#FFFFFF', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 16, borderTopRightRadius: 4, borderWidth: 1.5, borderColor: '#CBD5E1', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1, minWidth: 120, paddingBottom: 10, paddingRight: 32, position: 'relative' },
   userRoleLabel: { fontSize: 10, fontWeight: '800', color: '#64748B', textTransform: 'uppercase', marginBottom: 2, textAlign: 'right' },
   userText: { color: '#0F172A', fontSize: 15, fontWeight: '700', lineHeight: 21 },
-  editAnswerPill: { marginTop: 6, backgroundColor: '#F0EFFB', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#D4D2F5' },
-  editAnswerPillText: { fontSize: 11, fontWeight: '700', color: '#3C3985' },
+  editIconBtn: { position: 'absolute', right: 8, bottom: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: '#F0EFFB', borderWidth: 1, borderColor: '#D4D2F5', alignItems: 'center', justifyContent: 'center' },
+  editIconBtnPressed: { backgroundColor: '#D4D2F5', opacity: 0.8 },
   
   optionsContainer: { marginLeft: 38, marginTop: 4, gap: 8 },
   optionsHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
