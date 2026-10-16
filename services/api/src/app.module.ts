@@ -26,10 +26,12 @@ import { SupportModule } from './modules/support/support.module';
 import { MtalkzModule } from './modules/mtalkz/mtalkz.module';
 import { ZohoModule } from './modules/zoho/zoho.module';
 import { NomineeModule } from './modules/nominee/nominee.module';
+import { RedemptionModule } from './modules/redemption/redemption.module';
 
 @Module({
   imports: [
     NomineeModule,
+    RedemptionModule,
     KycModule,
     FundsModule,
     AuthModule,

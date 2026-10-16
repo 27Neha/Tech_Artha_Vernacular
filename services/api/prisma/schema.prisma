@@ -460,6 +460,7 @@ model FpMfInvestmentAccount {
   updatedAt         DateTime          @updatedAt
   investorProfile   FpInvestorProfile @relation(fields: [investorProfileId], references: [id])
   orders            FpPurchaseOrder[]
+  redemptions       FpRedemptionOrder[]
   plans             FpPurchasePlan[]
 }
 
@@ -477,6 +478,34 @@ model FpPurchaseOrder {
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
   account        FpMfInvestmentAccount @relation(fields: [accountId], references: [id])
+}
+
+// A redemption: units sold back out of a folio.
+//
+// Kept locally for the same reason as FpPurchaseOrder - the gateway is the system of
+// record for the trade, but an investor needs to see that their withdrawal was placed
+// even while the AMC is still processing it, and a failed request must leave a trace
+// rather than vanishing.
+//
+// Either amount or units is set, never both: the gateway takes one or the other and has
+// no all-units flag, so a full exit is sent as the folio's unit balance.
+model FpRedemptionOrder {
+  id            String                @id @default(uuid())
+  fpRedemptionId String?              @unique
+  accountId     String
+  schemeIsin    String
+  folioNumber   String
+  amount        Float?
+  units         Float?
+  status        String                @default("PENDING")
+  /// Set when the investor asked to exit the whole holding, which is sent as a unit count.
+  isFullExit    Boolean               @default(false)
+  failureReason String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  account       FpMfInvestmentAccount @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
 }
 
 model FpPurchasePlan {

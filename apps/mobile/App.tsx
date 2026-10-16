@@ -33,6 +33,7 @@ import { ArticleScreen } from './src/screens/ArticleScreen';
 import { FamilyPortfolioScreen } from './src/screens/FamilyPortfolioScreen';
 import { EditGoalScreen } from './src/screens/EditGoalScreen';
 import { InvestScreen } from './src/screens/InvestScreen';
+import { RedeemScreen } from './src/screens/RedeemScreen';
 import { FundDetailScreen } from './src/screens/FundDetailScreen';
 import { EditProfileScreen } from './src/screens/EditProfileScreen';
 import { BankAccountsScreen } from './src/screens/BankAccountsScreen';
@@ -173,6 +174,7 @@ function RootNavigator() {
       {/* Restored: the cherry-picked App.tsx predates these screens, so they were on
           disk but unreachable - including the email verification inside EditProfile. */}
       <Stack.Screen name="Invest" component={InvestScreen} />
+      <Stack.Screen name="Redeem" component={RedeemScreen} />
       <Stack.Screen name="FundDetail" component={FundDetailScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="BankAccounts" component={BankAccountsScreen} />

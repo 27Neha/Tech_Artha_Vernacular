@@ -421,6 +421,101 @@ export class CybrillaService {
   }
 
   /**
+   * GET /v2/mf_folios - the folios this investment account actually holds.
+   *
+   * The source of truth for what can be redeemed, and the only place a folio_number
+   * comes from: POST /v2/mf_redemptions rejects an unknown one outright with
+   * `invalid_folio`, so a redemption cannot be built from guessed input.
+   */
+  async fetchFolios(mfInvestmentAccount: string) {
+    try {
+      if (!this.accessToken) await this.authenticate();
+      const response = await axios.get(`${this.sandboxBaseUrl}/v2/mf_folios`, {
+        params: { mf_investment_account: mfInvestmentAccount },
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          'x-tenant-id': process.env.CYBRILLA_TENANT_ID,
+        },
+      });
+      return response.data?.data ?? [];
+    } catch (error: any) {
+      this.logger.error(
+        `Could not fetch folios for ${mfInvestmentAccount}. HTTP ${error?.response?.status}: ${JSON.stringify(error?.response?.data)}`,
+      );
+      // An empty list rather than a throw: "we could not read your holdings" and "you
+      // hold nothing" are different, and the caller distinguishes them by this returning
+      // null instead of [].
+      return null;
+    }
+  }
+
+  /**
+   * POST /v2/mf_redemptions - sells units from a folio.
+   *
+   * Field set confirmed against the UAT gateway by probing: mf_investment_account,
+   * scheme, folio_number and user_ip are all required, and the value is given as either
+   * `amount` (rupees) or `units`. There is no `all_units` flag - the gateway rejects it
+   * as an unrecognised field - so a full exit is sent as the folio's unit balance.
+   */
+  async createRedemption(params: {
+    mfInvestmentAccount: string;
+    scheme: string;
+    folioNumber: string;
+    userIp: string;
+    amount?: number;
+    units?: number;
+  }) {
+    if ((params.amount == null) === (params.units == null)) {
+      // Both or neither would leave the gateway to decide what the investor meant.
+      throw new BadRequestException('Specify either an amount or a number of units to redeem, not both.');
+    }
+    try {
+      this.logger.log(
+        `Placing Cybrilla redemption: ${params.scheme} folio ${params.folioNumber} ${
+          params.amount != null ? `₹${params.amount}` : `${params.units} units`
+        }`,
+      );
+      return await this.tenantPost('/v2/mf_redemptions', {
+        mf_investment_account: params.mfInvestmentAccount,
+        scheme: params.scheme,
+        folio_number: params.folioNumber,
+        user_ip: params.userIp,
+        ...(params.amount != null ? { amount: params.amount } : { units: params.units }),
+      });
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const responseData = error?.response?.data;
+      this.logger.error(
+        `Cybrilla redemption failed. HTTP Status: ${status || 'Unknown'} - Data: ${JSON.stringify(responseData)}`,
+      );
+      if (status === 400) {
+        throw new BadRequestException(
+          responseData?.error?.code === 'invalid_folio'
+            ? 'That folio could not be found. Refresh your holdings and try again.'
+            : (responseData?.error?.errors ?? responseData?.error?.message ?? 'Could not place this redemption.'),
+        );
+      }
+      throw new InternalServerErrorException('Cybrilla redemption failed.');
+    }
+  }
+
+  /** PATCH /v2/mf_redemptions - the confirmation step, mirroring a purchase. */
+  async confirmRedemption(fpRedemptionId: string, email: string, mobile: string) {
+    try {
+      return await this.tenantPatch('/v2/mf_redemptions', {
+        id: fpRedemptionId,
+        state: 'confirmed',
+        consent: { email, isd_code: '91', mobile },
+      });
+    } catch (error: any) {
+      this.logger.error(
+        `Could not confirm redemption ${fpRedemptionId}. HTTP ${error?.response?.status}: ${JSON.stringify(error?.response?.data)}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * POST /v2/mf_purchase_plans - registers a recurring SIP.
    *
    * The fp-cybrillapoa gateway supports single and batch SIP creation, with UPI Autopay

@@ -476,6 +476,13 @@ export const PortfolioScreen = () => {
             </View>
           )}
         </View>
+
+        {/* Withdrawing has to be reachable from where holdings are shown. The screen
+            itself reports honestly when there is nothing to sell, so this does not need
+            to be conditional on holdings we may not have loaded. */}
+        <Pressable style={styles.outlineBtn} onPress={() => navigation.navigate('Redeem')}>
+          <Text style={styles.outlineBtnText}>Withdraw money</Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
