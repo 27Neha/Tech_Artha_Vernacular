@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -14,8 +14,27 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { api } from '../services/api/client';
 import { Header } from '../components/Header';
+
+/**
+ * What GET /nominees returns per row. The server masks the identity number and derives
+ * isMinor from the date of birth, so neither is computed here.
+ */
+type ApiNominee = {
+  id: string;
+  fullName: string;
+  relationship: string;
+  dateOfBirth: string;
+  allocationPercentage: number;
+  identityProofType: string | null;
+  identityProofMasked: string | null;
+  isMinor: boolean;
+  guardianName: string | null;
+  guardianRelationship: string | null;
+  registeredWithAmc: boolean;
+};
 
 interface Nominee {
   id: string;
@@ -28,6 +47,7 @@ interface Nominee {
   guardianName?: string;
 }
 
+// Labels for display; the API enum is the lowercase form, which toApiRelationship sends.
 const RELATIONSHIPS = [
   'Spouse',
   'Son',
@@ -39,21 +59,71 @@ const RELATIONSHIPS = [
   'Other'
 ];
 
+const toApiRelationship = (label: string) => label.trim().toLowerCase();
+
+/** The form collects DD/MM/YYYY; the API takes an ISO date. */
+const toIsoDate = (ddmmyyyy: string) => {
+  const match = ddmmyyyy.trim().match(/^(\d{2})[/-](\d{2})[/-](\d{4})$/);
+  if (!match) return null;
+  const [, dd, mm, yyyy] = match;
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const toDisplayDate = (iso: string) => {
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : iso;
+};
+
+const fromApi = (n: ApiNominee): Nominee => ({
+  id: n.id,
+  fullName: n.fullName,
+  relationship: n.relationship.charAt(0).toUpperCase() + n.relationship.slice(1),
+  dateOfBirth: toDisplayDate(n.dateOfBirth),
+  sharePercentage: n.allocationPercentage,
+  panOrAadhaar: n.identityProofMasked ?? undefined,
+  isMinor: n.isMinor,
+  guardianName: n.guardianName ?? undefined,
+});
+
 export const NomineeDetailsScreen = () => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
 
-  const [nominees, setNominees] = useState<Nominee[]>([
-    {
-      id: 'nom_1',
-      fullName: 'Aarav Sharma',
-      relationship: 'Spouse',
-      dateOfBirth: '15/08/1992',
-      sharePercentage: 100,
-      panOrAadhaar: '•••• •••• 9812',
-      isMinor: false
+  // Loaded from the server. This used to be seeded with a hardcoded "Aarav Sharma" at
+  // 100%, which showed every investor a fabricated instruction about who inherits their
+  // units - and persisted nothing they entered over it.
+  const [nominees, setNominees] = useState<Nominee[]>([]);
+  const [summary, setSummary] = useState<{ allocated: number; remaining: number; isComplete: boolean; message: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const data = await api.get<{
+        nominees: ApiNominee[];
+        allocatedPercentage: number;
+        remainingPercentage: number;
+        isComplete: boolean;
+        message: string;
+      }>('/nominees');
+      setNominees((data?.nominees ?? []).map(fromApi));
+      setSummary({
+        allocated: data?.allocatedPercentage ?? 0,
+        remaining: data?.remainingPercentage ?? 100,
+        isComplete: !!data?.isComplete,
+        message: data?.message ?? '',
+      });
+    } catch (e) {
+      Alert.alert('Could not load nominees', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setLoading(false);
     }
-  ]);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   const [modalVisible, setModalVisible] = useState(false);
   const [fullName, setFullName] = useState('');
@@ -71,7 +141,8 @@ export const NomineeDetailsScreen = () => {
   const [editShareValue, setEditShareValue] = useState('');
   const [editError, setEditError] = useState('');
 
-  const totalShareAllocated = nominees.reduce((acc, curr) => acc + curr.sharePercentage, 0);
+  const totalShareAllocated =
+    summary?.allocated ?? nominees.reduce((acc, curr) => acc + curr.sharePercentage, 0);
 
   const handleOpenEditShare = (nominee: Nominee) => {
     setSelectedNominee(nominee);
@@ -80,34 +151,43 @@ export const NomineeDetailsScreen = () => {
     setEditAllocModalVisible(true);
   };
 
-  const handleSaveShareAllocation = () => {
+  const handleSaveShareAllocation = async () => {
     setEditError('');
     const parsed = parseInt(editShareValue, 10);
     if (isNaN(parsed) || parsed < 1 || parsed > 100) {
       setEditError('Share percentage must be between 1% and 100%.');
       return;
     }
-
     if (!selectedNominee) return;
 
-    setNominees(prev =>
-      prev.map(n =>
-        n.id === selectedNominee.id ? { ...n, sharePercentage: parsed } : n
-      )
-    );
-    setEditAllocModalVisible(false);
-    setSelectedNominee(null);
-    Alert.alert('Share Allocation Updated', `Updated ${selectedNominee.fullName}'s share allocation to ${parsed}%.`);
+    try {
+      // A full update: the API validates the new total against the other nominees, so a
+      // change that would push the nomination past 100% is refused with the amount left.
+      await api.put(`/nominees/${selectedNominee.id}`, {
+        fullName: selectedNominee.fullName,
+        relationship: toApiRelationship(selectedNominee.relationship),
+        dateOfBirth: toIsoDate(selectedNominee.dateOfBirth),
+        allocationPercentage: parsed,
+        guardianName: selectedNominee.guardianName,
+        guardianRelationship: selectedNominee.isMinor ? 'mother' : undefined,
+      });
+      setEditAllocModalVisible(false);
+      setSelectedNominee(null);
+      await load();
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : 'Could not update the allocation.');
+    }
   };
 
-  const handleAddNominee = () => {
+  const handleAddNominee = async () => {
     setFormError('');
     if (!fullName.trim()) {
       setFormError('Please enter nominee full legal name.');
       return;
     }
-    if (!dob.trim() || dob.length < 8) {
-      setFormError('Please enter a valid Date of Birth (DD/MM/YYYY).');
+    const isoDob = toIsoDate(dob);
+    if (!isoDob) {
+      setFormError('Please enter the date of birth as DD/MM/YYYY.');
       return;
     }
     const parsedShare = parseInt(share, 10);
@@ -115,25 +195,22 @@ export const NomineeDetailsScreen = () => {
       setFormError('Share allocation must be between 1% and 100%.');
       return;
     }
-    if (isMinor && !guardianName.trim()) {
-      setFormError('Guardian name is mandatory when nominee is a minor.');
-      return;
-    }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      const newNom: Nominee = {
-        id: 'nom_' + Date.now(),
+    try {
+      // The server derives minority from the date of birth and requires a guardian for
+      // a minor, so the form's own isMinor box is a prompt, not the decision.
+      await api.post('/nominees', {
         fullName: fullName.trim(),
-        relationship,
-        dateOfBirth: dob.trim(),
-        sharePercentage: parsedShare,
-        panOrAadhaar: idNumber.trim() ? '•••• ' + idNumber.slice(-4) : undefined,
-        isMinor,
-        guardianName: isMinor ? guardianName.trim() : undefined
-      };
-      setNominees(prev => [...prev, newNom]);
-      setIsSubmitting(false);
+        relationship: toApiRelationship(relationship),
+        dateOfBirth: isoDob,
+        allocationPercentage: parsedShare,
+        identityProofType: idNumber.trim() ? (idNumber.trim().length === 12 ? 'aadhaar' : 'pan') : undefined,
+        identityProofNumber: idNumber.trim() || undefined,
+        guardianName: guardianName.trim() || undefined,
+        guardianRelationship: guardianName.trim() ? 'mother' : undefined,
+      });
+
       setModalVisible(false);
       setFullName('');
       setDob('');
@@ -141,8 +218,15 @@ export const NomineeDetailsScreen = () => {
       setIdNumber('');
       setIsMinor(false);
       setGuardianName('');
-      Alert.alert('Nominee Added', 'Nominee details have been registered under SEBI regulatory guidelines.');
-    }, 850);
+      await load();
+      // Deliberately not "registered under SEBI guidelines": it is stored with us and
+      // goes to the AMC when the folio is created. Saying otherwise would be untrue.
+      Alert.alert('Nominee saved', 'This nomination is recorded with TechArtha and is submitted to the AMC when your folio is created.');
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : 'Could not save the nominee.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDeleteNominee = (id: string) => {
@@ -154,7 +238,14 @@ export const NomineeDetailsScreen = () => {
         {
           text: 'Remove',
           style: 'destructive',
-          onPress: () => setNominees(prev => prev.filter(n => n.id !== id))
+          onPress: async () => {
+            try {
+              await api.del(`/nominees/${id}`);
+              await load();
+            } catch (e) {
+              Alert.alert('Could not remove nominee', e instanceof Error ? e.message : 'Please try again.');
+            }
+          },
         }
       ]
     );
@@ -200,9 +291,26 @@ export const NomineeDetailsScreen = () => {
           </View>
         </View>
 
+        {/* The server's own wording, which states where the nomination actually stands -
+            recorded with us, and sent to the AMC when the folio exists. */}
+        {summary?.message ? (
+          <View style={styles.statusNote}>
+            <Ionicons
+              name={summary.isComplete ? 'checkmark-circle-outline' : 'information-circle-outline'}
+              size={16}
+              color={summary.isComplete ? '#2F7D32' : '#7A5B00'}
+            />
+            <Text style={[styles.statusNoteText, summary.isComplete && styles.statusNoteTextDone]}>
+              {summary.message}
+            </Text>
+          </View>
+        ) : null}
+
+        {loading ? <ActivityIndicator style={{ marginTop: 20 }} color="#3C3985" /> : null}
+
         {/* Nominee List */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Registered Nominees ({nominees.length}/3)</Text>
+          <Text style={styles.sectionTitle}>Your Nominees ({nominees.length}/3)</Text>
           {nominees.length < 3 && (
             <Pressable
               style={styles.addInlineBtn}
@@ -484,6 +592,10 @@ export const NomineeDetailsScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  statusNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#FFF8E1', borderWidth: 1, borderColor: '#F0D48A', borderRadius: 10, padding: 12, marginTop: 14 },
+  statusNoteText: { flex: 1, color: '#7A5B00', fontSize: 12, lineHeight: 18, fontWeight: '600' },
+  statusNoteTextDone: { color: '#2F7D32' },
+
   safe: { flex: 1, backgroundColor: '#F8F9FB' },
   container: { padding: 20, paddingBottom: 40 },
   titleSection: { marginBottom: 20 },

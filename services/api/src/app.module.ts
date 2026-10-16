@@ -25,9 +25,11 @@ import { CrmModule } from './modules/crm/crm.module';
 import { SupportModule } from './modules/support/support.module';
 import { MtalkzModule } from './modules/mtalkz/mtalkz.module';
 import { ZohoModule } from './modules/zoho/zoho.module';
+import { NomineeModule } from './modules/nominee/nominee.module';
 
 @Module({
   imports: [
+    NomineeModule,
     KycModule,
     FundsModule,
     AuthModule,

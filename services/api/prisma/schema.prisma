@@ -30,6 +30,7 @@ model User {
   FpMandate          FpMandate[]
   goals              Goal[]
   guardian           Guardian?
+  nominees           Nominee[]
   guardianConsents   GuardianConsent[]
   minorAssessments   MinorRiskAssessment[]
   kycApplication     KYCApplication?
@@ -411,6 +412,41 @@ model FpInvestorProfile {
   updatedAt      DateTime                @updatedAt
   user           User                    @relation(fields: [userId], references: [id])
   mfAccounts     FpMfInvestmentAccount[]
+}
+
+// A nomination: who receives the units if the investor dies.
+//
+// Held here rather than only at the gateway because Cybrilla exposes no nominee
+// resource - nominees are folio_defaults.nominee1..3 on an MF investment account, and
+// every object shape that field accepts returns a 500 on the UAT tenant. So nominations
+// are collected and stored by us, and pushed once that shape is confirmed; fpSyncStatus
+// records how far each one has got, so nothing is silently assumed to be registered
+// with the AMC.
+//
+// Capped at 3 per user in the service layer, because folio_defaults has exactly three
+// nominee slots. Allocations must total 100%, which is also enforced in the service -
+// a partial nomination is not a valid instruction.
+model Nominee {
+  id                   String   @id @default(uuid())
+  userId               String
+  fullName             String
+  relationship         String
+  dateOfBirth          DateTime
+  allocationPercentage Int
+  /// PAN or Aadhaar. Optional: SEBI requires identification, the AMC accepts either.
+  identityProofType    String?
+  identityProofNumber  String?
+  /// Required when the nominee is a minor on the date the nomination is recorded.
+  guardianName         String?
+  guardianRelationship String?
+  /// PENDING until the gateway accepts it; NOT_SUPPORTED while the shape is unknown.
+  fpSyncStatus         String   @default("PENDING")
+  fpNomineeRef         String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model FpMfInvestmentAccount {
