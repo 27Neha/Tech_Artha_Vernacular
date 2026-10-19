@@ -183,7 +183,10 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
           user: { id: data.user.id, mobile: data.user.mobile || mobile || '' }
         });
       }
-      navigation.navigate('ProfileSetup');
+      // 'ProfileSetup' was never a registered route, so signup dead-ended here. KYC is
+      // the screen that collects the name, PAN and date of birth a new investor still
+      // owes us, and it is the next step of onboarding for everyone else too.
+      navigation.navigate('KYC');
     } catch (e: any) {
       setError(e.message);
     } finally {

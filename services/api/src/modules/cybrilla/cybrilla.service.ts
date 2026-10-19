@@ -624,6 +624,39 @@ export class CybrillaService {
     }
   }
 
+  /**
+   * GET /v2/mf_purchases/{plan_id} - step 3 of the purchase-plan sample.
+   *
+   * When a plan is created with `generate_first_installment_now`, the gateway raises an
+   * ordinary purchase order for that first instalment. It has to be fetched and paid for
+   * exactly like a lumpsum, because a mandate only collects the LATER instalments - the
+   * first one is paid by the investor online.
+   *
+   * The endpoint is documented with the plan id on the mf_purchases path, and the sample
+   * response is a plan object rather than a list, so both shapes are handled: some
+   * tenants return `{data: [...]}` and some a single object.
+   */
+  async fetchPlanInstallment(fpPlanId: string) {
+    try {
+      if (!this.accessToken) await this.authenticate();
+      const response = await axios.get(`${this.sandboxBaseUrl}/v2/mf_purchases/${fpPlanId}`, {
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          'x-tenant-id': process.env.CYBRILLA_TENANT_ID,
+        },
+      });
+      const body = response.data;
+      const candidates = Array.isArray(body?.data) ? body.data : [body?.data ?? body];
+      // Only a real purchase can be paid for; a plan echoed back is not one.
+      return candidates.find((item: any) => item?.object === 'mf_purchase' || item?.old_id != null) ?? null;
+    } catch (error: any) {
+      this.logger.warn(
+        `Could not fetch the first instalment for plan ${fpPlanId}. HTTP ${error?.response?.status}: ${JSON.stringify(error?.response?.data)}`,
+      );
+      return null;
+    }
+  }
+
   /** PATCH /v2/mf_purchase_plans - the same confirmation step for a SIP plan. */
   async confirmPurchasePlan(fpPlanId: string) {
     try {

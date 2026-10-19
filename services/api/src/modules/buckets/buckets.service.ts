@@ -228,6 +228,54 @@ export class BucketsService {
     }
     return { account, scheme, user };
   }
+  /**
+   * The gateway's numeric order id. `amc_order_ids` on the payment endpoint takes this
+   * `old_id`, not the `mfp_...` string, which is the one detail in Cybrilla's sample
+   * that is easy to miss and fails the payment outright.
+   */
+  private numericOrderId(orderResult: any): number | null {
+    const raw = orderResult?.old_id ?? orderResult?.data?.old_id;
+    const parsed = Number(raw);
+    return Number.isInteger(parsed) ? parsed : null;
+  }
+
+  /**
+   * Starts collection for a confirmed order and returns the investor-facing token_url.
+   *
+   * Deliberately non-fatal: the order exists and is confirmed by this point, so a failed
+   * payment hand-off must not discard it. The order is stored without a token_url and
+   * the caller tells the investor payment could not be started, which is recoverable -
+   * throwing here would leave a confirmed order at the gateway that our side forgot.
+   */
+  private async startPayment(orderResult: any, bankAccountId: string | null) {
+    const amcOrderId = this.numericOrderId(orderResult);
+    if (amcOrderId === null || !bankAccountId) {
+      this.logger.warn(
+        `Cannot start payment for ${orderResult?.id}: ${amcOrderId === null ? 'no numeric old_id in the gateway response' : 'no bank account on the investment account'}.`,
+      );
+      return null;
+    }
+
+    const numericBankAccount = Number(bankAccountId);
+    if (!Number.isInteger(numericBankAccount)) {
+      this.logger.warn(`Bank account ${bankAccountId} is not numeric; the payment endpoint requires an integer id.`);
+      return null;
+    }
+
+    try {
+      return await this.cybrilla.createPayment({
+        amcOrderIds: [amcOrderId],
+        bankAccountId: numericBankAccount,
+        // Where the gateway returns the investor after paying. The app registers this
+        // scheme (see app.json), so the deep link reopens it on the order screen.
+        paymentPostbackUrl: process.env.PAYMENT_POSTBACK_URL || 'techartha://payment-complete',
+      });
+    } catch (e) {
+      this.logger.warn(`Order ${orderResult?.id} confirmed but payment could not be started.`);
+      return null;
+    }
+  }
+
   async invest(userId: string, bucketId: string, dto: InvestInBucketDto) {
     const { account, scheme, user } = await this.ensureInvestmentAccount(userId, bucketId, dto);
 
@@ -261,13 +309,21 @@ export class BucketsService {
 
     const orderStatus = this.mapCybrillaOrderState(confirmed.state ?? orderResult.state);
 
+    // Step 3 of Cybrilla's purchase flow. A confirmed order is not a paid one: without
+    // this call nothing is ever collected, so no units are allotted and no folio is
+    // created. Every order we placed before this existed was confirmed and unfunded.
+    const payment = await this.startPayment(orderResult, account.bankAccountId);
+
     const order = await this.prisma.fpPurchaseOrder.create({
       data: {
         accountId: account.id,
         fpOrderId: orderResult.id,
+        fpOldId: this.numericOrderId(orderResult),
         schemeIsin: scheme.isin,
         amount: dto.amount,
         status: orderStatus,
+        paymentTokenUrl: payment?.token_url ?? null,
+        paymentId: payment?.id ?? null,
       },
     });
 
@@ -283,7 +339,12 @@ export class BucketsService {
       amount: order.amount,
       status: order.status,
       statusLabel: ORDER_STATUS_LABELS[order.status] ?? order.status,
-      message: 'Your order has been placed with Cybrilla. This is a one-time investment - recurring SIP auto-debit is coming soon.',
+      // The investor must open this to actually pay; the order is confirmed but unfunded
+      // until they do. Null means the hand-off failed, which the message then says.
+      paymentUrl: order.paymentTokenUrl,
+      message: order.paymentTokenUrl
+        ? 'Your order has been placed. Complete the payment to confirm your investment - units are allotted only once payment succeeds.'
+        : 'Your order has been placed, but we could not start the payment. Open it from your portfolio to pay, or contact support if it does not appear.',
     };
   }
 
@@ -298,7 +359,7 @@ export class BucketsService {
    * so the response says so explicitly rather than implying money will move.
    */
   async startSip(userId: string, bucketId: string, dto: StartSipDto) {
-    const { account, scheme } = await this.ensureInvestmentAccount(userId, bucketId, dto);
+    const { account, scheme, user } = await this.ensureInvestmentAccount(userId, bucketId, dto);
 
     const planResult = await this.cybrilla.createPurchasePlan({
       mfInvestmentAccount: account.fpAccountId,
@@ -308,6 +369,18 @@ export class BucketsService {
       installmentDay: dto.installmentDay,
       numberOfInstallments: dto.numberOfInstallments,
       userIp: '127.0.0.1',
+      // Recorded on the plan itself, as Cybrilla's sample does. Without it the plan
+      // carries no consent for the recurring debit it is authorising.
+      consent: {
+        email: user!.email!,
+        mobile: (user!.mobile || '').replace(/^\+?91/, ''),
+      },
+      // No mandate is passed because none can be created yet, so payment_method and
+      // payment_source are omitted. Cybrilla's sample makes an approved mandate a
+      // prerequisite for COLLECTING instalments - but the first one is paid by the
+      // investor online, exactly like a lumpsum, so it is raised here and paid below.
+      // That is what makes a SIP demonstrable before mandates exist.
+      generateFirstInstallmentNow: true,
     });
 
     // Plans need the same confirmation step as orders.
@@ -315,6 +388,21 @@ export class BucketsService {
       await this.cybrilla.confirmPurchasePlan(planResult?.id ?? planResult?.data?.id);
     } catch (e) {
       this.logger.warn('SIP plan created but could not be confirmed.');
+    }
+
+    // Steps 3 and 4 of Cybrilla's purchase-plan sample: the plan's first instalment is a
+    // purchase order of its own, which has to be fetched and then paid for. Without this
+    // the plan is registered but its first instalment is never funded.
+    const fpPlanId = planResult?.id ?? planResult?.data?.id ?? null;
+    let firstInstallment: any = null;
+    let planPayment: { id: number; token_url: string } | null = null;
+    if (fpPlanId) {
+      firstInstallment = await this.cybrilla.fetchPlanInstallment(fpPlanId);
+      if (firstInstallment) {
+        planPayment = await this.startPayment(firstInstallment, account.bankAccountId);
+      } else {
+        this.logger.warn(`Plan ${fpPlanId} confirmed but no first instalment order was returned.`);
+      }
     }
 
     const plan = await this.prisma.fpPurchasePlan.create({
@@ -326,7 +414,10 @@ export class BucketsService {
         frequency: dto.frequency,
         installmentDay: dto.installmentDay,
         status: 'PENDING_MANDATE_SETUP',
-        fpPlanId: planResult?.id ?? planResult?.data?.id ?? null,
+        fpPlanId,
+        firstOrderId: firstInstallment?.id ?? null,
+        paymentTokenUrl: planPayment?.token_url ?? null,
+        paymentId: planPayment?.id ?? null,
       },
     });
 
@@ -356,8 +447,12 @@ export class BucketsService {
       status: plan.status,
       statusLabel: ORDER_STATUS_LABELS[plan.status] ?? plan.status,
       mandateRequired: true,
-      message:
-        'Your SIP has been registered. No money has been collected yet - an auto-debit mandate must be authorised before the first instalment.',
+      // The first instalment is payable now; the rest wait on a mandate. Saying only
+      // one of those would be misleading either way.
+      paymentUrl: plan.paymentTokenUrl,
+      message: plan.paymentTokenUrl
+        ? 'Your SIP has been registered. Pay the first instalment to start it. Later instalments are collected automatically once an auto-debit mandate is authorised, which is not yet available.'
+        : 'Your SIP has been registered. No money has been collected yet - an auto-debit mandate must be authorised before instalments can be collected.',
     };
   }
 

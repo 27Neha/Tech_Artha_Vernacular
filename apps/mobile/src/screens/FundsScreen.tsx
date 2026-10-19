@@ -112,7 +112,7 @@ export const FundsScreen = ({ apiUrl }: FundsScreenProps) => {
         {loading && <Text style={styles.loadingText}>Loading funds...</Text>}
         
         {!loading && funds.map((f, i) => (
-          <Pressable key={f.schemeCode || i} style={styles.card} onPress={() => navigation.navigate('FundDetails', { schemeCode: f.schemeCode })}>
+          <Pressable key={f.schemeCode || i} style={styles.card} onPress={() => navigation.navigate('FundDetail', { schemeCode: f.schemeCode })}>
             <View style={styles.cardMain}>
               <View style={styles.cardLeft}>
                 <Text style={styles.fundName} numberOfLines={2}>{f.schemeName}</Text>

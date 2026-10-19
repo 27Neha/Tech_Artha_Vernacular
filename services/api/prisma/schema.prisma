@@ -467,6 +467,13 @@ model FpMfInvestmentAccount {
 model FpPurchaseOrder {
   id             String                @id @default(uuid())
   fpOrderId      String?               @unique
+  /// The gateway's numeric `old_id`. POST /api/pg/payments/netbanking takes this in
+  /// amc_order_ids, NOT the mfp_... string id, so payment cannot be started without it.
+  fpOldId        Int?
+  /// Where the investor completes payment. Until this is opened and paid, the order is
+  /// confirmed but unfunded, so no units are allotted and no folio is created.
+  paymentTokenUrl String?
+  paymentId       Int?
   accountId      String
   schemeIsin     String
   amount         Float
@@ -511,6 +518,11 @@ model FpRedemptionOrder {
 model FpPurchasePlan {
   id             String                @id @default(uuid())
   fpPlanId       String?               @unique
+  /// The first instalment's own purchase order, raised when the plan is created with
+  /// generate_first_installment_now. A mandate collects only the later instalments.
+  firstOrderId   String?
+  paymentTokenUrl String?
+  paymentId       Int?
   accountId      String
   bucketId       String
   schemeIsin     String

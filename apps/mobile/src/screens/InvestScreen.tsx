@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   Alert,
+  Linking,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -30,6 +31,12 @@ import { api } from '../services/api/client';
  */
 type InvestResult = {
   orderId: string;
+  /**
+   * Cybrilla's `token_url`: the page where the investor actually pays. A confirmed order
+   * is NOT a funded one - no units are allotted until payment succeeds there - so this
+   * hand-off is the difference between an order and an investment.
+   */
+  paymentUrl?: string | null;
   fundName?: string;
   schemeIsin?: string;
   amount: number;
@@ -47,6 +54,8 @@ type SipResult = {
   status: string;
   statusLabel?: string;
   mandateRequired?: boolean;
+  /** The first instalment is an ordinary purchase, so it has a payment page too. */
+  paymentUrl?: string | null;
   message?: string;
 };
 
@@ -159,6 +168,31 @@ export const InvestScreen = () => {
     );
   };
 
+  const toPortfolio = () => navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+
+  /**
+   * Buttons for an order that can be paid for now. Shared by the lumpsum and SIP paths
+   * because both end at the same gateway page - a SIP's first instalment is an ordinary
+   * purchase, and only the later ones ride the mandate.
+   */
+  const paymentActions = (paymentUrl?: string | null) =>
+    paymentUrl
+      ? [
+          {
+            text: 'Pay now',
+            onPress: async () => {
+              try {
+                await Linking.openURL(paymentUrl);
+              } catch {
+                Alert.alert('Could not open the payment page', 'Open it again from your portfolio.');
+              }
+              toPortfolio();
+            },
+          },
+          { text: 'Later', style: 'cancel' as const, onPress: toPortfolio },
+        ]
+      : [{ text: 'View portfolio', onPress: toPortfolio }];
+
   const submit = async () => {
     setSubmitting(true);
     try {
@@ -182,8 +216,8 @@ export const InvestScreen = () => {
         Alert.alert(
           'SIP registered',
           sip?.message ??
-            'Your SIP has been registered. No money has been collected yet - an auto-debit mandate must be authorised before the first instalment.',
-          [{ text: 'View portfolio', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] }) }],
+            'Your SIP has been registered. No money has been collected yet - an auto-debit mandate must be authorised before instalments can be collected.',
+          paymentActions(sip?.paymentUrl),
         );
         return;
       }
@@ -203,7 +237,7 @@ export const InvestScreen = () => {
         'Order placed',
         // The server's own message states this is one-time rather than a SIP; prefer it.
         `${result?.message ?? 'Your order has been placed.'}\n\nStatus: ${result?.statusLabel ?? result?.status ?? 'Order in progress'}`,
-        [{ text: 'View portfolio', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] }) }],
+        paymentActions(result?.paymentUrl),
       );
     } catch (error) {
       // BucketsService rejects before reaching Cybrilla when KYC or the risk profile is
