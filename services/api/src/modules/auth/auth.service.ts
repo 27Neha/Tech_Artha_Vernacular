@@ -575,6 +575,26 @@ async loginPassword(identifier: string, isEmail: boolean, password?: string, dev
         }
       });
     }
+
+    // Progressively record onboarding completion so partial data is never lost
+    if (data.fullName) {
+      await this.prisma.onboardingProgress.upsert({
+        where: { userId },
+        update: {
+          step: data.pan ? 'KYC' : 'PERSONAL_INFO',
+          lastCompletedStep: 'PERSONAL_INFO',
+          percentage: data.pan ? 50 : 25,
+        },
+        create: {
+          userId,
+          step: data.pan ? 'KYC' : 'PERSONAL_INFO',
+          lastCompletedStep: 'PERSONAL_INFO',
+          percentage: data.pan ? 50 : 25,
+          completed: false,
+        },
+      });
+    }
+
     return { success: true, investorType };
   }
 

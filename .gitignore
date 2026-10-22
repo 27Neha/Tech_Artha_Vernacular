@@ -3,6 +3,8 @@ node_modules/
 .DS_Store
 dev.db
 dist/
+.next/
+*.tsbuildinfo
 .agents/
 .windsurf/
 .claude/

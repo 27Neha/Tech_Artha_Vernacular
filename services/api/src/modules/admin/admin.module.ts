@@ -1,0 +1,21 @@
+import { Module } from '@nestjs/common';
+import { AdminController } from './admin.controller';
+import { AdminService } from './admin.service';
+import { AdminGuard } from './admin.guard';
+import { PrismaModule } from '../../prisma/prisma.module';
+import { JwtModule } from '@nestjs/jwt';
+
+@Module({
+  imports: [
+    PrismaModule,
+    JwtModule.register({
+      global: false,
+      secret: process.env.JWT_SECRET ?? 'development-only-change-me',
+      signOptions: { expiresIn: '8h' },
+    }),
+  ],
+  controllers: [AdminController],
+  providers: [AdminService, AdminGuard],
+  exports: [AdminService, AdminGuard],
+})
+export class AdminModule {}
