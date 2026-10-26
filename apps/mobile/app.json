@@ -28,7 +28,6 @@
       "@react-native-community/datetimepicker",
       "expo-sharing"
     ],
-    "scheme": "techartha",
-    "sdkVersion": "57.0.0"
+    "scheme": "techartha"
   }
 }

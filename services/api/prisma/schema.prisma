@@ -512,6 +512,9 @@ model FpPurchaseOrder {
   paymentId       Int?
   accountId      String
   schemeIsin     String
+  /// The scheme's name when ordered. Single-fund orders have no bucket to look it up
+  /// from, and the investor should see a fund name rather than an ISIN.
+  fundName       String?
   amount         Float
   status         String                @default("PENDING")
   folioNumber    String?
@@ -560,8 +563,10 @@ model FpPurchasePlan {
   paymentTokenUrl String?
   paymentId       Int?
   accountId      String
-  bucketId       String
+  /// Null for a SIP in a single fund chosen directly rather than through a bucket.
+  bucketId       String?
   schemeIsin     String
+  fundName       String?
   amount         Float
   frequency      String                @default("MONTHLY")
   installmentDay Int

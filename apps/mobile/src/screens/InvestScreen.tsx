@@ -26,6 +26,11 @@ import { TransactionOtpModal, TransactionPayload } from '../components/Transacti
  *   lumpsum -> POST /buckets/:id/invest  (one-time purchase, placed immediately)
  *   sip     -> POST /buckets/:id/sip     (recurring plan via /v2/mf_purchase_plans)
  *
+ * Opened with a schemeCode instead of a bucketId, the same form invests in that single
+ * fund through /funds/:schemeCode/invest and /sip. The fund's eligibility is fetched
+ * first: it may not be buyable at all, and if it is riskier than the investor's profile
+ * they must acknowledge that before the order can be placed.
+ *
  * A registered SIP collects nothing until an auto-debit mandate (UPI Autopay or e-NACH)
  * is authorised, so the SIP path says that in the confirmation, the warning and the
  * success dialog. It must not read as though money has started moving.
@@ -60,6 +65,21 @@ type SipResult = {
   message?: string;
 };
 
+/** GET /funds/:schemeCode/invest-eligibility */
+type FundEligibility = {
+  investable: boolean;
+  reason?: string;
+  /** Sent in the 2FA challenge; the server resolves the same ISIN when the order runs. */
+  schemeIsin?: string;
+  fundName?: string;
+  fundRiskLevel?: string;
+  investorProfile?: string;
+  requiresAcknowledgement?: boolean;
+};
+
+const riskLabel = (level?: string) =>
+  level ? level.charAt(0) + level.slice(1).toLowerCase().replace(/_/g, ' ') : '';
+
 type Gender = 'male' | 'female' | 'transgender';
 
 type Mode = 'lumpsum' | 'sip';
@@ -85,8 +105,19 @@ export const InvestScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
 
+  const schemeCode: string | undefined = route.params?.schemeCode ? String(route.params.schemeCode) : undefined;
+  const isFund = schemeCode !== undefined;
   const bucketId: string = route.params?.bucketId ?? 'balanced';
   const bucketName: string | undefined = route.params?.bucketName;
+  const targetName: string = (isFund ? route.params?.fundName : bucketName) ?? (isFund ? 'This fund' : bucketId);
+  const basePath = isFund
+    ? `/funds/${encodeURIComponent(schemeCode)}`
+    : `/buckets/${encodeURIComponent(bucketId)}`;
+
+  // Fund orders only. Null while loading; the form cannot be submitted until it arrives.
+  const [eligibility, setEligibility] = useState<FundEligibility | null>(null);
+  const [riskAcknowledged, setRiskAcknowledged] = useState(false);
+  const fundBlocked = isFund && (!eligibility || !eligibility.investable);
 
   const [amount, setAmount] = useState('');
   // Not defaulted. Defaulting gender puts an unverified personal attribute onto a
@@ -131,8 +162,37 @@ export const InvestScreen = () => {
     }, []),
   );
 
+  // Re-read on focus too: an investor sent off to take the risk assessment comes back
+  // to a form that reflects their new profile.
+  useFocusEffect(
+    useCallback(() => {
+      if (!schemeCode) return;
+      let active = true;
+      api
+        .get<FundEligibility>(`/funds/${encodeURIComponent(schemeCode)}/invest-eligibility`)
+        .then((data) => {
+          if (active) setEligibility(data);
+        })
+        .catch((e) => {
+          if (active) {
+            setEligibility({ investable: false, reason: e instanceof Error ? e.message : 'Could not check this fund.' });
+          }
+        });
+      return () => {
+        active = false;
+      };
+    }, [schemeCode]),
+  );
+
   /** Mirrors InvestInBucketDto. One message per field, in form order. */
   const validate = (): string | null => {
+    if (isFund) {
+      if (!eligibility) return 'Still checking this fund. Try again in a moment.';
+      if (!eligibility.investable) return eligibility.reason ?? 'This fund cannot be invested in.';
+      if (eligibility.requiresAcknowledgement && !riskAcknowledged) {
+        return 'This fund is riskier than your profile. Confirm you understand the risk to continue.';
+      }
+    }
     const value = Number(amount);
     if (!Number.isFinite(value) || value < MIN_AMOUNT) return `Enter an amount of at least ₹${MIN_AMOUNT}.`;
     if (gender === null) return 'Select your gender.';
@@ -162,8 +222,8 @@ export const InvestScreen = () => {
     Alert.alert(
       mode === 'sip' ? 'Confirm your SIP' : 'Confirm your investment',
       mode === 'sip'
-        ? `₹${Number(amount).toLocaleString('en-IN')} ${freqLabel.toLowerCase()} on day ${installmentDay}, for ${numberOfInstallments} instalments, into ${bucketName ?? bucketId}.\n\nNo money is collected until you authorise an auto-debit mandate.`
-        : `₹${Number(amount).toLocaleString('en-IN')} will be invested in ${bucketName ?? bucketId} as a one-time purchase.`,
+        ? `₹${Number(amount).toLocaleString('en-IN')} ${freqLabel.toLowerCase()} on day ${installmentDay}, for ${numberOfInstallments} instalments, into ${targetName}.\n\nNo money is collected until you authorise an auto-debit mandate.`
+        : `₹${Number(amount).toLocaleString('en-IN')} will be invested in ${targetName} as a one-time purchase.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Confirm', onPress: () => void submit() },
@@ -205,24 +265,29 @@ export const InvestScreen = () => {
     const problem = validate();
     if (problem) return Alert.alert('Check your details', problem);
 
+    // A bucket fixes its scheme server-side; a single fund is identified by the ISIN the
+    // server reported, which it resolves again from the scheme code when the order runs.
+    const target = isFund ? { schemeIsin: eligibility?.schemeIsin } : { bucketId };
     setPendingAuth(
       mode === 'sip'
         ? {
             action: 'SIP',
             amount: Number(amount),
-            bucketId,
+            ...target,
             frequency,
             numberOfInstallments: Number(numberOfInstallments),
           }
-        : { action: 'PURCHASE', amount: Number(amount), bucketId },
+        : { action: 'PURCHASE', amount: Number(amount), ...target },
     );
   };
 
   const placeAuthorised = async (auth: { challengeId: string; otp: string }) => {
     setSubmitting(true);
+    // Bucket endpoints don't take it, and the server's whitelist would strip it anyway.
+    const acknowledgement = isFund ? { acknowledgeRiskMismatch: riskAcknowledged } : {};
     try {
       if (mode === 'sip') {
-        const sip = await api.post<SipResult>(`/buckets/${encodeURIComponent(bucketId)}/sip`, {
+        const sip = await api.post<SipResult>(`${basePath}/sip`, {
           amount: Number(amount),
           gender,
           email,
@@ -234,6 +299,7 @@ export const InvestScreen = () => {
           frequency,
           installmentDay,
           numberOfInstallments: Number(numberOfInstallments),
+          ...acknowledgement,
           ...auth,
         });
 
@@ -248,7 +314,7 @@ export const InvestScreen = () => {
         return;
       }
 
-      const result = await api.post<InvestResult>(`/buckets/${encodeURIComponent(bucketId)}/invest`, {
+      const result = await api.post<InvestResult>(`${basePath}/invest`, {
         amount: Number(amount),
         gender,
         email,
@@ -257,6 +323,7 @@ export const InvestScreen = () => {
         ifscCode: ifscCode.trim(),
         addressLine1: addressLine1.trim(),
         postalCode: postalCode.trim(),
+        ...acknowledgement,
         ...auth,
       });
 
@@ -283,10 +350,39 @@ export const InvestScreen = () => {
       <StatusBar style="dark" />
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Invest</Text>
-        <Text style={styles.subtitle}>{bucketName ?? bucketId}</Text>
+        <Text style={styles.subtitle}>{targetName}</Text>
       </View>
 
       <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+        {isFund && eligibility && !eligibility.investable ? (
+          <View style={styles.blockedBox}>
+            <Text style={styles.blockedTitle}>This fund can&apos;t be invested in</Text>
+            <Text style={styles.blockedText}>{eligibility.reason}</Text>
+          </View>
+        ) : null}
+
+        {isFund && eligibility?.investable && eligibility.requiresAcknowledgement ? (
+          <View style={styles.riskBox}>
+            <Text style={styles.riskTitle}>Riskier than your profile</Text>
+            <Text style={styles.riskText}>
+              We estimate this fund&apos;s risk as {riskLabel(eligibility.fundRiskLevel)}, above your assessed{' '}
+              {riskLabel(eligibility.investorProfile)} profile. Its value can fall further and stay down longer
+              than you indicated you are comfortable with.
+            </Text>
+            <Pressable
+              style={styles.ackRow}
+              onPress={() => setRiskAcknowledged((v) => !v)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: riskAcknowledged }}
+            >
+              <View style={[styles.checkbox, riskAcknowledged && styles.checkboxChecked]}>
+                {riskAcknowledged ? <Text style={styles.checkmark}>✓</Text> : null}
+              </View>
+              <Text style={styles.ackText}>I understand this fund is riskier than my profile and want to invest anyway.</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         <View style={styles.modeRow}>
           {([
             { value: 'lumpsum', label: 'One-time' },
@@ -446,9 +542,9 @@ export const InvestScreen = () => {
         </View>
 
         <Pressable
-          style={[styles.button, submitting && styles.buttonDisabled]}
+          style={[styles.button, (submitting || fundBlocked) && styles.buttonDisabled]}
           onPress={confirmAndInvest}
-          disabled={submitting}
+          disabled={submitting || fundBlocked}
         >
           <Text style={styles.buttonText}>
             {submitting
@@ -507,6 +603,17 @@ const styles = StyleSheet.create({
   genderChipSelected: { backgroundColor: '#3C3985', borderColor: '#3C3985' },
   genderText: { color: '#4A5568', fontWeight: '700', fontSize: 13 },
   genderTextSelected: { color: 'white', fontWeight: '700', fontSize: 13 },
+  blockedBox: { backgroundColor: '#FFF5F5', padding: 16, borderRadius: 12, borderColor: '#FEB2B2', borderWidth: 1, marginBottom: 12 },
+  blockedTitle: { color: '#C53030', fontWeight: '800', fontSize: 14 },
+  blockedText: { color: '#C53030', fontSize: 12, marginTop: 4, lineHeight: 18 },
+  riskBox: { backgroundColor: '#FFFAF0', borderLeftWidth: 4, borderLeftColor: '#F7941E', padding: 16, borderRadius: 8, marginBottom: 12 },
+  riskTitle: { color: '#C05621', fontWeight: '800', fontSize: 14 },
+  riskText: { color: '#C05621', fontSize: 12, marginTop: 4, lineHeight: 18 },
+  ackRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 12 },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#C05621', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+  checkboxChecked: { backgroundColor: '#C05621' },
+  checkmark: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  ackText: { flex: 1, color: '#102A54', fontSize: 13, fontWeight: '600', lineHeight: 19 },
   warningBox: { backgroundColor: '#FFFAF0', padding: 16, borderRadius: 12, borderColor: '#FBD38D', borderWidth: 1, marginTop: 28 },
   warningText: { color: '#C05621', fontSize: 12, lineHeight: 18 },
   button: { backgroundColor: '#3C3985', padding: 18, borderRadius: 12, alignItems: 'center', marginTop: 20, marginBottom: 12 },

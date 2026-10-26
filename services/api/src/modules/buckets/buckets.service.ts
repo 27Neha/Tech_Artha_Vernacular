@@ -8,6 +8,19 @@ import { TwoFactorService } from '../twofactor/twofactor.service';
 import { InvestInBucketDto } from './invest-in-bucket.dto';
 import { StartSipDto } from './sip-in-bucket.dto';
 import { CustomBucketDto } from './custom-bucket.dto';
+import { InvestInFundDto, StartFundSipDto } from './fund-invest.dto';
+import { assessSuitability } from './fund-suitability';
+
+/** What an order is placed against: a bucket's fixed scheme or a directly chosen fund. */
+type SchemeTarget = { isin: string; gateway: string; fundName: string };
+type FundTarget = SchemeTarget & { category: string | null; schemeCode: string };
+
+/** Recorded on the order and in the audit log, so it is clear how the fund was chosen. */
+type OrderOrigin = { bucketId: string } | { schemeCode: string; riskAcknowledged: boolean };
+
+// The gateway every scheme verified on this tenant uses. Single-fund orders go through it
+// too until the scheme master is populated and can say otherwise per scheme.
+const DEFAULT_GATEWAY = 'cybrillapoa';
 
 export type Bucket = { id: string; name: string; eligibleFor: string[]; allocation: { equity: number; debt: number; liquid: number }; horizon: string; explanation: string };
 
@@ -31,7 +44,7 @@ const BUCKETS: Bucket[] = [
 
 // Real Cybrilla sandbox test funds (verified live against the "techartha" tenant), one per bucket.
 // These are placeholders until a real scheme-master crosswalk (MFAPI scheme code <-> Cybrilla ISIN) exists.
-const BUCKET_SCHEME: Record<string, { isin: string; gateway: string; fundName: string }> = {
+const BUCKET_SCHEME: Record<string, SchemeTarget> = {
   stable: { isin: 'INF109KC1TY0', gateway: 'cybrillapoa', fundName: 'ICICI Prudential Retirement Fund Hybrid Conservative Plan' },
   balanced: { isin: 'INF109K01605', gateway: 'cybrillapoa', fundName: "ICICI Prudential Children's Fund" },
   growth: { isin: 'INF109KC19T7', gateway: 'cybrillapoa', fundName: 'ICICI Prudential Nifty50 Value 20 Index Fund' },
@@ -119,20 +132,95 @@ export class BucketsService {
     return bucket;
   }
 
-  /**
-   * Everything both the lumpsum and the SIP path need before a transaction can be sent:
-   * eligibility guards, the Cybrilla investor profile, the bank account and the MF
-   * investment account. Extracted from invest() so the two paths cannot drift - a SIP
-   * registered against a differently-built account would be very hard to diagnose.
-   */
-  private async ensureInvestmentAccount(userId: string, bucketId: string, dto: InvestInBucketDto) {
+  /** The bucket's scheme, once the investor's profile is confirmed eligible for it. */
+  private async bucketScheme(userId: string, bucketId: string): Promise<SchemeTarget> {
     const scheme = BUCKET_SCHEME[bucketId];
     if (!scheme) throw new BadRequestException('Unknown bucket.');
 
     const riskProfile = await this.prisma.riskProfile.findUnique({ where: { userId } });
     if (!riskProfile) throw new BadRequestException('Complete your risk assessment before investing.');
     this.getEligible(bucketId, riskProfile.category);
+    return scheme;
+  }
 
+  /**
+   * Resolves an MFAPI scheme code to the ISIN Cybrilla buys. Always done here from the
+   * scheme code, never taken from the client, so the fund named in the URL is the fund
+   * that is bought. The growth ISIN is used because that is the option the app shows.
+   */
+  private async resolveFund(schemeCode: string): Promise<FundTarget> {
+    if (!/^\d+$/.test(schemeCode)) throw new BadRequestException('Unknown fund.');
+
+    const details = await this.fundsService.getFundDetails(schemeCode);
+    const meta = details?.meta;
+    if (!meta?.scheme_name) throw new BadRequestException('Unknown fund.');
+
+    const isin = typeof meta.isin_growth === 'string' ? meta.isin_growth.trim() : '';
+    if (!isin) {
+      throw new BadRequestException('This fund has no growth option, so it cannot be bought through the app.');
+    }
+    // Same staleness rule as bucket recommendations: a fund that has stopped reporting
+    // NAVs is closed or merged, and an order against it would only fail at the AMC.
+    if (!isNavRecent(details.data?.[0]?.date ?? null)) {
+      throw new BadRequestException('This fund has not reported a NAV recently, so it cannot be invested in.');
+    }
+
+    return {
+      isin,
+      gateway: DEFAULT_GATEWAY,
+      fundName: meta.scheme_name,
+      category: meta.scheme_category ?? null,
+      schemeCode,
+    };
+  }
+
+  /**
+   * Refuses a fund riskier than the investor's profile unless they acknowledged it.
+   * Runs before the second factor is consumed, so a missing acknowledgement does not
+   * cost the investor their code.
+   */
+  private async checkSuitability(userId: string, fund: FundTarget, acknowledged: boolean | undefined) {
+    const riskProfile = await this.prisma.riskProfile.findUnique({ where: { userId } });
+    if (!riskProfile) throw new BadRequestException('Complete your risk assessment before investing.');
+
+    const suitability = assessSuitability(fund.category, riskProfile.category);
+    if (suitability.requiresAcknowledgement && !acknowledged) {
+      throw new BadRequestException(
+        'This fund carries more risk than your assessed profile. Review the warning and confirm you understand it to continue.',
+      );
+    }
+    return suitability;
+  }
+
+  /**
+   * What the invest screen needs before showing the form: whether the fund can be bought
+   * at all, and whether the investor must acknowledge a risk mismatch. Never throws for
+   * an un-investable fund, because "you can't buy this, here's why" is a normal answer.
+   */
+  async fundEligibility(userId: string, schemeCode: string) {
+    let fund: FundTarget;
+    try {
+      fund = await this.resolveFund(schemeCode);
+    } catch (e) {
+      if (e instanceof BadRequestException) return { investable: false, reason: e.message, schemeCode };
+      throw e;
+    }
+
+    const riskProfile = await this.prisma.riskProfile.findUnique({ where: { userId } });
+    const base = { schemeCode, schemeIsin: fund.isin, fundName: fund.fundName, category: fund.category };
+    if (!riskProfile) {
+      return { ...base, investable: false, reason: 'Complete your risk assessment before investing.' };
+    }
+    return { ...base, investable: true, ...assessSuitability(fund.category, riskProfile.category) };
+  }
+
+  /**
+   * Everything both the lumpsum and the SIP path need before a transaction can be sent:
+   * KYC guards, the Cybrilla investor profile, the bank account and the MF investment
+   * account. Shared by buckets and single funds so the paths cannot drift - an order
+   * placed against a differently-built account would be very hard to diagnose.
+   */
+  private async ensureInvestmentAccount(userId: string, dto: InvestInBucketDto) {
     const [profile, kyc, user] = await Promise.all([
       this.prisma.userProfile.findUnique({ where: { userId } }),
       this.prisma.kYCApplication.findUnique({ where: { userId } }),
@@ -228,7 +316,7 @@ export class BucketsService {
         },
       });
     }
-    return { account, scheme, user };
+    return { account, user };
   }
   /**
    * The gateway's numeric order id. `amc_order_ids` on the payment endpoint takes this
@@ -279,8 +367,12 @@ export class BucketsService {
   }
 
   async invest(userId: string, bucketId: string, dto: InvestInBucketDto) {
-    // Authorised first, before any Cybrilla resource is created. The code is bound to
-    // this amount and bucket, so one issued for a smaller order will not authorise this.
+    // Eligibility is read-only, so it runs before the code is consumed: an investor who
+    // is not eligible should not lose their code finding that out.
+    const scheme = await this.bucketScheme(userId, bucketId);
+
+    // Authorised before any Cybrilla resource is created. The code is bound to this
+    // amount and bucket, so one issued for a smaller order will not authorise this.
     // The bucket fixes the scheme server-side, so the client is not asked to send an ISIN.
     await this.twoFactor.verifyAndConsume(
       userId,
@@ -289,7 +381,34 @@ export class BucketsService {
       dto.otp,
     );
 
-    const { account, scheme, user } = await this.ensureInvestmentAccount(userId, bucketId, dto);
+    return this.placePurchase(userId, scheme, dto, { bucketId });
+  }
+
+  /**
+   * A one-time purchase of a single fund. The code is bound to the resolved ISIN, which
+   * the client learns from GET /funds/:schemeCode/invest-eligibility and passes to the
+   * challenge unchanged.
+   */
+  async investInFund(userId: string, schemeCode: string, dto: InvestInFundDto) {
+    const fund = await this.resolveFund(schemeCode);
+    await this.checkSuitability(userId, fund, dto.acknowledgeRiskMismatch);
+
+    await this.twoFactor.verifyAndConsume(
+      userId,
+      { action: 'PURCHASE', amount: dto.amount, schemeIsin: fund.isin },
+      dto.challengeId,
+      dto.otp,
+    );
+
+    return this.placePurchase(userId, fund, dto, {
+      schemeCode,
+      riskAcknowledged: dto.acknowledgeRiskMismatch === true,
+    });
+  }
+
+  /** The order itself, once the caller has authorised it and settled the scheme. */
+  private async placePurchase(userId: string, scheme: SchemeTarget, dto: InvestInBucketDto, origin: OrderOrigin) {
+    const { account, user } = await this.ensureInvestmentAccount(userId, dto);
 
     // Real one-time (lumpsum) order placement. Recurring SIP via auto-debit mandate isn't wired
     // yet - Cybrilla's mandate request schema isn't confirmed (see conversation notes), so for now
@@ -332,6 +451,7 @@ export class BucketsService {
         fpOrderId: orderResult.id,
         fpOldId: this.numericOrderId(orderResult),
         schemeIsin: scheme.isin,
+        fundName: scheme.fundName,
         amount: dto.amount,
         status: orderStatus,
         paymentTokenUrl: payment?.token_url ?? null,
@@ -340,12 +460,12 @@ export class BucketsService {
     });
 
     await this.prisma.auditLog.create({
-      data: { userId, action: 'ORDER_PLACED', details: JSON.stringify({ bucketId, amount: dto.amount, schemeIsin: scheme.isin, orderId: order.id, fpOrderId: orderResult.id }) },
+      data: { userId, action: 'ORDER_PLACED', details: JSON.stringify({ ...origin, amount: dto.amount, schemeIsin: scheme.isin, orderId: order.id, fpOrderId: orderResult.id }) },
     });
 
     return {
       orderId: order.id,
-      bucketId,
+      bucketId: 'bucketId' in origin ? origin.bucketId : null,
       fundName: scheme.fundName,
       schemeIsin: scheme.isin,
       amount: order.amount,
@@ -371,6 +491,8 @@ export class BucketsService {
    * so the response says so explicitly rather than implying money will move.
    */
   async startSip(userId: string, bucketId: string, dto: StartSipDto) {
+    const scheme = await this.bucketScheme(userId, bucketId);
+
     await this.twoFactor.verifyAndConsume(
       userId,
       {
@@ -384,7 +506,37 @@ export class BucketsService {
       dto.otp,
     );
 
-    const { account, scheme, user } = await this.ensureInvestmentAccount(userId, bucketId, dto);
+    return this.registerSip(userId, scheme, dto, { bucketId });
+  }
+
+  /** A SIP in a single fund. Authorised against the resolved ISIN, as investInFund is. */
+  async startFundSip(userId: string, schemeCode: string, dto: StartFundSipDto) {
+    const fund = await this.resolveFund(schemeCode);
+    await this.checkSuitability(userId, fund, dto.acknowledgeRiskMismatch);
+
+    await this.twoFactor.verifyAndConsume(
+      userId,
+      {
+        action: 'SIP',
+        amount: dto.amount,
+        schemeIsin: fund.isin,
+        frequency: dto.frequency,
+        numberOfInstallments: dto.numberOfInstallments,
+      },
+      dto.challengeId,
+      dto.otp,
+    );
+
+    return this.registerSip(userId, fund, dto, {
+      schemeCode,
+      riskAcknowledged: dto.acknowledgeRiskMismatch === true,
+    });
+  }
+
+  /** The plan itself, once the caller has authorised it and settled the scheme. */
+  private async registerSip(userId: string, scheme: SchemeTarget, dto: StartSipDto, origin: OrderOrigin) {
+    const bucketId = 'bucketId' in origin ? origin.bucketId : null;
+    const { account, user } = await this.ensureInvestmentAccount(userId, dto);
 
     const planResult = await this.cybrilla.createPurchasePlan({
       mfInvestmentAccount: account.fpAccountId,
@@ -435,6 +587,7 @@ export class BucketsService {
         accountId: account.id,
         bucketId,
         schemeIsin: scheme.isin,
+        fundName: scheme.fundName,
         amount: dto.amount,
         frequency: dto.frequency,
         installmentDay: dto.installmentDay,
@@ -451,7 +604,7 @@ export class BucketsService {
         userId,
         action: 'SIP_REGISTERED',
         details: JSON.stringify({
-          bucketId,
+          ...origin,
           amount: dto.amount,
           frequency: dto.frequency,
           installmentDay: dto.installmentDay,
@@ -533,7 +686,8 @@ export class BucketsService {
       plans: plans.map((p) => ({
         id: p.id,
         bucketId: p.bucketId,
-        fundName: BUCKET_SCHEME[p.bucketId]?.fundName ?? p.schemeIsin,
+        // Stored names first; rows from before single-fund orders only carry the bucket.
+        fundName: p.fundName ?? BUCKET_SCHEME[p.bucketId ?? '']?.fundName ?? p.schemeIsin,
         schemeIsin: p.schemeIsin,
         amount: p.amount,
         frequency: p.frequency,
@@ -545,7 +699,7 @@ export class BucketsService {
       orders: orders.map((o) => ({
         id: o.id,
         bucketId: bucketIdForIsin(o.schemeIsin),
-        fundName: BUCKET_SCHEME[bucketIdForIsin(o.schemeIsin) ?? '']?.fundName ?? o.schemeIsin,
+        fundName: o.fundName ?? BUCKET_SCHEME[bucketIdForIsin(o.schemeIsin) ?? '']?.fundName ?? o.schemeIsin,
         schemeIsin: o.schemeIsin,
         amount: o.amount,
         status: o.status,

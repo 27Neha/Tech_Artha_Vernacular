@@ -65,7 +65,9 @@ describe('purchase round trip', () => {
     const auth = await issue(twoFactor, authorised);
     const ctx = {
       twoFactor,
-      ensureInvestmentAccount: jest.fn().mockRejectedValue(new Error(REACHED)),
+      bucketScheme: async () => ({ isin: 'INF109K01605', gateway: 'cybrillapoa', fundName: 'Test' }),
+      placePurchase: jest.fn().mockRejectedValue(new Error(REACHED)),
+      registerSip: jest.fn().mockRejectedValue(new Error(REACHED)),
     };
     return BucketsService.prototype.invest.call(ctx, 'u1', 'balanced', { amount: sentAmount, ...auth } as any);
   };
@@ -101,7 +103,9 @@ describe('SIP round trip', () => {
     const auth = await issue(twoFactor, authorised);
     const ctx = {
       twoFactor,
-      ensureInvestmentAccount: jest.fn().mockRejectedValue(new Error(REACHED)),
+      bucketScheme: async () => ({ isin: 'INF109K01605', gateway: 'cybrillapoa', fundName: 'Test' }),
+      placePurchase: jest.fn().mockRejectedValue(new Error(REACHED)),
+      registerSip: jest.fn().mockRejectedValue(new Error(REACHED)),
     };
     return BucketsService.prototype.startSip.call(ctx, 'u1', 'balanced', {
       amount: 1000,
@@ -175,5 +179,57 @@ describe('single use', () => {
     const { challengeId, otp } = await issue(twoFactor, payload);
     await expect(twoFactor.verifyAndConsume('u1', payload, challengeId, otp)).resolves.toBe(true);
     await expect(twoFactor.verifyAndConsume('u1', payload, challengeId, otp)).rejects.toThrow(/already been used/);
+  });
+});
+
+describe('single-fund round trip', () => {
+  // The app gets schemeIsin from GET /funds/:code/invest-eligibility and passes it to the
+  // challenge; the server resolves the same ISIN from the scheme code.
+  const fund = { isin: 'INF179K01XQ0', gateway: 'cybrillapoa', fundName: 'HDFC Mid Cap', category: 'Equity Scheme - Mid Cap Fund', schemeCode: '118989' };
+
+  const ctxFor = (twoFactor: TwoFactorService) => ({
+    twoFactor,
+    resolveFund: async () => fund,
+    checkSuitability: async () => ({ requiresAcknowledgement: false }),
+    placePurchase: jest.fn().mockRejectedValue(new Error(REACHED)),
+    registerSip: jest.fn().mockRejectedValue(new Error(REACHED)),
+  });
+
+  it('accepts the purchase payload InvestScreen authorises for a fund', async () => {
+    const { twoFactor } = makeTwoFactor();
+    const auth = await issue(twoFactor, { action: 'PURCHASE', amount: 500, schemeIsin: fund.isin });
+    await expect(
+      BucketsService.prototype.investInFund.call(ctxFor(twoFactor), 'u1', '118989', { amount: 500, ...auth } as any),
+    ).rejects.toThrow(REACHED);
+  });
+
+  it('accepts the SIP payload InvestScreen authorises for a fund', async () => {
+    const { twoFactor } = makeTwoFactor();
+    const auth = await issue(twoFactor, { action: 'SIP', amount: 1000, schemeIsin: fund.isin, frequency: 'monthly', numberOfInstallments: 12 });
+    await expect(
+      BucketsService.prototype.startFundSip.call(ctxFor(twoFactor), 'u1', '118989', {
+        amount: 1000,
+        frequency: 'monthly',
+        installmentDay: 5,
+        numberOfInstallments: 12,
+        ...auth,
+      } as any),
+    ).rejects.toThrow(REACHED);
+  });
+
+  it('refuses a code issued for a different fund', async () => {
+    const { twoFactor } = makeTwoFactor();
+    const auth = await issue(twoFactor, { action: 'PURCHASE', amount: 500, schemeIsin: 'INF109K01605' });
+    await expect(
+      BucketsService.prototype.investInFund.call(ctxFor(twoFactor), 'u1', '118989', { amount: 500, ...auth } as any),
+    ).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('refuses a bucket code used for a single fund', async () => {
+    const { twoFactor } = makeTwoFactor();
+    const auth = await issue(twoFactor, { action: 'PURCHASE', amount: 500, bucketId: 'balanced' });
+    await expect(
+      BucketsService.prototype.investInFund.call(ctxFor(twoFactor), 'u1', '118989', { amount: 500, ...auth } as any),
+    ).rejects.toThrow(UnauthorizedException);
   });
 });

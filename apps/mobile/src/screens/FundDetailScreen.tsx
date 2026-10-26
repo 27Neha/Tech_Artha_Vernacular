@@ -185,11 +185,19 @@ export const FundDetailScreen = () => {
         </View>
 
         <View style={styles.actions}>
+          {/* Straight to the order form for this one fund; the server decides whether it
+              can be bought and whether the investor must acknowledge a risk mismatch. */}
+          <Pressable
+            style={styles.button}
+            onPress={() => navigation.navigate('Invest', { schemeCode, fundName: meta.scheme_name })}
+          >
+            <Text style={styles.buttonText}>Invest in this fund</Text>
+          </Pressable>
           <Pressable style={[styles.outlineButton, adding && styles.disabled]} onPress={addToBucket} disabled={adding}>
             <Text style={styles.outlineText}>{adding ? 'Adding…' : 'Add to my bucket'}</Text>
           </Pressable>
-          <Pressable style={styles.button} onPress={() => navigation.navigate('InvestmentBuckets')}>
-            <Text style={styles.buttonText}>Browse buckets →</Text>
+          <Pressable style={styles.textButton} onPress={() => navigation.navigate('InvestmentBuckets')}>
+            <Text style={styles.outlineText}>Browse buckets →</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -224,5 +232,6 @@ const styles = StyleSheet.create({
   buttonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   outlineButton: { padding: 16, borderRadius: 12, alignItems: 'center', borderWidth: 2, borderColor: '#3C3985' },
   outlineText: { color: '#3C3985', fontSize: 15, fontWeight: '700' },
+  textButton: { padding: 12, alignItems: 'center' },
   disabled: { opacity: 0.5 },
 });
