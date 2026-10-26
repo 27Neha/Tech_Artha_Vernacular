@@ -13,6 +13,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../services/api/client';
+import { TransactionOtpModal, TransactionPayload } from '../components/TransactionOtpModal';
 
 /**
  * POST /buckets/:bucketId/invest - places a REAL order through Cybrilla.
@@ -101,6 +102,8 @@ export const InvestScreen = () => {
   const [addressLine1, setAddressLine1] = useState('');
   const [postalCode, setPostalCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Purchases and SIPs both need a second factor before any money moves.
+  const [pendingAuth, setPendingAuth] = useState<TransactionPayload | null>(null);
 
   const [mode, setMode] = useState<Mode>('lumpsum');
   const [frequency, setFrequency] = useState(FREQUENCIES[0].value);
@@ -193,7 +196,29 @@ export const InvestScreen = () => {
         ]
       : [{ text: 'View portfolio', onPress: toPortfolio }];
 
-  const submit = async () => {
+  /**
+   * Validates, then hands off to the second factor. The figures sent here are the ones
+   * the code is issued for, and the same ones sent to the transaction endpoint, so the
+   * server's fingerprint check passes only for an unchanged request.
+   */
+  const submit = () => {
+    const problem = validate();
+    if (problem) return Alert.alert('Check your details', problem);
+
+    setPendingAuth(
+      mode === 'sip'
+        ? {
+            action: 'SIP',
+            amount: Number(amount),
+            bucketId,
+            frequency,
+            numberOfInstallments: Number(numberOfInstallments),
+          }
+        : { action: 'PURCHASE', amount: Number(amount), bucketId },
+    );
+  };
+
+  const placeAuthorised = async (auth: { challengeId: string; otp: string }) => {
     setSubmitting(true);
     try {
       if (mode === 'sip') {
@@ -209,6 +234,7 @@ export const InvestScreen = () => {
           frequency,
           installmentDay,
           numberOfInstallments: Number(numberOfInstallments),
+          ...auth,
         });
 
         // The server registers the plan as PENDING_MANDATE_SETUP and says plainly that
@@ -231,6 +257,7 @@ export const InvestScreen = () => {
         ifscCode: ifscCode.trim(),
         addressLine1: addressLine1.trim(),
         postalCode: postalCode.trim(),
+        ...auth,
       });
 
       Alert.alert(
@@ -437,6 +464,15 @@ export const InvestScreen = () => {
           <Text style={styles.outlineText}>Cancel</Text>
         </Pressable>
       </ScrollView>
+      <TransactionOtpModal
+        visible={pendingAuth !== null}
+        payload={pendingAuth}
+        onCancel={() => setPendingAuth(null)}
+        onAuthorised={(auth) => {
+          setPendingAuth(null);
+          void placeAuthorised(auth);
+        }}
+      />
     </SafeAreaView>
   );
 };

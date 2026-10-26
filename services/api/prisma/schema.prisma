@@ -31,6 +31,7 @@ model User {
   goals              Goal[]
   guardian           Guardian?
   nominees           Nominee[]
+  txnChallenges      TransactionChallenge[]
   guardianConsents   GuardianConsent[]
   minorAssessments   MinorRiskAssessment[]
   kycApplication     KYCApplication?
@@ -412,6 +413,41 @@ model FpInvestorProfile {
   updatedAt      DateTime                @updatedAt
   user           User                    @relation(fields: [userId], references: [id])
   mfAccounts     FpMfInvestmentAccount[]
+}
+
+// Second-factor authorisation for a financial transaction - Cybrilla compliance
+// points 5 to 7 (purchase, redemption and SIP).
+//
+// The OTP is bound to ONE transaction by payloadHash, a hash of the exact amount,
+// scheme and folio being authorised. Verifying the code is therefore not enough: the
+// request executed must hash to the same value, so a code obtained for a 500 rupee
+// purchase cannot authorise a 50,000 rupee one, and a redemption code cannot be
+// replayed against a different folio.
+//
+// Deliberately NOT reusing OtpVerification. That table is keyed by mobile number and
+// serves login, so a code sent for signing in would otherwise be accepted as
+// authorisation to move money - exactly what a second factor exists to prevent.
+model TransactionChallenge {
+  id          String    @id @default(uuid())
+  userId      String
+  /// PURCHASE | REDEMPTION | SIP - the operation this code authorises, and nothing else.
+  action      String
+  /// HMAC of the canonical transaction parameters. See TwoFactorService.fingerprint.
+  payloadHash String
+  otpHash     String
+  /// A human-readable summary shown in the OTP message, so the investor can see what
+  /// they are approving rather than authorising an opaque code.
+  summary     String
+  channel     String    @default("WHATSAPP")
+  attempts    Int       @default(0)
+  expiresAt   DateTime
+  /// PENDING | CONSUMED | EXPIRED | SUPERSEDED. A consumed challenge is never reusable.
+  status      String    @default("PENDING")
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, action, status])
 }
 
 // A nomination: who receives the units if the investor dies.

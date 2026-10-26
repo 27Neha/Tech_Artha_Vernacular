@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CybrillaService } from '../cybrilla/cybrilla.service';
+import { TwoFactorService } from '../twofactor/twofactor.service';
 import { CreateRedemptionDto } from './redemption.dto';
 
 /**
@@ -19,6 +20,7 @@ export class RedemptionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cybrilla: CybrillaService,
+    private readonly twoFactor: TwoFactorService,
   ) {}
 
   /** The folios this investor can sell from, with what is actually redeemable. */
@@ -74,6 +76,22 @@ export class RedemptionService {
     }
 
     const { amount, units } = await this.resolveQuantity(account.fpAccountId, dto);
+
+    // Authorised before anything is written or sent. The code is checked against these
+    // exact figures, so a code issued for a different folio or amount is refused.
+    await this.twoFactor.verifyAndConsume(
+      userId,
+      {
+        action: 'REDEMPTION',
+        amount,
+        units,
+        schemeIsin: dto.schemeIsin,
+        folioNumber: dto.folioNumber,
+        fullExit: dto.fullExit,
+      },
+      dto.challengeId,
+      dto.otp,
+    );
 
     // Written before the call so a gateway failure still leaves a record the investor
     // and support can see, rather than a withdrawal that simply never happened.

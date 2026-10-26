@@ -4,6 +4,7 @@ import { RecommendationEngine } from '../recommendations/recommendation.engine';
 import { FundsService } from '../funds/funds.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CybrillaService } from '../cybrilla/cybrilla.service';
+import { TwoFactorService } from '../twofactor/twofactor.service';
 import { InvestInBucketDto } from './invest-in-bucket.dto';
 import { StartSipDto } from './sip-in-bucket.dto';
 import { CustomBucketDto } from './custom-bucket.dto';
@@ -61,6 +62,7 @@ export class BucketsService {
     private readonly fundsService: FundsService,
     private readonly prisma: PrismaService,
     private readonly cybrilla: CybrillaService,
+    private readonly twoFactor: TwoFactorService,
   ) {}
 
   async listForProfile(category: string) {
@@ -277,6 +279,15 @@ export class BucketsService {
   }
 
   async invest(userId: string, bucketId: string, dto: InvestInBucketDto) {
+    // Authorised first, before any Cybrilla resource is created. The code is bound to
+    // this amount and scheme, so one issued for a smaller order will not authorise this.
+    await this.twoFactor.verifyAndConsume(
+      userId,
+      { action: 'PURCHASE', amount: dto.amount, bucketId, schemeIsin: BUCKET_SCHEME[bucketId]?.isin },
+      dto.challengeId,
+      dto.otp,
+    );
+
     const { account, scheme, user } = await this.ensureInvestmentAccount(userId, bucketId, dto);
 
     // Real one-time (lumpsum) order placement. Recurring SIP via auto-debit mandate isn't wired
@@ -359,6 +370,20 @@ export class BucketsService {
    * so the response says so explicitly rather than implying money will move.
    */
   async startSip(userId: string, bucketId: string, dto: StartSipDto) {
+    await this.twoFactor.verifyAndConsume(
+      userId,
+      {
+        action: 'SIP',
+        amount: dto.amount,
+        bucketId,
+        schemeIsin: BUCKET_SCHEME[bucketId]?.isin,
+        frequency: dto.frequency,
+        numberOfInstallments: dto.numberOfInstallments,
+      },
+      dto.challengeId,
+      dto.otp,
+    );
+
     const { account, scheme, user } = await this.ensureInvestmentAccount(userId, bucketId, dto);
 
     const planResult = await this.cybrilla.createPurchasePlan({

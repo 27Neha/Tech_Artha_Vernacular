@@ -1,6 +1,15 @@
 import { IsBoolean, IsNumber, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
 export class CreateRedemptionDto {
+  /** Second-factor authorisation. See TwoFactorService. */
+  @IsString()
+  @IsOptional()
+  challengeId?: string;
+
+  @IsString()
+  @IsOptional()
+  otp?: string;
+
   @IsString()
   @MinLength(6)
   folioNumber: string;

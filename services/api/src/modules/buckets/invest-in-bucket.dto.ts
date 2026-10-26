@@ -1,6 +1,15 @@
 import { IsEmail, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
 
 export class InvestInBucketDto {
+  /** Second-factor authorisation. See TwoFactorService. */
+  @IsString()
+  @IsOptional()
+  challengeId?: string;
+
+  @IsString()
+  @IsOptional()
+  otp?: string;
+
   @IsNumber()
   @Min(100)
   amount: number;

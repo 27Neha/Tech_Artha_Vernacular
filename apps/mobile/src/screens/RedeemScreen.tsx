@@ -14,6 +14,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { api } from '../services/api/client';
 import { Header } from '../components/Header';
+import { TransactionOtpModal, TransactionPayload } from '../components/TransactionOtpModal';
 
 /**
  * Withdrawing money - Cybrilla compliance points 6 and 9.
@@ -49,6 +50,8 @@ export const RedeemScreen = () => {
   const [mode, setMode] = useState<Mode>('amount');
   const [value, setValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Set when the investor confirms the alert; opening the modal issues the code.
+  const [pendingAuth, setPendingAuth] = useState<TransactionPayload | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -96,26 +99,43 @@ export const RedeemScreen = () => {
         {
           text: 'Withdraw',
           style: 'destructive',
-          onPress: async () => {
-            setSubmitting(true);
-            try {
-              const result = await api.post<{ status: string; message: string }>('/redemptions', {
-                folioNumber: selected.folioNumber,
-                schemeIsin: selected.schemeIsin,
-                ...(mode === 'full' ? { fullExit: true } : mode === 'amount' ? { amount: numeric } : { units: numeric }),
-              });
-              Alert.alert('Withdrawal placed', result?.message ?? 'Your withdrawal has been placed.', [
-                { text: 'OK', onPress: () => navigation.goBack() },
-              ]);
-            } catch (e) {
-              Alert.alert('Withdrawal failed', e instanceof Error ? e.message : 'Please try again.');
-            } finally {
-              setSubmitting(false);
-            }
-          },
+          // Selling units requires a second factor, so this opens the authorisation
+          // step rather than placing the order.
+          onPress: () =>
+            setPendingAuth({
+              action: 'REDEMPTION',
+              folioNumber: selected.folioNumber,
+              schemeIsin: selected.schemeIsin,
+              ...(mode === 'full' ? { fullExit: true } : mode === 'amount' ? { amount: numeric } : { units: numeric }),
+            }),
         },
       ],
     );
+  };
+
+  /**
+   * Runs once the code is accepted. The payload is sent exactly as it was authorised -
+   * the server re-fingerprints it, so any difference is refused rather than executed.
+   */
+  const placeAuthorised = async (auth: { challengeId: string; otp: string }) => {
+    const payload = pendingAuth;
+    setPendingAuth(null);
+    if (!payload) return;
+
+    setSubmitting(true);
+    try {
+      const result = await api.post<{ status: string; message: string }>('/redemptions', {
+        ...payload,
+        ...auth,
+      });
+      Alert.alert('Withdrawal placed', result?.message ?? 'Your withdrawal has been placed.', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    } catch (e) {
+      Alert.alert('Withdrawal failed', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -217,6 +237,13 @@ export const RedeemScreen = () => {
           shown here. Exit load and taxes, where applicable, are deducted by the AMC.
         </Text>
       </ScrollView>
+
+      <TransactionOtpModal
+        visible={pendingAuth !== null}
+        payload={pendingAuth}
+        onCancel={() => setPendingAuth(null)}
+        onAuthorised={placeAuthorised}
+      />
     </SafeAreaView>
   );
 };
