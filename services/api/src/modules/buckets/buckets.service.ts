@@ -280,10 +280,11 @@ export class BucketsService {
 
   async invest(userId: string, bucketId: string, dto: InvestInBucketDto) {
     // Authorised first, before any Cybrilla resource is created. The code is bound to
-    // this amount and scheme, so one issued for a smaller order will not authorise this.
+    // this amount and bucket, so one issued for a smaller order will not authorise this.
+    // The bucket fixes the scheme server-side, so the client is not asked to send an ISIN.
     await this.twoFactor.verifyAndConsume(
       userId,
-      { action: 'PURCHASE', amount: dto.amount, bucketId, schemeIsin: BUCKET_SCHEME[bucketId]?.isin },
+      { action: 'PURCHASE', amount: dto.amount, bucketId },
       dto.challengeId,
       dto.otp,
     );
@@ -376,7 +377,6 @@ export class BucketsService {
         action: 'SIP',
         amount: dto.amount,
         bucketId,
-        schemeIsin: BUCKET_SCHEME[bucketId]?.isin,
         frequency: dto.frequency,
         numberOfInstallments: dto.numberOfInstallments,
       },

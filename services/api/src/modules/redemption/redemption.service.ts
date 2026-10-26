@@ -79,12 +79,14 @@ export class RedemptionService {
 
     // Authorised before anything is written or sent. The code is checked against these
     // exact figures, so a code issued for a different folio or amount is refused.
+    // Fingerprinted from the request as the investor sent it, not the resolved quantity:
+    // a full exit resolves to the live unit balance, which the client never saw.
     await this.twoFactor.verifyAndConsume(
       userId,
       {
         action: 'REDEMPTION',
-        amount,
-        units,
+        amount: dto.amount,
+        units: dto.units,
         schemeIsin: dto.schemeIsin,
         folioNumber: dto.folioNumber,
         fullExit: dto.fullExit,
