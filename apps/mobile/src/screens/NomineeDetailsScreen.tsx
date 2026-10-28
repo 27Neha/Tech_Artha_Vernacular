@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { api } from '../services/api/client';
+import { ChoiceChips } from '../components/ChoiceChips';
 import { Header } from '../components/Header';
 
 /**
@@ -45,6 +46,7 @@ interface Nominee {
   panOrAadhaar?: string;
   isMinor: boolean;
   guardianName?: string;
+  guardianRelationship?: string;
 }
 
 // Labels for display; the API enum is the lowercase form, which toApiRelationship sends.
@@ -56,8 +58,15 @@ const RELATIONSHIPS = [
   'Father',
   'Brother',
   'Sister',
+  'Grandson',
+  'Granddaughter',
+  'Grandfather',
+  'Grandmother',
   'Other'
 ];
+
+/** The guardian's relationship to a minor nominee, for the same chips. */
+const GUARDIAN_OPTIONS = RELATIONSHIPS.map((label) => ({ value: label.toLowerCase(), label }));
 
 const toApiRelationship = (label: string) => label.trim().toLowerCase();
 
@@ -83,6 +92,7 @@ const fromApi = (n: ApiNominee): Nominee => ({
   panOrAadhaar: n.identityProofMasked ?? undefined,
   isMinor: n.isMinor,
   guardianName: n.guardianName ?? undefined,
+  guardianRelationship: n.guardianRelationship ?? undefined,
 });
 
 export const NomineeDetailsScreen = () => {
@@ -127,12 +137,14 @@ export const NomineeDetailsScreen = () => {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [fullName, setFullName] = useState('');
-  const [relationship, setRelationship] = useState(RELATIONSHIPS[0]);
+  // Nothing pre-selected: who the nominee is, and their share, are the investor's answers.
+  const [relationship, setRelationship] = useState<string | null>(null);
   const [dob, setDob] = useState('');
-  const [share, setShare] = useState('100');
+  const [share, setShare] = useState('');
   const [idNumber, setIdNumber] = useState('');
   const [isMinor, setIsMinor] = useState(false);
   const [guardianName, setGuardianName] = useState('');
+  const [guardianRelationship, setGuardianRelationship] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -169,7 +181,8 @@ export const NomineeDetailsScreen = () => {
         dateOfBirth: toIsoDate(selectedNominee.dateOfBirth),
         allocationPercentage: parsed,
         guardianName: selectedNominee.guardianName,
-        guardianRelationship: selectedNominee.isMinor ? 'mother' : undefined,
+        // The guardian relationship already on record, not an assumed one.
+        guardianRelationship: selectedNominee.isMinor ? (selectedNominee.guardianRelationship ?? undefined) : undefined,
       });
       setEditAllocModalVisible(false);
       setSelectedNominee(null);
@@ -185,9 +198,17 @@ export const NomineeDetailsScreen = () => {
       setFormError('Please enter nominee full legal name.');
       return;
     }
+    if (!relationship) {
+      setFormError("Choose the nominee's relationship to you.");
+      return;
+    }
     const isoDob = toIsoDate(dob);
     if (!isoDob) {
       setFormError('Please enter the date of birth as DD/MM/YYYY.');
+      return;
+    }
+    if (isMinor && (!guardianName.trim() || !guardianRelationship)) {
+      setFormError("Enter the guardian's name and their relationship to the nominee.");
       return;
     }
     const parsedShare = parseInt(share, 10);
@@ -208,20 +229,22 @@ export const NomineeDetailsScreen = () => {
         identityProofType: idNumber.trim() ? (idNumber.trim().length === 12 ? 'aadhaar' : 'pan') : undefined,
         identityProofNumber: idNumber.trim() || undefined,
         guardianName: guardianName.trim() || undefined,
-        guardianRelationship: guardianName.trim() ? 'mother' : undefined,
+        guardianRelationship: guardianName.trim() ? (guardianRelationship ?? undefined) : undefined,
       });
 
       setModalVisible(false);
       setFullName('');
       setDob('');
-      setShare('100');
+      setShare('');
+      setRelationship(null);
       setIdNumber('');
       setIsMinor(false);
       setGuardianName('');
+      setGuardianRelationship(null);
       await load();
-      // Deliberately not "registered under SEBI guidelines": it is stored with us and
-      // goes to the AMC when the folio is created. Saying otherwise would be untrue.
-      Alert.alert('Nominee saved', 'This nomination is recorded with TechArtha and is submitted to the AMC when your folio is created.');
+      // The server's own account of where the nomination stands - registered with the
+      // fund house, waiting for the account or the full 100%, or refused and why.
+      Alert.alert('Nominee saved', 'Your nominee has been saved. Where the nomination stands is shown at the top of this screen.');
     } catch (e) {
       setFormError(e instanceof Error ? e.message : 'Could not save the nominee.');
     } finally {
@@ -501,6 +524,8 @@ export const NomineeDetailsScreen = () => {
                     value={guardianName}
                     onChangeText={setGuardianName}
                   />
+                  <Text style={styles.inputLabel}>Guardian&apos;s relationship to the nominee</Text>
+                  <ChoiceChips options={GUARDIAN_OPTIONS} value={guardianRelationship} onChange={setGuardianRelationship} />
                 </View>
               )}
 

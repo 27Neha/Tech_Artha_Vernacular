@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
@@ -17,6 +17,36 @@ type Tab = 'overview' | 'goals' | 'holdings' | 'transactions' | 'sips' | 'statem
 
 const TABS: Tab[] = ['overview', 'goals', 'holdings', 'transactions', 'sips', 'statements'];
 
+/** One scheme in one folio, from GET /portfolio (Cybrilla's holdings report). */
+type Holding = {
+  folioNumber: string;
+  schemeIsin: string;
+  schemeName: string | null;
+  units: number;
+  redeemableUnits: number;
+  nav: number | null;
+  navDate: string | null;
+  marketValue: number | null;
+  investedValue: number | null;
+};
+
+type PortfolioResponse = {
+  status: 'OK' | 'NO_ACCOUNT' | 'UNAVAILABLE';
+  holdings: Holding[];
+  totals: { invested: number | null; current: number | null; gain: number | null } | null;
+  asOn: string | null;
+  /** How the figures are arrived at - shown with them (Cybrilla compliance point 10). */
+  method: string;
+  message?: string | null;
+};
+
+type Order = { id: string; fundName: string; amount: number; statusLabel: string; paymentUrl: string | null; createdAt: string };
+type Plan = { id: string; fundName: string; amount: number; frequency: string; installmentDay: number; statusLabel: string; paymentUrl: string | null; createdAt: string };
+
+const rupees = (v: number | null | undefined, digits = 0) =>
+  v == null ? '—' : `₹${v.toLocaleString('en-IN', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+const escapeHtml = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
 export const PortfolioScreen = () => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
@@ -24,9 +54,12 @@ export const PortfolioScreen = () => {
   const [tab, setTab] = useState<Tab>('overview');
   
   const [investorProfile, setInvestorProfile] = useState('');
-  const [portfolio, setPortfolio] = useState<any>({ totalInvested: 0, currentValue: 0, totalReturns: 0, holdings: [] });
+  const [investor, setInvestor] = useState<{ name?: string; pan?: string; email?: string; mobile?: string }>({});
+  const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
   const [fetchingPortfolio, setFetchingPortfolio] = useState(true);
-  
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
+
   const [goals, setGoals] = useState<any[]>([]);
   const [fetchingGoals, setFetchingGoals] = useState(true);
 
@@ -41,6 +74,7 @@ export const PortfolioScreen = () => {
           const cat = data.riskProfile.category;
           setInvestorProfile(cat.toUpperCase());
         }
+        setInvestor({ name: data.profile?.fullName, pan: data.profile?.pan, email: data.email, mobile: data.mobile });
       }
     } catch (e) {
       console.error('Failed to fetch profile', e);
@@ -51,17 +85,34 @@ export const PortfolioScreen = () => {
     try {
       const token = authStore.accessToken;
       if (!token) return;
-      const res = await fetch(`${API_URL}/portfolio`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.data) {
-          setPortfolio(data.data);
-        }
+      const headers = { Authorization: `Bearer ${token}` };
+      const [portRes, invRes] = await Promise.all([
+        fetch(`${API_URL}/portfolio`, { headers }),
+        fetch(`${API_URL}/buckets/investments`, { headers }),
+      ]);
+      if (portRes.ok) setPortfolio(await portRes.json());
+      if (invRes.ok) {
+        const inv = await invRes.json();
+        setOrders(inv.orders ?? []);
+        setPlans(inv.plans ?? []);
       }
     } catch (err) {
       console.error('Failed to fetch portfolio', err);
     } finally {
       setFetchingPortfolio(false);
+    }
+  };
+
+  const holdings = portfolio?.holdings ?? [];
+  const totals = portfolio?.totals ?? null;
+  const gainPct =
+    totals?.gain != null && totals.invested ? ((totals.gain / totals.invested) * 100).toFixed(2) : null;
+
+  const openPayment = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Could not open the payment page', 'Please try again.');
     }
   };
 
@@ -89,7 +140,29 @@ export const PortfolioScreen = () => {
     }, [])
   );
 
-  const downloadPDF = async (title: string) => {
+  /**
+   * A summary built only from the investor's own records - the holdings report, their
+   * orders and their SIPs. It is labelled as TechArtha's summary, not a Consolidated
+   * Account Statement, which only the depositories and RTAs issue.
+   */
+  const downloadPDF = async (kind: 'holdings' | 'transactions' | 'sips') => {
+    const rows =
+      kind === 'holdings'
+        ? holdings.map((h) => [h.schemeName ?? h.schemeIsin, h.folioNumber, h.units.toFixed(3), h.nav?.toFixed(4) ?? '—', rupees(h.marketValue, 2)])
+        : kind === 'transactions'
+          ? orders.map((o) => [new Date(o.createdAt).toLocaleDateString('en-IN'), o.fundName, rupees(o.amount, 2), o.statusLabel])
+          : plans.map((p) => [p.fundName, rupees(p.amount, 2), `${p.frequency}, day ${p.installmentDay}`, p.statusLabel]);
+    if (rows.length === 0) {
+      return Alert.alert('Nothing to include yet', 'There is no activity on your account to put in this summary yet.');
+    }
+    const headers =
+      kind === 'holdings'
+        ? ['Scheme', 'Folio', 'Units', 'NAV (Rs)', 'Current value']
+        : kind === 'transactions'
+          ? ['Date', 'Scheme', 'Amount', 'Status']
+          : ['Scheme', 'Amount', 'Schedule', 'Status'];
+    const title = kind === 'holdings' ? 'Holdings summary' : kind === 'transactions' ? 'Order history' : 'SIP summary';
+    const maskedPan = investor.pan ? `${investor.pan.slice(0, 3)}XXXXX${investor.pan.slice(-2)}` : '—';
     try {
       const html = `
         <html>
@@ -97,7 +170,6 @@ export const PortfolioScreen = () => {
             <style>
               body { font-family: Helvetica, Arial, sans-serif; padding: 40px; color: #1c1a18; }
               h1 { color: #3C3985; font-size: 24px; border-bottom: 2px solid #E2E8F0; padding-bottom: 10px; }
-              .header { margin-bottom: 30px; }
               .label { color: #718096; font-size: 12px; font-weight: bold; text-transform: uppercase; }
               .value { font-size: 14px; margin-bottom: 15px; font-weight: bold; }
               table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
@@ -107,61 +179,33 @@ export const PortfolioScreen = () => {
             </style>
           </head>
           <body>
-            <h1>${title}</h1>
-            <div class="header">
-              <p style="font-size: 14px; font-weight: bold;">CONSOLIDATED ACCOUNT STATEMENT (CAS)</p>
-              <p style="color: #718096; font-size: 12px;">Date Generated: ${new Date().toLocaleDateString()}</p>
-            </div>
-            
-            <h3 style="margin-top: 30px;">Investor Details</h3>
-            <table style="margin-top: 10px;">
-              <tr>
-                <td><span class="label">Name</span><br/><span class="value">TEST USER</span></td>
-                <td><span class="label">PAN</span><br/><span class="value">ABCDE1234F</span></td>
-              </tr>
-              <tr>
-                <td><span class="label">Email</span><br/><span class="value">test@techartha.com</span></td>
-                <td><span class="label">Mobile</span><br/><span class="value">+91 9876543210</span></td>
-              </tr>
-            </table>
-
-            <h3 style="margin-top: 40px;">Portfolio Summary</h3>
+            <h1>${escapeHtml(title)}</h1>
+            <p style="color: #718096; font-size: 12px;">Generated on ${new Date().toLocaleDateString('en-IN')}${
+              kind === 'holdings' && portfolio?.asOn ? `, holdings as on ${escapeHtml(portfolio.asOn)}` : ''
+            }</p>
             <table>
               <tr>
-                <th>Scheme Name</th>
-                <th>Folio</th>
-                <th>Units</th>
-                <th>NAV (Rs)</th>
-                <th>Current Value (Rs)</th>
+                <td><span class="label">Name</span><br/><span class="value">${escapeHtml(investor.name ?? '—')}</span></td>
+                <td><span class="label">PAN</span><br/><span class="value">${escapeHtml(maskedPan)}</span></td>
               </tr>
               <tr>
-                <td>Stable Income Fund</td>
-                <td>10982312</td>
-                <td>25.500</td>
-                <td>169.41</td>
-                <td>4,320.00</td>
-              </tr>
-              <tr>
-                <td>Multi-Cap Growth Fund</td>
-                <td>88273611</td>
-                <td>15.300</td>
-                <td>257.51</td>
-                <td>3,940.00</td>
-              </tr>
-              <tr>
-                <td>Liquid Safety Fund</td>
-                <td>99128374</td>
-                <td>66.210</td>
-                <td>32.88</td>
-                <td>2,177.00</td>
+                <td><span class="label">Email</span><br/><span class="value">${escapeHtml(investor.email ?? '—')}</span></td>
+                <td><span class="label">Mobile</span><br/><span class="value">${escapeHtml(investor.mobile ?? '—')}</span></td>
               </tr>
             </table>
-            
-            <p style="margin-top: 40px; font-size: 10px; color: #A0AEC0; text-align: center;">This is a system generated document. Powered by TechArtha.</p>
+            <table>
+              <tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr>
+              ${rows.map((r) => `<tr>${r.map((c) => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`).join('')}
+            </table>
+            ${kind === 'holdings' ? `<p style="margin-top: 24px; font-size: 11px; color: #4A5568;">${escapeHtml(portfolio?.method)}</p>` : ''}
+            <p style="margin-top: 40px; font-size: 10px; color: #A0AEC0; text-align: center;">
+              A summary prepared by TechArtha from your account records. This is not a Consolidated Account Statement;
+              your CAS is issued by the depositories and registrars.
+            </p>
           </body>
         </html>
       `;
-      
+
       const { uri } = await Print.printToFileAsync({ html });
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, { dialogTitle: `Download ${title}`, UTI: 'com.adobe.pdf' });
@@ -194,32 +238,20 @@ export const PortfolioScreen = () => {
     </View>
   );
 
-  // Helper for Circular Chart Layout
+  // Current value at the centre. A single ring: the allocation across asset classes is
+  // not something the holdings report gives us, so no split is drawn.
   const renderDoughnutChart = () => {
     const r = 40;
     const strokeW = 12;
-    const c = 2 * Math.PI * r;
-    const val = Math.round(portfolio.currentValue);
-    
-    // We'll mimic the green/blue/purple segments from the image
-    const greenD = c * 0.45;
-    const blueD = c * 0.35;
-    const purpleD = c * 0.20;
+    const val = Math.round(totals?.current ?? 0);
 
     return (
       <View style={styles.chartContainer}>
         <Svg width="104" height="104" viewBox="0 0 104 104">
-          <Circle cx="52" cy="52" r={r} stroke="#2D3748" strokeWidth={strokeW} fill="transparent" />
-          {val > 0 && (
-            <>
-              <Circle cx="52" cy="52" r={r} stroke="#38B2AC" strokeWidth={strokeW} strokeDasharray={`${greenD} ${c}`} strokeLinecap="round" fill="transparent" rotation="-90" origin="52, 52" />
-              <Circle cx="52" cy="52" r={r} stroke="#4299E1" strokeWidth={strokeW} strokeDasharray={`${blueD} ${c}`} strokeDashoffset={-greenD} strokeLinecap="round" fill="transparent" rotation="-90" origin="52, 52" />
-              <Circle cx="52" cy="52" r={r} stroke="#9F7AEA" strokeWidth={strokeW} strokeDasharray={`${purpleD} ${c}`} strokeDashoffset={-(greenD + blueD)} strokeLinecap="round" fill="transparent" rotation="-90" origin="52, 52" />
-            </>
-          )}
+          <Circle cx="52" cy="52" r={r} stroke={val > 0 ? '#38B2AC' : '#2D3748'} strokeWidth={strokeW} fill="transparent" />
         </Svg>
         <View style={styles.chartCenter}>
-          <Text style={styles.chartCenterValue}>₹{val >= 1000 ? (val/1000).toFixed(1) + 'K' : val}</Text>
+          <Text style={styles.chartCenterValue}>{totals?.current == null ? '—' : `₹${val >= 1000 ? (val / 1000).toFixed(1) + 'K' : val}`}</Text>
           <Text style={styles.chartCenterLabel}>CURRENT</Text>
         </View>
       </View>
@@ -291,17 +323,20 @@ export const PortfolioScreen = () => {
                 <View style={styles.heroStats}>
                   <View style={styles.statGroup}>
                     <Text style={styles.statLabel}>AMOUNT INVESTED</Text>
-                    <Text style={styles.statValue}>₹{Math.round(portfolio.totalInvested).toLocaleString('en-IN')}</Text>
+                    <Text style={styles.statValue}>{rupees(totals?.invested)}</Text>
                   </View>
                   
                   <View style={styles.statGroup}>
                     <Text style={styles.statLabel}>TOTAL RETURNS</Text>
                     <Text style={styles.statValue}>
-                      +₹{Math.round(portfolio.totalReturns).toLocaleString('en-IN')} (0%)
+                      {totals?.gain == null
+                        ? '—'
+                        : `${totals.gain >= 0 ? '+' : '−'}${rupees(Math.abs(totals.gain))}${gainPct ? ` (${gainPct}%)` : ''}`}
                     </Text>
                   </View>
                 </View>
               </View>
+              {portfolio?.asOn ? <Text style={styles.asOnText}>As on {portfolio.asOn}</Text> : null}
             </View>
           )}
         </View>
@@ -324,7 +359,7 @@ export const PortfolioScreen = () => {
               
               {renderRiskCard()}
 
-              {portfolio.totalInvested === 0 ? (
+              {holdings.length === 0 ? (
                 renderEmptyState(
                   'pie-chart-outline', 
                   t('port.noPortfolioHistory', { defaultValue: 'No Portfolio History' }), 
@@ -341,13 +376,9 @@ export const PortfolioScreen = () => {
                   <Text style={styles.riskTitle}>{t('port.detailedRisk', { defaultValue: 'Risk & Allocation' })}</Text>
                   <Text style={styles.riskNote}>{t('port.riskNote', { defaultValue: 'Your portfolio is evaluated against your investor risk profile.' })}</Text>
                   
-                  <View style={styles.riskRow}>
+                  <View style={[styles.riskRow, { borderBottomWidth: 0 }]}>
                     <Text style={styles.riskLabel}>{t('port.investorRiskProfile', { defaultValue: 'Investor Profile' })}</Text>
                     <Text style={[styles.riskValue, { color: '#102A54' }]}>{investorProfile || 'Not Assessed'}</Text>
-                  </View>
-                  <View style={[styles.riskRow, { borderBottomWidth: 0 }]}>
-                    <Text style={styles.riskLabel}>{t('port.riskAlignment', { defaultValue: 'Alignment' })}</Text>
-                    <Text style={[styles.riskValue, { color: '#38A169' }]}>{t('port.optimal', { defaultValue: 'Optimal' })}</Text>
                   </View>
                 </View>
               )}
@@ -356,36 +387,116 @@ export const PortfolioScreen = () => {
 
           {tab === 'holdings' && (
             <View style={styles.content}>
-              {renderEmptyState(
-                'briefcase-outline', 
-                t('port.noHoldings', { defaultValue: 'No Holdings Yet' }), 
-                t('port.activeInvestmentsHere', { defaultValue: 'Your active investments will appear here.' }),
-                t('port.exploreFunds', { defaultValue: 'Explore Funds' }),
-                () => navigation.navigate('Funds')
+              {holdings.length === 0 ? (
+                renderEmptyState(
+                  'briefcase-outline',
+                  t('port.noHoldings', { defaultValue: 'No Holdings Yet' }),
+                  portfolio?.message ?? t('port.activeInvestmentsHere', { defaultValue: 'Your active investments will appear here.' }),
+                  t('port.exploreFunds', { defaultValue: 'Explore Funds' }),
+                  () => navigation.navigate('Funds')
+                )
+              ) : (
+                holdings.map((h) => (
+                  <View key={`${h.folioNumber}-${h.schemeIsin}`} style={styles.goalCard}>
+                    <Text style={styles.goalName}>{h.schemeName ?? h.schemeIsin}</Text>
+                    <Text style={styles.goalTime}>Folio {h.folioNumber}</Text>
+                    <View style={styles.goalMetrics}>
+                      <View style={styles.metric}>
+                        <Text style={styles.metricLabel}>Units</Text>
+                        <Text style={styles.metricValue}>{h.units.toFixed(3)}</Text>
+                      </View>
+                      <View style={styles.metric}>
+                        <Text style={styles.metricLabel}>NAV{h.navDate ? ` (${h.navDate})` : ''}</Text>
+                        <Text style={styles.metricValue}>{h.nav == null ? '—' : `₹${h.nav.toFixed(4)}`}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.goalMetrics}>
+                      <View style={styles.metric}>
+                        <Text style={styles.metricLabel}>Invested</Text>
+                        <Text style={styles.metricValue}>{rupees(h.investedValue, 2)}</Text>
+                      </View>
+                      <View style={styles.metric}>
+                        <Text style={styles.metricLabel}>Current value</Text>
+                        <Text style={styles.metricValue}>{rupees(h.marketValue, 2)}</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))
               )}
+              {portfolio?.method ? (
+                <View style={styles.methodBox}>
+                  <Text style={styles.methodTitle}>How these figures are calculated</Text>
+                  <Text style={styles.methodText}>{portfolio.method}</Text>
+                </View>
+              ) : null}
             </View>
           )}
 
           {tab === 'transactions' && (
             <View style={styles.content}>
-              {renderEmptyState(
-                'list-outline', 
-                t('port.noTransactions', { defaultValue: 'No Transactions Found' }), 
-                t('port.transactionHistoryHere', { defaultValue: 'Your investment history and logs will appear here.' }),
-                t('port.exploreFunds', { defaultValue: 'Explore Funds' }),
-                () => navigation.navigate('Funds')
+              {orders.length === 0 ? (
+                renderEmptyState(
+                  'list-outline',
+                  t('port.noTransactions', { defaultValue: 'No Transactions Found' }),
+                  t('port.transactionHistoryHere', { defaultValue: 'Your investment history and logs will appear here.' }),
+                  t('port.exploreFunds', { defaultValue: 'Explore Funds' }),
+                  () => navigation.navigate('Funds')
+                )
+              ) : (
+                orders.map((o) => (
+                  <View key={o.id} style={styles.goalCard}>
+                    <View style={styles.goalRow}>
+                      <View style={{ flex: 1, paddingRight: 12 }}>
+                        <Text style={styles.goalName}>{o.fundName}</Text>
+                        <Text style={styles.goalTime}>{new Date(o.createdAt).toLocaleDateString('en-IN')} · One-time</Text>
+                      </View>
+                      <View style={styles.statusBadge}>
+                        <Text style={styles.statusText}>{o.statusLabel}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.metricValue}>{rupees(o.amount, 2)}</Text>
+                    {o.paymentUrl ? (
+                      <Pressable style={styles.primaryBtn} onPress={() => openPayment(o.paymentUrl!)}>
+                        <Text style={styles.primaryBtnText}>Pay now</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ))
               )}
             </View>
           )}
 
           {tab === 'sips' && (
             <View style={styles.content}>
-              {renderEmptyState(
-                'calendar-outline', 
-                t('port.noSips', { defaultValue: 'No Active SIPs' }), 
-                t('port.activeSipsHere', { defaultValue: 'Your active Systematic Investment Plans will be tracked here.' }),
-                t('port.exploreFunds', { defaultValue: 'Explore Funds' }),
-                () => navigation.navigate('Funds')
+              {plans.length === 0 ? (
+                renderEmptyState(
+                  'calendar-outline',
+                  t('port.noSips', { defaultValue: 'No Active SIPs' }),
+                  t('port.activeSipsHere', { defaultValue: 'Your active Systematic Investment Plans will be tracked here.' }),
+                  t('port.exploreFunds', { defaultValue: 'Explore Funds' }),
+                  () => navigation.navigate('Funds')
+                )
+              ) : (
+                plans.map((p) => (
+                  <View key={p.id} style={styles.goalCard}>
+                    <View style={styles.goalRow}>
+                      <View style={{ flex: 1, paddingRight: 12 }}>
+                        <Text style={styles.goalName}>{p.fundName}</Text>
+                        <Text style={styles.goalTime}>
+                          {rupees(p.amount)} {p.frequency}, on day {p.installmentDay}
+                        </Text>
+                      </View>
+                      <View style={styles.statusBadge}>
+                        <Text style={styles.statusText}>{p.statusLabel}</Text>
+                      </View>
+                    </View>
+                    {p.paymentUrl ? (
+                      <Pressable style={styles.primaryBtn} onPress={() => openPayment(p.paymentUrl!)}>
+                        <Text style={styles.primaryBtnText}>Pay first instalment</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ))
               )}
             </View>
           )}
@@ -393,13 +504,15 @@ export const PortfolioScreen = () => {
           {tab === 'statements' && (
             <View style={styles.content}>
               <View style={styles.statementList}>
-                {[
-                  { title: 'Account Statement', desc: 'Summary of all folios and holdings', icon: 'document-text-outline' as any },
-                  { title: 'Transaction Statement', desc: 'Detailed log of all purchases and redemptions', icon: 'receipt-outline' as any },
-                  { title: 'Capital Gains Statement', desc: 'For tax filing purposes (ITR)', icon: 'trending-up-outline' as any },
-                  { title: 'SIP Statement', desc: 'Log of all active and completed SIPs', icon: 'calendar-outline' as any }
-                ].map((st, idx) => (
-                  <Pressable key={idx} style={styles.statementCard} onPress={() => downloadPDF(st.title)}>
+                {/* Only summaries we can build from the investor's real records. A capital
+                    gains statement needs lot-level cost data we do not have, so it is
+                    not offered rather than generated with made-up figures. */}
+                {([
+                  { kind: 'holdings', title: 'Holdings summary', desc: 'Folios, units and current value', icon: 'document-text-outline' as any },
+                  { kind: 'transactions', title: 'Order history', desc: 'Your one-time purchases and their status', icon: 'receipt-outline' as any },
+                  { kind: 'sips', title: 'SIP summary', desc: 'Your registered SIPs', icon: 'calendar-outline' as any },
+                ] as const).map((st, idx) => (
+                  <Pressable key={idx} style={styles.statementCard} onPress={() => downloadPDF(st.kind)}>
                     <View style={styles.statementIconWrap}>
                       <Ionicons name={st.icon} size={24} color="#3C3985" />
                     </View>
@@ -546,6 +659,10 @@ const styles = StyleSheet.create({
   riskLabel: { fontSize: 13, fontWeight: '700', color: '#718096' },
   riskValue: { fontSize: 14, fontWeight: '800' },
 
+  asOnText: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '600', marginTop: 4 },
+  methodBox: { backgroundColor: '#F8F9FB', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
+  methodTitle: { color: '#102A54', fontSize: 13, fontWeight: '800', marginBottom: 6 },
+  methodText: { color: '#4A5568', fontSize: 12, lineHeight: 18 },
   statementList: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden' },
   statementCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#EDF2F7' },
   statementIconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#EBEBFA', alignItems: 'center', justifyContent: 'center', marginRight: 16 },

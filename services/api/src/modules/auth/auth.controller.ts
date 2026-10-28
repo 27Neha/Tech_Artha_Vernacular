@@ -90,6 +90,17 @@ export class AuthController {
     return this.authService.verifyEmailOtp(user.id, body.email ?? '', body.otp ?? '');
   }
 
+  /** Final step of signup: the OTP step has created the account; this sets its password. */
+  @Post('password')
+  @UseGuards(AccessTokenGuard)
+  @HttpCode(200)
+  async setPassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { password?: string; clientType?: string },
+  ) {
+    return this.authService.setInitialPassword(user.id, body.password ?? '', body.clientType);
+  }
+
   @Post('logout')
   @UseGuards(AccessTokenGuard)
   @HttpCode(204)
@@ -101,6 +112,19 @@ export class AuthController {
   @Get('profile')
   async getProfile(@CurrentUser() user: AuthenticatedUser) {
     return this.authService.getProfile(user.id);
+  }
+
+  /** Self-declaration of whose email and mobile number these are. */
+  @UseGuards(AccessTokenGuard)
+  @Put('declarations')
+  async saveDeclarations(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { emailBelongsTo?: string; mobileBelongsTo?: string },
+  ) {
+    return this.authService.saveContactDeclarations(user.id, {
+      emailBelongsTo: body.emailBelongsTo,
+      mobileBelongsTo: body.mobileBelongsTo,
+    });
   }
 
   @UseGuards(AccessTokenGuard)

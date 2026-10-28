@@ -28,12 +28,16 @@ import { ZohoModule } from './modules/zoho/zoho.module';
 import { NomineeModule } from './modules/nominee/nominee.module';
 import { RedemptionModule } from './modules/redemption/redemption.module';
 import { TwoFactorModule } from './modules/twofactor/twofactor.module';
+import { MandatesModule } from './modules/mandates/mandates.module';
+import { HoldingsModule } from './modules/holdings/holdings.module';
 
 @Module({
   imports: [
     NomineeModule,
     RedemptionModule,
     TwoFactorModule,
+    MandatesModule,
+    HoldingsModule,
     KycModule,
     FundsModule,
     AuthModule,

@@ -36,26 +36,36 @@ export const HomeScreen = ({ name }: { name: string }) => {
 
       const headers = { Authorization: `Bearer ${token}` };
 
-      const [goalsRes, portRes, profileRes, sipsRes] = await Promise.all([
+      // Every request here is a route the API serves. This used to call /users/profile,
+      // /sips and /funds?riskProfile=, none of which exist, so the profile, SIPs and
+      // recommendations were always blank.
+      const [goalsRes, portRes, profileRes, investmentsRes, bucketsRes] = await Promise.all([
         fetch(`${API_URL}/goals`, { headers }),
         fetch(`${API_URL}/portfolio`, { headers }),
-        fetch(`${API_URL}/users/profile`, { headers }),
-        fetch(`${API_URL}/sips`, { headers }).catch(() => null)
+        fetch(`${API_URL}/auth/profile`, { headers }),
+        fetch(`${API_URL}/buckets/investments`, { headers }),
+        fetch(`${API_URL}/buckets`, { headers }),
       ]);
 
       if (goalsRes.ok) setGoals(await goalsRes.json());
       if (portRes.ok) setPortfolio(await portRes.json());
-      if (sipsRes && sipsRes.ok) setSipPlans(await sipsRes.json());
-      
+      if (investmentsRes.ok) {
+        const inv = await investmentsRes.json();
+        setSipPlans([
+          ...(inv.plans ?? []).map((p: any) => ({ ...p, kind: 'plan' })),
+          ...(inv.orders ?? []).map((o: any) => ({ ...o, kind: 'order' })),
+        ]);
+      }
       if (profileRes.ok) {
         const profileData = await profileRes.json();
-        setProfile(profileData.riskProfile || 'Moderate');
-        
-        const risk = profileData.riskProfile || 'Moderate';
-        const fundsRes = await fetch(`${API_URL}/funds?riskProfile=${risk}`);
-        if (fundsRes.ok) {
-          setRecommendedFunds((await fundsRes.json()).slice(0, 3));
-        }
+        const category: string | undefined = profileData.riskProfile?.category;
+        setProfile(category ? category.charAt(0) + category.slice(1).toLowerCase().replace(/_/g, ' ') : 'Not assessed');
+      }
+      if (bucketsRes.ok) {
+        // Reference funds from the bucket suited to the investor's profile.
+        const { buckets } = await bucketsRes.json();
+        const suited = (buckets ?? []).find((b: any) => b.recommended) ?? buckets?.[0];
+        setRecommendedFunds((suited?.recommendedFunds ?? []).slice(0, 3));
       }
     } catch (e) {
       console.log('Error fetching dashboard data', e);
@@ -86,8 +96,14 @@ export const HomeScreen = ({ name }: { name: string }) => {
             <ActivityIndicator size="small" color="#fff" style={{ marginVertical: 8 }} />
           ) : (
             <>
-              <Text style={styles.balance}>₹{(portfolio?.currentValue || 0).toLocaleString('en-IN')}</Text>
-              <Text style={styles.balanceSub}>{t('port.totalInvested', { defaultValue: 'Total Invested:' })} ₹{(portfolio?.totalInvested || 0).toLocaleString('en-IN')}</Text>
+              {/* From GET /portfolio (Cybrilla's holdings report); a dash when unknown, never a 0 we did not read. */}
+              <Text style={styles.balance}>
+                {portfolio?.totals?.current != null ? `₹${Math.round(portfolio.totals.current).toLocaleString('en-IN')}` : portfolio?.status === 'NO_ACCOUNT' ? '₹0' : '—'}
+              </Text>
+              <Text style={styles.balanceSub}>
+                {t('port.totalInvested', { defaultValue: 'Total Invested:' })}{' '}
+                {portfolio?.totals?.invested != null ? `₹${Math.round(portfolio.totals.invested).toLocaleString('en-IN')}` : portfolio?.status === 'NO_ACCOUNT' ? '₹0' : '—'}
+              </Text>
             </>
           )}
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 18 }}>
@@ -199,7 +215,7 @@ export const HomeScreen = ({ name }: { name: string }) => {
 
         <View style={{ gap: 12 }}>
           {recommendedFunds.map(fund => (
-            <Pressable key={fund.schemeCode} style={[styles.card, { flexDirection: 'row', alignItems: 'center' }]} onPress={() => navigation.navigate('Funds')}>
+            <Pressable key={fund.schemeCode} style={[styles.card, { flexDirection: 'row', alignItems: 'center' }]} onPress={() => navigation.navigate('FundDetail', { schemeCode: fund.schemeCode })}>
               <View style={{ flex: 1, paddingRight: 8 }}>
                 <Text style={styles.cardTitle} numberOfLines={1}>{fund.name}</Text>
                 <Text style={[styles.badgeGray, { alignSelf: 'flex-start', marginTop: 4 }]}>{fund.category ? t(`category.${fund.category.toLowerCase().replace(/\s+/g, '')}`, { defaultValue: fund.category }) : ''}</Text>
@@ -215,8 +231,14 @@ export const HomeScreen = ({ name }: { name: string }) => {
 
         {/* Safety Banner */}
         <View style={styles.safetyBanner}>
-          <Text style={styles.safetyTitle}>🛡️ {t('dash.bankSecurity', { defaultValue: 'Bank-grade Security' })}</Text>
-          <Text style={styles.safetyDesc}>{t('dash.bankSecurityDesc', { defaultValue: 'Your money is routed directly via BSE StarMF to the AMC.' })}</Text>
+          {/* Says only what is true of how orders are placed: through Cybrilla, paid from
+              the investor's own bank account, units held in their name. The old copy
+              named BSE StarMF, which this app does not use. */}
+          <Text style={styles.safetyTitle}>🛡️ Where your money goes</Text>
+          <Text style={styles.safetyDesc}>
+            Orders are placed with the fund house through our transaction partner, Cybrilla. You pay from your own bank
+            account, and units are allotted in your name by the fund house.
+          </Text>
         </View>
 
         {/* Learn Section */}

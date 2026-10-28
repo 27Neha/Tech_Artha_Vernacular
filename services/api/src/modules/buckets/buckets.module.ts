@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TwoFactorModule } from '../twofactor/twofactor.module';
+import { NomineeModule } from '../nominee/nominee.module';
+import { MandatesModule } from '../mandates/mandates.module';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { BucketsController } from './buckets.controller';
@@ -10,7 +12,7 @@ import { FundsModule } from '../funds/funds.module';
 import { CybrillaModule } from '../cybrilla/cybrilla.module';
 
 @Module({
-  imports: [TwoFactorModule, AuthModule, PrismaModule, RecommendationsModule, FundsModule, CybrillaModule],
+  imports: [TwoFactorModule, NomineeModule, MandatesModule, AuthModule, PrismaModule, RecommendationsModule, FundsModule, CybrillaModule],
   controllers: [BucketsController, FundInvestController], 
   providers: [BucketsService], 
   exports: [BucketsService] 

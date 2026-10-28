@@ -8,8 +8,11 @@ import { RedemptionService } from './redemption.service';
 describe('RedemptionService.resolveQuantity', () => {
   const svc = RedemptionService.prototype as any;
 
-  const resolve = (dto: Record<string, unknown>, folios: unknown[] | null = []) =>
-    svc.resolveQuantity.call({ cybrilla: { fetchFolios: async () => folios } }, 'mfia_1', dto);
+  // Holdings in HoldingsService's shape: one row per folio and scheme.
+  const holding = (folioNumber: string, schemeIsin: string, redeemableUnits: number) => ({ folioNumber, schemeIsin, redeemableUnits });
+  const account = { id: 'a1', fpAccountId: 'mfia_1', fpAccountOldId: 7 };
+  const resolve = (dto: Record<string, unknown>, holdings: unknown[] | null = []) =>
+    svc.resolveQuantity.call({ holdingsService: { forAccount: async () => holdings } }, account, dto);
 
   it('passes an amount straight through', async () => {
     await expect(resolve({ amount: 500 })).resolves.toEqual({ amount: 500, units: undefined });
@@ -32,7 +35,7 @@ describe('RedemptionService.resolveQuantity', () => {
   it('resolves a full exit to the live folio balance, not a client-supplied number', async () => {
     // The investor says "sell everything"; the quantity comes from the gateway, so the
     // order cannot overshoot the balance and be rejected.
-    const folios = [{ folio_number: 'F1', scheme: 'INF109K01605', redeemable_units: 12.345 }];
+    const folios = [holding('F1', 'INF109K01605', 12.345)];
     await expect(resolve({ fullExit: true, folioNumber: 'F1', schemeIsin: 'INF109K01605' }, folios)).resolves.toEqual({
       amount: undefined,
       units: 12.345,
@@ -40,14 +43,14 @@ describe('RedemptionService.resolveQuantity', () => {
   });
 
   it('matches on folio AND scheme, since one folio can hold several schemes', async () => {
-    const folios = [{ folio_number: 'F1', scheme: 'OTHER_ISIN', redeemable_units: 10 }];
+    const folios = [holding('F1', 'OTHER_ISIN', 10)];
     await expect(
       resolve({ fullExit: true, folioNumber: 'F1', schemeIsin: 'INF109K01605' }, folios),
     ).rejects.toThrow(/no units available/);
   });
 
   it('refuses a full exit on a zero balance', async () => {
-    const folios = [{ folio_number: 'F1', scheme: 'INF109K01605', redeemable_units: 0 }];
+    const folios = [holding('F1', 'INF109K01605', 0)];
     await expect(
       resolve({ fullExit: true, folioNumber: 'F1', schemeIsin: 'INF109K01605' }, folios),
     ).rejects.toThrow(/no units available/);

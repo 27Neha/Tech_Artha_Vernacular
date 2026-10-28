@@ -4,12 +4,16 @@ import { RecommendationEngine } from '../recommendations/recommendation.engine';
 import { FundsService } from '../funds/funds.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CybrillaService } from '../cybrilla/cybrilla.service';
+import { resolveBankAccountOldId } from '../cybrilla/account-ids';
 import { TwoFactorService } from '../twofactor/twofactor.service';
+import { NomineeService } from '../nominee/nominee.service';
+import { MandatesService } from '../mandates/mandates.service';
 import { InvestInBucketDto } from './invest-in-bucket.dto';
 import { StartSipDto } from './sip-in-bucket.dto';
 import { CustomBucketDto } from './custom-bucket.dto';
 import { InvestInFundDto, StartFundSipDto } from './fund-invest.dto';
 import { assessSuitability } from './fund-suitability';
+import { describeKycFailure } from '../kyc/kyc.service';
 
 /** What an order is placed against: a bucket's fixed scheme or a directly chosen fund. */
 type SchemeTarget = { isin: string; gateway: string; fundName: string };
@@ -18,9 +22,10 @@ type FundTarget = SchemeTarget & { category: string | null; schemeCode: string }
 /** Recorded on the order and in the audit log, so it is clear how the fund was chosen. */
 type OrderOrigin = { bucketId: string } | { schemeCode: string; riskAcknowledged: boolean };
 
-// The gateway every scheme verified on this tenant uses. Single-fund orders go through it
-// too until the scheme master is populated and can say otherwise per scheme.
-const DEFAULT_GATEWAY = 'cybrillapoa';
+// Every order and plan goes through ONDC, the gateway Cybrilla's purchase and purchase
+// plan samples use. Plans default to it at the gateway anyway, so lumpsums sent through a
+// different one left the two order types on different rails.
+const DEFAULT_GATEWAY = 'ondc';
 
 export type Bucket = { id: string; name: string; eligibleFor: string[]; allocation: { equity: number; debt: number; liquid: number }; horizon: string; explanation: string };
 
@@ -45,9 +50,9 @@ const BUCKETS: Bucket[] = [
 // Real Cybrilla sandbox test funds (verified live against the "techartha" tenant), one per bucket.
 // These are placeholders until a real scheme-master crosswalk (MFAPI scheme code <-> Cybrilla ISIN) exists.
 const BUCKET_SCHEME: Record<string, SchemeTarget> = {
-  stable: { isin: 'INF109KC1TY0', gateway: 'cybrillapoa', fundName: 'ICICI Prudential Retirement Fund Hybrid Conservative Plan' },
-  balanced: { isin: 'INF109K01605', gateway: 'cybrillapoa', fundName: "ICICI Prudential Children's Fund" },
-  growth: { isin: 'INF109KC19T7', gateway: 'cybrillapoa', fundName: 'ICICI Prudential Nifty50 Value 20 Index Fund' },
+  stable: { isin: 'INF109KC1TY0', gateway: 'ondc', fundName: 'ICICI Prudential Retirement Fund Hybrid Conservative Plan' },
+  balanced: { isin: 'INF109K01605', gateway: 'ondc', fundName: "ICICI Prudential Children's Fund" },
+  growth: { isin: 'INF109KC19T7', gateway: 'ondc', fundName: 'ICICI Prudential Nifty50 Value 20 Index Fund' },
 };
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
@@ -76,6 +81,8 @@ export class BucketsService {
     private readonly prisma: PrismaService,
     private readonly cybrilla: CybrillaService,
     private readonly twoFactor: TwoFactorService,
+    private readonly nominees: NomineeService,
+    private readonly mandates: MandatesService,
   ) {}
 
   async listForProfile(category: string) {
@@ -119,6 +126,12 @@ export class BucketsService {
       return {
         ...bucket,
         bucketRiskLevel,
+        // The one scheme a purchase in this bucket actually buys. recommendedFunds are
+        // reference funds from MFAPI and are not what the money goes into, so the app
+        // must be able to say which fund that is.
+        investsIn: BUCKET_SCHEME[bucket.id]
+          ? { fundName: BUCKET_SCHEME[bucket.id].fundName, schemeIsin: BUCKET_SCHEME[bucket.id].isin }
+          : null,
         recommendedFunds: funds,
       };
     }));
@@ -215,22 +228,33 @@ export class BucketsService {
   }
 
   /**
-   * Everything both the lumpsum and the SIP path need before a transaction can be sent:
-   * KYC guards, the Cybrilla investor profile, the bank account and the MF investment
-   * account. Shared by buckets and single funds so the paths cannot drift - an order
-   * placed against a differently-built account would be very hard to diagnose.
+   * Every read-only precondition for placing an order. Callers run it before the second
+   * factor is consumed, so an investor who cannot invest yet is told why without losing
+   * their code; ensureInvestmentAccount runs it again as the last guard before the gateway.
+   *
+   * When the investor has no investment account yet, this order is what opens it, so
+   * the investor's own declarations for the account must all be in the request.
    */
-  private async ensureInvestmentAccount(userId: string, dto: InvestInBucketDto) {
-    const [profile, kyc, user] = await Promise.all([
+  private async assertCanInvest(userId: string, dto?: InvestInBucketDto) {
+    const [profile, kyc, user, termsAccepted, investor] = await Promise.all([
       this.prisma.userProfile.findUnique({ where: { userId } }),
       this.prisma.kYCApplication.findUnique({ where: { userId } }),
       this.prisma.user.findUnique({ where: { id: userId } }),
+      this.prisma.consent.findFirst({ where: { userId, type: 'TERMS_AND_CONDITIONS', status: 'GRANTED' } }),
+      this.prisma.fpInvestorProfile.findUnique({ where: { userId }, include: { mfAccounts: true } }),
     ]);
     if (!profile?.pan || !profile.fullName || !profile.dateOfBirth) {
       throw new BadRequestException('Complete KYC before investing.');
     }
-    if (kyc?.panStatus !== 'VERIFIED') {
-      throw new BadRequestException('Your PAN must be verified before investing.');
+    // overallStatus includes readiness: KYC complete at the KRA, not just a valid PAN.
+    // The gateway fails every order from an investor who is not ready.
+    if (kyc?.overallStatus !== 'VERIFIED') {
+      throw new BadRequestException(
+        kyc?.overallStatus === 'IN_PROGRESS'
+          ? 'Your KYC is still being verified. Please check again in a few minutes.'
+          : (describeKycFailure(kyc?.readinessCode ?? null, kyc?.failureReason ?? null) ??
+              'Your KYC must be verified before investing.'),
+      );
     }
     // Enforced here rather than trusting dto.email: the AMC emails the statements and
     // order confirmations we are required to deliver, so the address has to be one the
@@ -238,27 +262,135 @@ export class BucketsService {
     if (!user?.email) {
       throw new BadRequestException('Verify your email address before investing.');
     }
+    if (!termsAccepted) {
+      throw new BadRequestException('Accept the Terms and Conditions before investing.');
+    }
+    // Sent to Cybrilla as belongs_to when the account is opened (compliance points 1, 3).
+    if (!user.emailBelongsTo || !user.mobileBelongsTo) {
+      throw new BadRequestException(
+        'Declare whose email address and mobile number these are before investing. You can do this from your profile.',
+      );
+    }
+    const hasAccount = (investor?.mfAccounts.length ?? 0) > 0;
+    if (!hasAccount && dto) {
+      const missing = this.missingAccountDetails(dto);
+      if (missing.length) {
+        throw new BadRequestException(`To open your investment account we still need: ${missing.join(', ')}.`);
+      }
+    }
+    // Narrowed for the caller: the checks above are what make these fields present.
+    return {
+      profile: profile as typeof profile & { pan: string; fullName: string; dateOfBirth: Date },
+      user: user as typeof user & { email: string; emailBelongsTo: string; mobileBelongsTo: string },
+      hasAccount,
+    };
+  }
+
+  /** What a first order must carry to open the investment account, in form order. */
+  private missingAccountDetails(dto: InvestInBucketDto): string[] {
+    const checks: [boolean, string][] = [
+      [!dto.gender, 'gender'],
+      [!dto.occupation, 'occupation'],
+      [!dto.incomeSlab, 'income range'],
+      [!dto.sourceOfWealth, 'source of wealth'],
+      [!dto.pepDetails, 'politically exposed person declaration'],
+      [!dto.placeOfBirth?.trim(), 'place of birth'],
+      [dto.residentIndianDeclaration !== true, 'confirmation that you are an Indian citizen and tax resident of India only'],
+      [!dto.bankAccountHolderName?.trim(), 'account holder name'],
+      [!dto.bankAccountNumber?.trim(), 'bank account number'],
+      [!dto.ifscCode?.trim(), 'IFSC code'],
+      [!dto.accountType, 'bank account type'],
+      [!dto.addressLine1?.trim(), 'address'],
+      [!dto.postalCode?.trim(), 'PIN code'],
+    ];
+    return checks.filter(([isMissing]) => isMissing).map(([, label]) => label);
+  }
+
+  /**
+   * Status the invest form needs before it is shown: whether this order will open the
+   * investment account (and so must collect the investor's details) and anything that
+   * would block investing outright. Mirrors assertCanInvest, without throwing.
+   */
+  async accountStatus(userId: string) {
+    const [kyc, user, termsAccepted, investor] = await Promise.all([
+      this.prisma.kYCApplication.findUnique({ where: { userId } }),
+      this.prisma.user.findUnique({ where: { id: userId } }),
+      this.prisma.consent.findFirst({ where: { userId, type: 'TERMS_AND_CONDITIONS', status: 'GRANTED' } }),
+      this.prisma.fpInvestorProfile.findUnique({ where: { userId }, include: { mfAccounts: true } }),
+    ]);
+    const account = investor?.mfAccounts[0] ?? null;
+    const [mandate, bankAccount] = account
+      ? await Promise.all([this.mandates.approvedFor(userId, 0), this.registeredBankAccount(account.bankAccountId)])
+      : [null, null];
+    return {
+      hasInvestmentAccount: Boolean(account),
+      // What a SIP can collect through; a SIP above this limit needs a new mandate.
+      approvedMandateLimit: mandate?.mandateLimit ?? null,
+      bankAccount,
+      kycStatus: kyc?.overallStatus ?? 'NOT_STARTED',
+      kycMessage: kyc ? describeKycFailure(kyc.readinessCode, kyc.failureReason) : null,
+      emailVerified: Boolean(user?.email),
+      termsAccepted: Boolean(termsAccepted),
+      emailBelongsTo: user?.emailBelongsTo ?? null,
+      mobileBelongsTo: user?.mobileBelongsTo ?? null,
+    };
+  }
+
+  /**
+   * The payout bank account registered at the gateway, masked for display. Read from
+   * Cybrilla rather than stored here: the full account number is not kept locally.
+   */
+  private async registeredBankAccount(bankAccountId: string | null) {
+    if (!bankAccountId) return null;
+    try {
+      const bank = await this.cybrilla.fetchBankAccount(bankAccountId);
+      const number = String(bank?.account_number ?? bank?.data?.account_number ?? '');
+      return {
+        holderName: bank?.primary_account_holder_name ?? null,
+        maskedNumber: number ? `${'•'.repeat(Math.max(0, number.length - 4))}${number.slice(-4)}` : null,
+        ifscCode: bank?.ifsc_code ?? null,
+        type: bank?.type ?? null,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Everything both the lumpsum and the SIP path need before a transaction can be sent:
+   * KYC guards, the Cybrilla investor profile, the bank account and the MF investment
+   * account. Shared by buckets and single funds so the paths cannot drift - an order
+   * placed against a differently-built account would be very hard to diagnose.
+   *
+   * Every value sent to create the profile and account is the investor's own: the
+   * declarations in the request, the declarations on the user, and the request's IP.
+   */
+  private async ensureInvestmentAccount(userId: string, dto: InvestInBucketDto, userIp: string) {
+    const { profile, user } = await this.assertCanInvest(userId, dto);
 
     const dobStr = profile.dateOfBirth.toISOString().slice(0, 10);
 
     let investorProfile = await this.prisma.fpInvestorProfile.findUnique({ where: { userId } });
     if (!investorProfile) {
+      // assertCanInvest has confirmed these are present for a first order.
+      const details = dto as Required<Pick<InvestInBucketDto, 'gender' | 'occupation' | 'incomeSlab' | 'sourceOfWealth' | 'pepDetails' | 'placeOfBirth'>>;
       const created = await this.cybrilla.createInvestorProfile({
         type: 'individual',
+        // These four follow from residentIndianDeclaration, which the investor made.
         tax_status: 'resident_individual',
+        country_of_birth: 'IN',
+        nationality_country: 'IN',
+        first_tax_residency: { country: 'IN', taxid_type: 'pan', taxid_number: profile.pan },
         name: profile.fullName,
         date_of_birth: dobStr,
-        gender: dto.gender,
-        occupation: 'private_sector_service',
+        gender: details.gender,
+        occupation: details.occupation,
         pan: profile.pan,
-        country_of_birth: 'IN',
-        place_of_birth: 'India',
-        nationality_country: 'IN',
-        source_of_wealth: 'salary',
-        income_slab: 'above_5lakh_upto_10lakh',
-        pep_details: 'not_applicable',
-        first_tax_residency: { country: 'IN', taxid_type: 'pan', taxid_number: profile.pan },
-        ip_address: '127.0.0.1',
+        place_of_birth: details.placeOfBirth.trim(),
+        source_of_wealth: details.sourceOfWealth,
+        income_slab: details.incomeSlab,
+        pep_details: details.pepDetails,
+        ip_address: userIp,
       });
 
       investorProfile = await this.prisma.fpInvestorProfile.create({
@@ -268,10 +400,12 @@ export class BucketsService {
           name: profile.fullName,
           pan: profile.pan,
           dateOfBirth: dobStr,
-          gender: dto.gender,
-          occupation: 'private_sector_service',
-          incomeSlab: 'above_5lakh_upto_10lakh',
-          sourceOfWealth: 'salary',
+          gender: details.gender,
+          occupation: details.occupation,
+          incomeSlab: details.incomeSlab,
+          sourceOfWealth: details.sourceOfWealth,
+          pepDetails: details.pepDetails,
+          placeOfBirth: details.placeOfBirth.trim(),
           status: 'CREATED',
         },
       });
@@ -284,19 +418,20 @@ export class BucketsService {
 
     let account = await this.prisma.fpMfInvestmentAccount.findFirst({ where: { investorProfileId: investorProfile.id } });
     if (!account) {
+      const bankDetails = dto as Required<Pick<InvestInBucketDto, 'bankAccountHolderName' | 'bankAccountNumber' | 'ifscCode' | 'accountType' | 'addressLine1' | 'postalCode'>>;
       const bank = await this.cybrilla.createBankAccount({
         profile: fpProfileId,
-        primary_account_holder_name: dto.bankAccountHolderName,
-        account_number: dto.bankAccountNumber,
-        ifsc_code: dto.ifscCode,
-        type: dto.accountType ?? 'savings',
+        primary_account_holder_name: bankDetails.bankAccountHolderName.trim(),
+        account_number: bankDetails.bankAccountNumber.trim(),
+        ifsc_code: bankDetails.ifscCode.trim(),
+        type: bankDetails.accountType,
       });
 
       // folio_defaults fields are references to separately-created contact resources, not inline values.
       const [email, phone, address] = await Promise.all([
-        this.cybrilla.createEmailAddress(fpProfileId, user.email),
-        this.cybrilla.createPhoneNumber(fpProfileId, '91', (user.mobile || '').replace(/^\+?91/, '')),
-        this.cybrilla.createAddress(fpProfileId, dto.addressLine1, 'IN', dto.postalCode),
+        this.cybrilla.createEmailAddress(fpProfileId, user.email, user.emailBelongsTo),
+        this.cybrilla.createPhoneNumber(fpProfileId, '91', (user.mobile || '').replace(/^\+?91/, ''), user.mobileBelongsTo),
+        this.cybrilla.createAddress(fpProfileId, bankDetails.addressLine1.trim(), 'IN', bankDetails.postalCode.trim()),
       ]);
 
       const cybrillaAccount = await this.cybrilla.createInvestmentAccount(fpProfileId, 'single', {
@@ -311,10 +446,16 @@ export class BucketsService {
           fpAccountId: cybrillaAccount.id,
           investorProfileId: investorProfile.id,
           bankAccountId: bank.data.id,
+          bankAccountOldId: Number.isInteger(bank.data.old_id) ? bank.data.old_id : null,
+          fpAccountOldId: Number.isInteger(cybrillaAccount.old_id) ? cybrillaAccount.old_id : null,
           holdingPattern: 'single',
           status: 'ACTIVE',
         },
       });
+
+      // A nomination made before the account existed is registered now that it does.
+      // syncToGateway records its own failures, so the order is not held up by one.
+      await this.nominees.syncToGateway(userId);
     }
     return { account, user };
   }
@@ -337,25 +478,28 @@ export class BucketsService {
    * the caller tells the investor payment could not be started, which is recoverable -
    * throwing here would leave a confirmed order at the gateway that our side forgot.
    */
-  private async startPayment(orderResult: any, bankAccountId: string | null) {
-    const amcOrderId = this.numericOrderId(orderResult);
-    if (amcOrderId === null || !bankAccountId) {
-      this.logger.warn(
-        `Cannot start payment for ${orderResult?.id}: ${amcOrderId === null ? 'no numeric old_id in the gateway response' : 'no bank account on the investment account'}.`,
-      );
-      return null;
-    }
+  /** See resolveBankAccountOldId; shared with mandates, which need the same id. */
+  private async bankAccountOldId(account: { id: string; bankAccountId: string | null; bankAccountOldId: number | null }) {
+    return resolveBankAccountOldId(this.prisma, this.cybrilla, account, this.logger);
+  }
 
-    const numericBankAccount = Number(bankAccountId);
-    if (!Number.isInteger(numericBankAccount)) {
-      this.logger.warn(`Bank account ${bankAccountId} is not numeric; the payment endpoint requires an integer id.`);
+  private async startPayment(
+    orderResult: any,
+    account: { id: string; bankAccountId: string | null; bankAccountOldId: number | null },
+  ) {
+    const amcOrderId = this.numericOrderId(orderResult);
+    const bankAccountId = amcOrderId === null ? null : await this.bankAccountOldId(account);
+    if (amcOrderId === null || bankAccountId === null) {
+      this.logger.warn(
+        `Cannot start payment for ${orderResult?.id}: ${amcOrderId === null ? 'no numeric old_id in the gateway response' : 'no numeric bank account id'}.`,
+      );
       return null;
     }
 
     try {
       return await this.cybrilla.createPayment({
         amcOrderIds: [amcOrderId],
-        bankAccountId: numericBankAccount,
+        bankAccountId,
         // Where the gateway returns the investor after paying. The app registers this
         // scheme (see app.json), so the deep link reopens it on the order screen.
         paymentPostbackUrl: process.env.PAYMENT_POSTBACK_URL || 'techartha://payment-complete',
@@ -366,10 +510,11 @@ export class BucketsService {
     }
   }
 
-  async invest(userId: string, bucketId: string, dto: InvestInBucketDto) {
+  async invest(userId: string, bucketId: string, dto: InvestInBucketDto, userIp: string) {
     // Eligibility is read-only, so it runs before the code is consumed: an investor who
     // is not eligible should not lose their code finding that out.
     const scheme = await this.bucketScheme(userId, bucketId);
+    await this.assertCanInvest(userId, dto);
 
     // Authorised before any Cybrilla resource is created. The code is bound to this
     // amount and bucket, so one issued for a smaller order will not authorise this.
@@ -379,9 +524,10 @@ export class BucketsService {
       { action: 'PURCHASE', amount: dto.amount, bucketId },
       dto.challengeId,
       dto.otp,
+      dto.transactionConsent,
     );
 
-    return this.placePurchase(userId, scheme, dto, { bucketId });
+    return this.placePurchase(userId, scheme, dto, { bucketId }, userIp);
   }
 
   /**
@@ -389,26 +535,31 @@ export class BucketsService {
    * the client learns from GET /funds/:schemeCode/invest-eligibility and passes to the
    * challenge unchanged.
    */
-  async investInFund(userId: string, schemeCode: string, dto: InvestInFundDto) {
+  async investInFund(userId: string, schemeCode: string, dto: InvestInFundDto, userIp: string) {
     const fund = await this.resolveFund(schemeCode);
     await this.checkSuitability(userId, fund, dto.acknowledgeRiskMismatch);
+    await this.assertCanInvest(userId, dto);
 
     await this.twoFactor.verifyAndConsume(
       userId,
       { action: 'PURCHASE', amount: dto.amount, schemeIsin: fund.isin },
       dto.challengeId,
       dto.otp,
+      dto.transactionConsent,
     );
 
-    return this.placePurchase(userId, fund, dto, {
-      schemeCode,
-      riskAcknowledged: dto.acknowledgeRiskMismatch === true,
-    });
+    return this.placePurchase(
+      userId,
+      fund,
+      dto,
+      { schemeCode, riskAcknowledged: dto.acknowledgeRiskMismatch === true },
+      userIp,
+    );
   }
 
   /** The order itself, once the caller has authorised it and settled the scheme. */
-  private async placePurchase(userId: string, scheme: SchemeTarget, dto: InvestInBucketDto, origin: OrderOrigin) {
-    const { account, user } = await this.ensureInvestmentAccount(userId, dto);
+  private async placePurchase(userId: string, scheme: SchemeTarget, dto: InvestInBucketDto, origin: OrderOrigin, userIp: string) {
+    const { account, user } = await this.ensureInvestmentAccount(userId, dto, userIp);
 
     // Real one-time (lumpsum) order placement. Recurring SIP via auto-debit mandate isn't wired
     // yet - Cybrilla's mandate request schema isn't confirmed (see conversation notes), so for now
@@ -418,7 +569,7 @@ export class BucketsService {
       scheme: scheme.isin,
       gateway: scheme.gateway,
       amount: dto.amount,
-      userIp: '127.0.0.1',
+      userIp,
     });
 
     // Step 2 of Cybrilla's purchase flow: a created order sits in `under_review` and
@@ -443,7 +594,7 @@ export class BucketsService {
     // Step 3 of Cybrilla's purchase flow. A confirmed order is not a paid one: without
     // this call nothing is ever collected, so no units are allotted and no folio is
     // created. Every order we placed before this existed was confirmed and unfunded.
-    const payment = await this.startPayment(orderResult, account.bankAccountId);
+    const payment = await this.startPayment(orderResult, account);
 
     const order = await this.prisma.fpPurchaseOrder.create({
       data: {
@@ -481,17 +632,17 @@ export class BucketsService {
   }
 
   /**
-   * Registers a recurring SIP through POST /v2/mf_purchase_plans.
+   * Registers a recurring SIP through POST /v2/mf_purchase_plans, following Cybrilla's
+   * purchase plan flow: the plan is created against an APPROVED auto-debit mandate as
+   * its payment_source, confirmed, and its first instalment fetched and paid.
    *
-   * This is what invest() could not do: the gateway supports UPI Autopay and e-NACH for
-   * SIPs, and /v2/mandates plus /v2/mf_purchase_plans are both live on this tenant.
-   *
-   * The auto-debit mandate is NOT created here. A plan can be registered without one,
-   * but instalments will not be collected until a mandate is authorised by the investor -
-   * so the response says so explicitly rather than implying money will move.
+   * The mandate is set up separately (MandatesService) and checked here before the code
+   * is consumed: without one the gateway cannot confirm the plan.
    */
-  async startSip(userId: string, bucketId: string, dto: StartSipDto) {
+  async startSip(userId: string, bucketId: string, dto: StartSipDto, userIp: string) {
     const scheme = await this.bucketScheme(userId, bucketId);
+    await this.assertCanInvest(userId, dto);
+    const mandate = await this.requireMandate(userId, dto.amount);
 
     await this.twoFactor.verifyAndConsume(
       userId,
@@ -504,15 +655,29 @@ export class BucketsService {
       },
       dto.challengeId,
       dto.otp,
+      dto.transactionConsent,
     );
 
-    return this.registerSip(userId, scheme, dto, { bucketId });
+    return this.registerSip(userId, scheme, dto, { bucketId }, userIp, mandate);
+  }
+
+  /** The approved mandate this SIP will collect through, or a clear refusal. */
+  private async requireMandate(userId: string, amount: number) {
+    const mandate = await this.mandates.approvedFor(userId, amount);
+    if (!mandate) {
+      throw new BadRequestException(
+        `A SIP collects its instalments by auto-debit. Set up and approve a UPI Autopay or e-NACH mandate with a limit of at least ₹${amount} first.`,
+      );
+    }
+    return mandate;
   }
 
   /** A SIP in a single fund. Authorised against the resolved ISIN, as investInFund is. */
-  async startFundSip(userId: string, schemeCode: string, dto: StartFundSipDto) {
+  async startFundSip(userId: string, schemeCode: string, dto: StartFundSipDto, userIp: string) {
     const fund = await this.resolveFund(schemeCode);
     await this.checkSuitability(userId, fund, dto.acknowledgeRiskMismatch);
+    await this.assertCanInvest(userId, dto);
+    const mandate = await this.requireMandate(userId, dto.amount);
 
     await this.twoFactor.verifyAndConsume(
       userId,
@@ -525,44 +690,59 @@ export class BucketsService {
       },
       dto.challengeId,
       dto.otp,
+      dto.transactionConsent,
     );
 
-    return this.registerSip(userId, fund, dto, {
-      schemeCode,
-      riskAcknowledged: dto.acknowledgeRiskMismatch === true,
-    });
+    return this.registerSip(
+      userId,
+      fund,
+      dto,
+      { schemeCode, riskAcknowledged: dto.acknowledgeRiskMismatch === true },
+      userIp,
+      mandate,
+    );
   }
 
-  /** The plan itself, once the caller has authorised it and settled the scheme. */
-  private async registerSip(userId: string, scheme: SchemeTarget, dto: StartSipDto, origin: OrderOrigin) {
+  /** The plan itself, once the caller has authorised it and settled the scheme and mandate. */
+  private async registerSip(
+    userId: string,
+    scheme: SchemeTarget,
+    dto: StartSipDto,
+    origin: OrderOrigin,
+    userIp: string,
+    mandate: { id: string; fpMandateId: number },
+  ) {
     const bucketId = 'bucketId' in origin ? origin.bucketId : null;
-    const { account, user } = await this.ensureInvestmentAccount(userId, dto);
+    const { account, user } = await this.ensureInvestmentAccount(userId, dto, userIp);
 
     const planResult = await this.cybrilla.createPurchasePlan({
       mfInvestmentAccount: account.fpAccountId,
       scheme: scheme.isin,
+      gateway: scheme.gateway,
       amount: dto.amount,
       frequency: dto.frequency,
       installmentDay: dto.installmentDay,
       numberOfInstallments: dto.numberOfInstallments,
-      userIp: '127.0.0.1',
+      userIp,
       // Recorded on the plan itself, as Cybrilla's sample does. Without it the plan
       // carries no consent for the recurring debit it is authorising.
       consent: {
         email: user!.email!,
         mobile: (user!.mobile || '').replace(/^\+?91/, ''),
       },
-      // No mandate is passed because none can be created yet, so payment_method and
-      // payment_source are omitted. Cybrilla's sample makes an approved mandate a
-      // prerequisite for COLLECTING instalments - but the first one is paid by the
-      // investor online, exactly like a lumpsum, so it is raised here and paid below.
-      // That is what makes a SIP demonstrable before mandates exist.
+      // payment_method 'mandate' with the mandate's id as payment_source, as the
+      // purchase plan sample requires before the plan can be confirmed.
+      mandate: String(mandate.fpMandateId),
+      // The first instalment is raised now and paid by the investor online (step 4 of
+      // the sample); later ones are collected through the mandate.
       generateFirstInstallmentNow: true,
     });
 
     // Plans need the same confirmation step as orders.
+    let planState: string | null = planResult?.state ?? null;
     try {
-      await this.cybrilla.confirmPurchasePlan(planResult?.id ?? planResult?.data?.id);
+      const confirmed = await this.cybrilla.confirmPurchasePlan(planResult?.id ?? planResult?.data?.id);
+      planState = confirmed?.state ?? planState;
     } catch (e) {
       this.logger.warn('SIP plan created but could not be confirmed.');
     }
@@ -576,7 +756,7 @@ export class BucketsService {
     if (fpPlanId) {
       firstInstallment = await this.cybrilla.fetchPlanInstallment(fpPlanId);
       if (firstInstallment) {
-        planPayment = await this.startPayment(firstInstallment, account.bankAccountId);
+        planPayment = await this.startPayment(firstInstallment, account);
       } else {
         this.logger.warn(`Plan ${fpPlanId} confirmed but no first instalment order was returned.`);
       }
@@ -591,7 +771,8 @@ export class BucketsService {
         amount: dto.amount,
         frequency: dto.frequency,
         installmentDay: dto.installmentDay,
-        status: 'PENDING_MANDATE_SETUP',
+        status: this.mapPlanState(planState),
+        mandateId: mandate.id,
         fpPlanId,
         firstOrderId: firstInstallment?.id ?? null,
         paymentTokenUrl: planPayment?.token_url ?? null,
@@ -624,14 +805,27 @@ export class BucketsService {
       installmentDay: plan.installmentDay,
       status: plan.status,
       statusLabel: ORDER_STATUS_LABELS[plan.status] ?? plan.status,
-      mandateRequired: true,
-      // The first instalment is payable now; the rest wait on a mandate. Saying only
-      // one of those would be misleading either way.
+      // The first instalment is payable now; the rest are collected by the mandate.
       paymentUrl: plan.paymentTokenUrl,
       message: plan.paymentTokenUrl
-        ? 'Your SIP has been registered. Pay the first instalment to start it. Later instalments are collected automatically once an auto-debit mandate is authorised, which is not yet available.'
-        : 'Your SIP has been registered. No money has been collected yet - an auto-debit mandate must be authorised before instalments can be collected.',
+        ? 'Your SIP has been registered. Pay the first instalment to start it; later instalments are collected through your auto-debit mandate.'
+        : 'Your SIP has been registered. Its instalments are collected through your auto-debit mandate.',
     };
+  }
+
+  /** Maps a Cybrilla mf_purchase_plan "state" onto our plan status vocabulary. */
+  private mapPlanState(state: string | null): string {
+    const map: Record<string, string> = {
+      created: 'CREATED',
+      review_completed: 'CREATED',
+      confirmed: 'CONFIRMED',
+      submitted: 'SUBMITTED',
+      active: 'ACTIVE',
+      completed: 'COMPLETED',
+      failed: 'FAILED',
+      cancelled: 'CANCELLED',
+    };
+    return map[state ?? ''] ?? 'CREATED';
   }
 
   /** Maps a Cybrilla mf_purchase "state" onto our own FpPurchaseOrder status vocabulary. */
@@ -694,6 +888,7 @@ export class BucketsService {
         installmentDay: p.installmentDay,
         status: p.status,
         statusLabel: ORDER_STATUS_LABELS[p.status] ?? p.status,
+        paymentUrl: p.paymentTokenUrl,
         createdAt: p.createdAt,
       })),
       orders: orders.map((o) => ({
@@ -704,6 +899,10 @@ export class BucketsService {
         amount: o.amount,
         status: o.status,
         statusLabel: ORDER_STATUS_LABELS[o.status] ?? o.status,
+        // Offered only while the order can still be paid; a settled or failed order's
+        // old payment page must not be reopened.
+        paymentUrl: ['SUCCEEDED', 'CONFIRMED', 'FAILED', 'REVERSED', 'CANCELLED'].includes(o.status) ? null : o.paymentTokenUrl,
+        folioNumber: o.folioNumber,
         createdAt: o.createdAt,
       })),
     };

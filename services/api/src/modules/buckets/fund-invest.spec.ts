@@ -74,7 +74,7 @@ describe('BucketsService.resolveFund', () => {
   it('buys the growth ISIN MFAPI reports for the scheme code', async () => {
     await expect(resolve(mfapiFund({}))).resolves.toMatchObject({
       isin: 'INF846K01EW2',
-      gateway: 'cybrillapoa',
+      gateway: 'ondc',
       schemeCode: '120503',
       category: 'Equity Scheme - ELSS',
     });
@@ -91,10 +91,11 @@ describe('BucketsService.resolveFund', () => {
 });
 
 describe('BucketsService.investInFund', () => {
-  const fund = { isin: 'INF179K01XQ0', gateway: 'cybrillapoa', fundName: 'HDFC Mid Cap', category: 'Equity Scheme - Mid Cap Fund', schemeCode: '118989' };
+  const fund = { isin: 'INF179K01XQ0', gateway: 'ondc', fundName: 'HDFC Mid Cap', category: 'Equity Scheme - Mid Cap Fund', schemeCode: '118989' };
 
   const makeCtx = (profile: string) => ({
     resolveFund: async () => fund,
+    assertCanInvest: async () => ({}),
     checkSuitability: svc.checkSuitability,
     prisma: { riskProfile: { findUnique: async () => ({ category: profile }) } },
     twoFactor: { verifyAndConsume: jest.fn().mockResolvedValue(true) },
@@ -103,31 +104,32 @@ describe('BucketsService.investInFund', () => {
 
   it('refuses a riskier fund without acknowledgement, before the code is consumed', async () => {
     const ctx = makeCtx('MODERATE');
-    await expect(svc.investInFund.call(ctx, 'u1', '118989', { amount: 500 })).rejects.toThrow(BadRequestException);
+    await expect(svc.investInFund.call(ctx, 'u1', '118989', { amount: 500 }, '203.0.113.5')).rejects.toThrow(BadRequestException);
     expect(ctx.twoFactor.verifyAndConsume).not.toHaveBeenCalled();
   });
 
   it('places the order once acknowledged, and records that it was', async () => {
     const ctx = makeCtx('MODERATE');
-    await svc.investInFund.call(ctx, 'u1', '118989', { amount: 500, acknowledgeRiskMismatch: true, challengeId: 'c', otp: '1' });
+    await svc.investInFund.call(ctx, 'u1', '118989', { amount: 500, acknowledgeRiskMismatch: true, challengeId: 'c', otp: '1', transactionConsent: true }, '203.0.113.5');
     expect(ctx.twoFactor.verifyAndConsume).toHaveBeenCalledWith(
       'u1',
       { action: 'PURCHASE', amount: 500, schemeIsin: 'INF179K01XQ0' },
       'c',
       '1',
+      true,
     );
-    expect(ctx.placePurchase).toHaveBeenCalledWith('u1', fund, expect.anything(), { schemeCode: '118989', riskAcknowledged: true });
+    expect(ctx.placePurchase).toHaveBeenCalledWith('u1', fund, expect.anything(), { schemeCode: '118989', riskAcknowledged: true }, '203.0.113.5');
   });
 
   it('needs no acknowledgement when the fund suits the profile', async () => {
     const ctx = makeCtx('AGGRESSIVE');
-    await svc.investInFund.call(ctx, 'u1', '118989', { amount: 500 });
-    expect(ctx.placePurchase).toHaveBeenCalledWith('u1', fund, expect.anything(), { schemeCode: '118989', riskAcknowledged: false });
+    await svc.investInFund.call(ctx, 'u1', '118989', { amount: 500 }, '203.0.113.5');
+    expect(ctx.placePurchase).toHaveBeenCalledWith('u1', fund, expect.anything(), { schemeCode: '118989', riskAcknowledged: false }, '203.0.113.5');
   });
 
   it('refuses an investor who has not taken the risk assessment', async () => {
     const ctx = { ...makeCtx('X'), prisma: { riskProfile: { findUnique: async () => null } } };
-    await expect(svc.investInFund.call(ctx, 'u1', '118989', { amount: 500, acknowledgeRiskMismatch: true })).rejects.toThrow(
+    await expect(svc.investInFund.call(ctx, 'u1', '118989', { amount: 500, acknowledgeRiskMismatch: true }, '203.0.113.5')).rejects.toThrow(
       /risk assessment/,
     );
   });

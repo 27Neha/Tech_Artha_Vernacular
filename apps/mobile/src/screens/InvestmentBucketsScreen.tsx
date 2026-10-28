@@ -1,61 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { exitOnboarding } from '../utils/navigation';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authStore } from '../store/auth';
 import { Header } from '../components/Header';
 import { SearchIcon } from '../components/Icons';
 import { useTranslation } from 'react-i18next';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
-const DEFAULT_BUCKETS = [
-  {
-    id: 'stable',
-    name: 'Stable Income Bucket',
-    bucketRiskLevel: 'Conservative',
-    explanation: 'Conservative mix of liquid and short-term debt funds. Best for capital safety.',
-    recommended: false,
-    horizon: '1-3 yrs',
-    returns: '6-8%',
-    recommendedFunds: [
-      { schemeCode: '146716', name: 'ICICI Pru Retirement Fund Hybrid', category: 'Conservative Hybrid', nav: '...' },
-      { schemeCode: '101933', name: 'SBI Magnum Gilt Fund', category: 'Gilt Fund', nav: '...' },
-      { schemeCode: '118987', name: 'HDFC Corporate Bond Fund', category: 'Corporate Bond', nav: '...' }
-    ]
-  },
-  {
-    id: 'balanced',
-    name: 'Balanced Growth Bucket',
-    bucketRiskLevel: 'Moderate',
-    explanation: 'Perfect balance of equity for growth and debt for stability.',
-    recommended: true,
-    horizon: '3-7 yrs',
-    returns: '10-12%',
-    recommendedFunds: [
-      { schemeCode: '120579', name: 'ICICI Prudential Children\'s Fund', category: 'Solution Oriented', nav: '...' },
-      { schemeCode: '100119', name: 'HDFC Balanced Advantage Fund', category: 'Dynamic Asset Allocation', nav: '...' },
-      { schemeCode: '118968', name: 'HDFC Balanced Advantage Direct', category: 'Dynamic Asset Allocation', nav: '...' }
-    ]
-  },
-  {
-    id: 'high',
-    name: 'High Growth Bucket',
-    bucketRiskLevel: 'Aggressive',
-    explanation: 'High equity exposure for maximum long-term wealth creation.',
-    recommended: false,
-    horizon: '7+ yrs',
-    returns: '12-15%',
-    recommendedFunds: [
-      { schemeCode: '152365', name: 'ICICI Pru Nifty50 Value 20 Index', category: 'Index Fund', nav: '...' },
-      { schemeCode: '122639', name: 'Parag Parikh Flexi Cap Fund', category: 'Flexi Cap Fund', nav: '...' },
-      { schemeCode: '125354', name: 'Axis Small Cap Fund', category: 'Small Cap Fund', nav: '...' }
-    ]
-  }
-];
-
+/**
+ * GET /buckets - the buckets suited to the investor's assessed risk profile.
+ *
+ * There is no offline fallback list. One used to stand in whenever the request failed
+ * (which, while the token was read from the wrong store, was always), showing buckets
+ * the server does not offer and projected returns nobody computed. If the list cannot
+ * be loaded the screen says so.
+ */
 export const InvestmentBucketsScreen = () => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
@@ -66,89 +29,38 @@ export const InvestmentBucketsScreen = () => {
   const [investorProfile, setInvestorProfile] = useState<string | null>(null);
   
   const [expandedBucket, setExpandedBucket] = useState<string | null>(null);
-  const [investModal, setInvestModal] = useState(false);
-  const [investingBucket, setInvestingBucket] = useState<string | null>(null);
-  const [investForm, setInvestForm] = useState({ amount: '150000', gender: 'male', email: 'test@example.com', bankAccountHolderName: 'John Doe', bankAccountNumber: '1234567890', ifscCode: 'HDFC0001234', addressLine1: '123 Test St', postalCode: '400001' });
-  const [investing, setInvesting] = useState(false);
-  const [investSuccess, setInvestSuccess] = useState<any>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBuckets();
   }, []);
 
   const fetchBuckets = async () => {
+    setLoadError(null);
     try {
-      const token = await AsyncStorage.getItem('access_token');
+      // The session token lives in authStore (backed by SecureStore). AsyncStorage never
+      // held it, so reading it from there sent every request unauthenticated.
+      const token = authStore.accessToken;
       const res = await fetch(`${API_URL}/buckets`, {
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
       });
-      if (res.ok) {
-        const data = await res.json();
-        setInvestorProfile(data.investorProfile);
-        const b = data.buckets?.length ? data.buckets : DEFAULT_BUCKETS;
-        setBuckets(b);
-        const rec = b.find((x: any) => x.recommended);
-        if (rec) setExpandedBucket(rec.id);
-      } else {
-        await loadFallbackLiveNavs();
+      if (!res.ok) {
+        setLoadError(res.status === 401 ? 'Please sign in again to see your buckets.' : 'Buckets could not be loaded. Please try again.');
+        return;
       }
+      const data = await res.json();
+      setInvestorProfile(data.investorProfile);
+      const b = data.buckets ?? [];
+      setBuckets(b);
+      if (data.investorProfile === 'ASSESSMENT_REQUIRED') {
+        setLoadError('Take the risk assessment first. Buckets are offered according to your risk profile.');
+      }
+      const rec = b.find((x: any) => x.recommended);
+      if (rec) setExpandedBucket(rec.id);
     } catch (e) {
-      console.log('Failed to fetch buckets');
-      await loadFallbackLiveNavs();
+      setLoadError('Buckets could not be loaded. Check your connection and try again.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadFallbackLiveNavs = async () => {
-    const liveBuckets = JSON.parse(JSON.stringify(DEFAULT_BUCKETS));
-    
-    await Promise.all(liveBuckets.map(async (bucket: any) => {
-      await Promise.all(bucket.recommendedFunds.map(async (fund: any) => {
-        try {
-          const res = await fetch(`https://api.mfapi.in/mf/${fund.schemeCode}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.data && data.data.length > 0) {
-              fund.nav = parseFloat(data.data[0].nav).toFixed(2);
-            }
-          }
-        } catch (err) {}
-      }));
-    }));
-    
-    setBuckets(liveBuckets);
-    const rec = liveBuckets.find((x: any) => x.recommended);
-    if (rec) setExpandedBucket(rec.id);
-  };
-
-  const handleInvest = async () => {
-    setInvesting(true);
-    try {
-      const token = await AsyncStorage.getItem('access_token');
-      const res = await fetch(`${API_URL}/buckets/${investingBucket}/invest`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({
-          amount: Number(investForm.amount),
-          gender: investForm.gender,
-          email: investForm.email,
-          bankAccountHolderName: investForm.bankAccountHolderName,
-          bankAccountNumber: investForm.bankAccountNumber,
-          ifscCode: investForm.ifscCode,
-          addressLine1: investForm.addressLine1,
-          postalCode: investForm.postalCode
-        })
-      });
-      if (res.ok) {
-        setInvestSuccess(await res.json());
-      } else {
-        Alert.alert('Error', 'Failed to place investment order.');
-      }
-    } catch (e) {
-      Alert.alert('Error', 'Network error.');
-    } finally {
-      setInvesting(false);
     }
   };
 
@@ -171,6 +83,18 @@ export const InvestmentBucketsScreen = () => {
             <Text style={{ fontSize: 15, fontWeight: '700', color: '#9CA3AF' }}>{t('buckets.searchPlaceholder', { defaultValue: 'Search for specific mutual funds...' })}</Text>
           </Pressable>
         </View>
+
+        {loadError ? (
+          <View style={styles.card}>
+            <Text style={styles.desc}>{loadError}</Text>
+            <Pressable
+              style={styles.darkBtn}
+              onPress={() => (investorProfile === 'ASSESSMENT_REQUIRED' ? navigation.navigate('RiskAssessment') : fetchBuckets())}
+            >
+              <Text style={styles.primaryBtnTxt}>{investorProfile === 'ASSESSMENT_REQUIRED' ? 'Take the risk assessment' : 'Try again'}</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {loading ? (
           <ActivityIndicator size="large" color="#3C3985" style={{ marginTop: 40 }} />
@@ -198,10 +122,6 @@ export const InvestmentBucketsScreen = () => {
               
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
                 <View style={{ flex: 1, backgroundColor: '#F1F5F9', padding: 12, borderRadius: 8 }}>
-                  <Text style={{ fontSize: 10, color: '#718096', marginBottom: 4, textTransform: 'uppercase', fontWeight: '600' }}>{t('buckets.estReturns', { defaultValue: 'Est. Returns' })}</Text>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#3C3985' }}>{bucket.returns || 'Var.'}</Text>
-                </View>
-                <View style={{ flex: 1, backgroundColor: '#F1F5F9', padding: 12, borderRadius: 8 }}>
                   <Text style={{ fontSize: 10, color: '#718096', marginBottom: 4, textTransform: 'uppercase', fontWeight: '600' }}>{t('buckets.horizon', { defaultValue: 'Horizon' })}</Text>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: '#3C3985' }}>{bucket.horizon || 'Flex'}</Text>
                 </View>
@@ -212,7 +132,13 @@ export const InvestmentBucketsScreen = () => {
               </View>
               
               <View style={{ marginTop: 8, marginBottom: isExpanded ? 16 : 0, padding: 12, backgroundColor: '#F8F9FB', borderRadius: 12 }}>
-                <Text style={{ fontSize: 11, fontWeight: '800', color: '#6B7280', textTransform: 'uppercase', marginBottom: 8 }}>{t('buckets.fundsInBucket', { defaultValue: 'FUNDS IN THIS BUCKET' })}</Text>
+                {bucket.investsIn ? (
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#6B7280', textTransform: 'uppercase', marginBottom: 4 }}>Your investment goes into</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: '#102A54' }}>{bucket.investsIn.fundName}</Text>
+                  </View>
+                ) : null}
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#6B7280', textTransform: 'uppercase', marginBottom: 8 }}>Similar funds, for reference only</Text>
                 {(bucket.recommendedFunds || []).map((f: any, i: number) => (
                   <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: i === bucket.recommendedFunds.length - 1 ? 0 : 1, borderBottomColor: '#E5E7EB' }}>
                     <View style={{ flex: 1, paddingRight: 8 }}>
@@ -257,16 +183,16 @@ export const InvestmentBucketsScreen = () => {
                       <Text style={styles.primaryBtnTxt}>{t('buckets.select', { defaultValue: 'Select' })}</Text>
                     </Pressable>
                   </View>
+                  {/* The shared invest screen: one-time or SIP, the investor's own details,
+                      and the OTP step. The old inline form here had none of the three. */}
                   <Pressable 
                     style={styles.darkBtn}
                     onPress={(e) => {
                       e.stopPropagation();
-                      setInvestingBucket(bucket.id);
-                      setInvestSuccess(null);
-                      setInvestModal(true);
+                      navigation.navigate('Invest', { bucketId: bucket.id, bucketName: bucket.name });
                     }}
                   >
-                    <Text style={styles.primaryBtnTxt}>{t('buckets.investNow', { defaultValue: 'Invest Now (Start SIP)' })}</Text>
+                    <Text style={styles.primaryBtnTxt}>{t('buckets.investNow', { defaultValue: 'Invest now' })}</Text>
                   </Pressable>
                 </View>
               )}
@@ -284,45 +210,6 @@ export const InvestmentBucketsScreen = () => {
         <Text style={styles.disclaimer}>{t('buckets.disclaimer', { defaultValue: 'Mutual Fund investments are subject to market risks.' })}</Text>
       </ScrollView>
 
-      {/* Invest Modal */}
-      <Modal visible={investModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {investSuccess ? (
-              <View style={{ alignItems: 'center', padding: 20 }}>
-                <Text style={{ fontSize: 40, marginBottom: 12 }}>✅</Text>
-                <Text style={{ fontSize: 18, fontWeight: '800', color: '#102A54', marginBottom: 8, textAlign: 'center' }}>{t('buckets.orderPlaced', { defaultValue: 'Order Placed!' })}</Text>
-                <Text style={{ fontSize: 14, color: '#4A5568', textAlign: 'center', marginBottom: 20 }}>Your investment order of ₹{investSuccess.amount} has been initiated successfully.</Text>
-                <View style={{ backgroundColor: '#FEF3C7', padding: 12, borderRadius: 8, marginBottom: 20, width: '100%' }}>
-                  <Text style={{ color: '#92400E', fontWeight: '700', textAlign: 'center', fontSize: 12 }}>{investSuccess.statusLabel}: {investSuccess.message}</Text>
-                </View>
-                <Pressable style={styles.darkBtn} onPress={() => { setInvestModal(false); navigation.navigate('MainTabs'); }}>
-                  <Text style={styles.primaryBtnTxt}>{t('buckets.goToDash', { defaultValue: 'Go to Dashboard' })}</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <ScrollView>
-                <Text style={{ fontSize: 18, fontWeight: '800', color: '#102A54', marginBottom: 16 }}>{t('buckets.completeInvest', { defaultValue: 'Complete Investment' })}</Text>
-                <Text style={styles.inputLabel}>{t('buckets.investAmt', { defaultValue: 'Investment Amount (₹)' }).replace(',1', '₹')}</Text>
-                <TextInput style={styles.input} value={investForm.amount} onChangeText={(v) => setInvestForm({...investForm, amount: v})} keyboardType="numeric" />
-                <Text style={styles.inputLabel}>{t('buckets.bankHolder', { defaultValue: 'Bank Account Holder' })}</Text>
-                <TextInput style={styles.input} value={investForm.bankAccountHolderName} onChangeText={(v) => setInvestForm({...investForm, bankAccountHolderName: v})} />
-                <Text style={styles.inputLabel}>{t('buckets.bankNumber', { defaultValue: 'Bank Account Number' })}</Text>
-                <TextInput style={styles.input} value={investForm.bankAccountNumber} onChangeText={(v) => setInvestForm({...investForm, bankAccountNumber: v})} />
-                <Text style={styles.inputLabel}>{t('buckets.ifsc', { defaultValue: 'IFSC Code' })}</Text>
-                <TextInput style={styles.input} value={investForm.ifscCode} onChangeText={(v) => setInvestForm({...investForm, ifscCode: v})} />
-                
-                <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
-                  <Pressable style={[styles.outlineBtn, { flex: 1 }]} onPress={() => setInvestModal(false)}><Text style={styles.outlineBtnTxt}>{t('common.cancel', { defaultValue: 'Cancel' })}</Text></Pressable>
-                  <Pressable style={[styles.darkBtn, { flex: 1, marginTop: 0 }]} onPress={handleInvest} disabled={investing}>
-                    <Text style={styles.primaryBtnTxt}>{investing ? t('buckets.processing', { defaultValue: 'Processing...' }) : t('buckets.confirmPay', { defaultValue: 'Confirm & Pay' })}</Text>
-                  </Pressable>
-                </View>
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };
@@ -346,9 +233,5 @@ const styles = StyleSheet.create({
   primaryBtnTxt: { color: 'white', fontSize: 15, fontWeight: '800' },
   laterButton: { paddingVertical: 14, alignItems: 'center', marginTop: 4 },
   laterText: { color: '#3C3985', fontSize: 14, fontWeight: '700' },
-  disclaimer: { fontSize: 10, color: '#A0AEC0', textAlign: 'center', marginTop: 8, marginBottom: 40 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '90%' },
-  inputLabel: { fontSize: 12, fontWeight: '700', color: '#718096', textTransform: 'uppercase', marginBottom: 8, marginTop: 16 },
-  input: { backgroundColor: '#F8F9FB', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 14, fontSize: 15, color: '#102A54' }
+  disclaimer: { fontSize: 10, color: '#A0AEC0', textAlign: 'center', marginTop: 8, marginBottom: 40 }
 });

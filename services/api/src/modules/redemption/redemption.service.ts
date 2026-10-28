@@ -2,14 +2,16 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CybrillaService } from '../cybrilla/cybrilla.service';
 import { TwoFactorService } from '../twofactor/twofactor.service';
+import { Holding, HoldingsService } from '../holdings/holdings.service';
 import { CreateRedemptionDto } from './redemption.dto';
 
 /**
  * Redemptions - Cybrilla compliance points 6 and 9.
  *
- * Holdings come from GET /v2/mf_folios, never from our own tables: the gateway rejects a
- * folio_number it does not recognise with `invalid_folio`, so anything we invented would
- * fail at the point of sale anyway. If that call fails we say we could not read the
+ * Holdings come from Cybrilla's holdings report, never from our own tables: the gateway
+ * rejects a folio_number it does not recognise with `invalid_folio`, so anything we
+ * invented would fail at the point of sale anyway. (GET /v2/mf_folios has no unit
+ * balances at all, which is why it is not used here.) If that call fails we say we could not read the
  * holdings, which is different from saying there are none - showing "nothing to redeem"
  * because of a network error would tell an investor their money is gone.
  */
@@ -21,6 +23,7 @@ export class RedemptionService {
     private readonly prisma: PrismaService,
     private readonly cybrilla: CybrillaService,
     private readonly twoFactor: TwoFactorService,
+    private readonly holdingsService: HoldingsService,
   ) {}
 
   /** The folios this investor can sell from, with what is actually redeemable. */
@@ -34,8 +37,8 @@ export class RedemptionService {
       };
     }
 
-    const folios = await this.cybrilla.fetchFolios(account.fpAccountId);
-    if (folios === null) {
+    const all = await this.holdingsService.forAccount(account);
+    if (all === null) {
       return {
         holdings: [],
         canRedeem: false,
@@ -44,16 +47,9 @@ export class RedemptionService {
       };
     }
 
-    const holdings = folios
-      .map((folio: any) => ({
-        folioNumber: folio.folio_number ?? folio.number,
-        schemeIsin: folio.scheme ?? folio.isin,
-        schemeName: folio.scheme_name ?? folio.name ?? null,
-        units: Number(folio.units ?? folio.unit_balance ?? 0),
-        redeemableUnits: Number(folio.redeemable_units ?? folio.units ?? folio.unit_balance ?? 0),
-        currentValue: folio.current_value != null ? Number(folio.current_value) : null,
-      }))
-      .filter((h: any) => h.folioNumber && h.redeemableUnits > 0);
+    // Folio, scheme name and redeemable units and value are all shown on the screen
+    // (compliance point 9), straight from the report.
+    const holdings = all.filter((h) => h.folioNumber && h.redeemableUnits > 0);
 
     return {
       holdings,
@@ -75,7 +71,7 @@ export class RedemptionService {
       throw new BadRequestException('Verify your email address before withdrawing.');
     }
 
-    const { amount, units } = await this.resolveQuantity(account.fpAccountId, dto);
+    const { amount, units } = await this.resolveQuantity(account, dto);
 
     // Authorised before anything is written or sent. The code is checked against these
     // exact figures, so a code issued for a different folio or amount is refused.
@@ -93,6 +89,7 @@ export class RedemptionService {
       },
       dto.challengeId,
       dto.otp,
+      dto.transactionConsent,
     );
 
     // Written before the call so a gateway failure still leaves a record the investor
@@ -191,7 +188,10 @@ export class RedemptionService {
    * accepts. A full exit is resolved against the live folio balance rather than a number
    * the client supplied, so it cannot overshoot into a rejected order.
    */
-  private async resolveQuantity(fpAccountId: string, dto: CreateRedemptionDto) {
+  private async resolveQuantity(
+    account: { id: string; fpAccountId: string; fpAccountOldId: number | null },
+    dto: CreateRedemptionDto,
+  ) {
     const specified = [dto.amount != null, dto.units != null, !!dto.fullExit].filter(Boolean).length;
     if (specified !== 1) {
       throw new BadRequestException('Choose either an amount, a number of units, or a full withdrawal.');
@@ -199,15 +199,14 @@ export class RedemptionService {
 
     if (!dto.fullExit) return { amount: dto.amount, units: dto.units };
 
-    const folios = await this.cybrilla.fetchFolios(fpAccountId);
-    if (folios === null) {
+    const holdings: Holding[] | null = await this.holdingsService.forAccount(account);
+    if (holdings === null) {
       throw new BadRequestException('We could not read your holdings just now. Please try again in a moment.');
     }
-    const folio = folios.find(
-      (f: any) => (f.folio_number ?? f.number) === dto.folioNumber && (f.scheme ?? f.isin) === dto.schemeIsin,
-    );
-    const balance = Number(folio?.redeemable_units ?? folio?.units ?? folio?.unit_balance ?? 0);
-    if (!folio || balance <= 0) {
+    // One folio can hold several schemes, so both must match.
+    const holding = holdings.find((h) => h.folioNumber === dto.folioNumber && h.schemeIsin === dto.schemeIsin);
+    const balance = holding?.redeemableUnits ?? 0;
+    if (!holding || balance <= 0) {
       throw new BadRequestException('That holding has no units available to redeem.');
     }
     return { amount: undefined, units: balance };

@@ -13,6 +13,11 @@ model User {
   // Written only after a verified email OTP, so a non-null value IS the verification
   // flag - there is no separate boolean that can drift out of sync with it.
   email              String?               @unique
+  /// Self-declaration of whose email and mobile these are (Cybrilla's `belongs_to`:
+  /// self, spouse, dependent_children, ...). Chosen by the investor, never defaulted,
+  /// and sent with the contact details when the investment account is created.
+  emailBelongsTo     String?
+  mobileBelongsTo    String?
   preferredLanguage  String                @default("en")
   passwordHash       String?
   referralCode       String?
@@ -27,7 +32,6 @@ model User {
   devices            Device[]
   expenses           Expense[]
   FpInvestorProfile  FpInvestorProfile?
-  FpMandate          FpMandate[]
   goals              Goal[]
   guardian           Guardian?
   nominees           Nominee[]
@@ -343,6 +347,11 @@ model KYCApplication {
   workflowId            String?
   status                String             @default("NOT_STARTED")
   panStatus             String             @default("PENDING")
+  /// Pre-verification `readiness`: whether the investor's KYC is complete at the KRA.
+  /// The gateway fails every order while this is not VERIFIED, whatever panStatus says.
+  readinessStatus       String             @default("PENDING")
+  /// Cybrilla's readiness failure code, e.g. kyc_incomplete or kyc_underprocess.
+  readinessCode         String?
   documentStatus        String             @default("PENDING")
   faceLivenessStatus    String             @default("PENDING")
   faceMatchStatus       String             @default("PENDING")
@@ -408,6 +417,10 @@ model FpInvestorProfile {
   occupation     String
   incomeSlab     String
   sourceOfWealth String
+  /// Politically exposed person declaration: pep_exposed, pep_related or not_applicable.
+  pepDetails     String?
+  /// City of birth, as declared by the investor.
+  placeOfBirth   String?
   status         String                  @default("CREATED")
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
@@ -444,6 +457,10 @@ model TransactionChallenge {
   /// PENDING | CONSUMED | EXPIRED | SUPERSEDED. A consumed challenge is never reusable.
   status      String    @default("PENDING")
   consumedAt  DateTime?
+  /// The consent statement the investor accepted when entering the code, and when.
+  /// Required for the code to be accepted, so every authorised transaction has one.
+  consentText String?
+  consentedAt DateTime?
   createdAt   DateTime  @default(now())
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -475,9 +492,13 @@ model Nominee {
   /// Required when the nominee is a minor on the date the nomination is recorded.
   guardianName         String?
   guardianRelationship String?
-  /// PENDING until the gateway accepts it; NOT_SUPPORTED while the shape is unknown.
+  /// PENDING until registered on the investment account, then SYNCED; FAILED with
+  /// fpSyncError when the gateway refused it.
   fpSyncStatus         String   @default("PENDING")
+  /// The nominee's Cybrilla related_party id, referenced from folio_defaults.nomineeN.
   fpNomineeRef         String?
+  /// Why the last attempt to register the nomination with the gateway failed.
+  fpSyncError          String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
   user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -490,6 +511,11 @@ model FpMfInvestmentAccount {
   fpAccountId       String            @unique
   investorProfileId String
   bankAccountId     String?
+  /// The bank account's numeric `old_id`. The payment endpoint takes this, not the
+  /// bac_... id, so payment cannot be started without it.
+  bankAccountOldId  Int?
+  /// The investment account's numeric `old_id`, which the holdings report requires.
+  fpAccountOldId    Int?
   holdingPattern    String            @default("single")
   status            String            @default("ACTIVE")
   createdAt         DateTime          @default(now())
@@ -498,6 +524,31 @@ model FpMfInvestmentAccount {
   orders            FpPurchaseOrder[]
   redemptions       FpRedemptionOrder[]
   plans             FpPurchasePlan[]
+  mandates          FpMandate[]
+}
+
+// An auto-debit mandate (UPI Autopay or e-NACH) - what a SIP collects its instalments
+// through. Cybrilla's purchase plan flow requires an APPROVED one as the plan's
+// payment_source before the plan can be confirmed.
+model FpMandate {
+  id               String                @id @default(uuid())
+  accountId        String
+  /// The gateway's numeric mandate id (POST /api/pg/mandates).
+  fpMandateId      Int                   @unique
+  /// E_MANDATE (e-NACH) or UPI (UPI Autopay), as the investor chose.
+  mandateType      String
+  /// The most that can be debited per instalment, as the investor set it.
+  mandateLimit     Float
+  /// The gateway's mandate_status: CREATED, SUBMITTED, APPROVED, REJECTED, CANCELLED...
+  status           String                @default("CREATED")
+  umrn             String?
+  /// Where the investor authorises the mandate with their bank.
+  authorizationUrl String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  account          FpMfInvestmentAccount @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
 }
 
 model FpPurchaseOrder {
@@ -587,19 +638,6 @@ model CustomBucket {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
-}
-
-model FpMandate {
-  id            String   @id @default(uuid())
-  fpMandateId   String?  @unique
-  userId        String
-  type          String   @default("UPI_AUTOPAY")
-  status        String   @default("CREATED")
-  maxAmount     Float
-  bankAccountId String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  user          User     @relation(fields: [userId], references: [id])
 }
 
 model GuardianConsent {

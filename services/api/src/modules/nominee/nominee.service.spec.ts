@@ -71,8 +71,9 @@ describe('NomineeService identity proof handling', () => {
     expect(normalize({ identityProofType: 'pan', identityProofNumber: ' abcde1234f ' })).toBe('ABCDE1234F');
   });
 
-  it('strips spaces from an Aadhaar', () => {
-    expect(normalize({ identityProofType: 'aadhaar', identityProofNumber: '1234 5678 9012' })).toBe('123456789012');
+  it('validates a spaced Aadhaar but keeps only its last four digits', () => {
+    // The gateway takes the last four; a third party's full Aadhaar is not stored.
+    expect(normalize({ identityProofType: 'aadhaar', identityProofNumber: '1234 5678 9012' })).toBe('9012');
   });
 
   it.each([

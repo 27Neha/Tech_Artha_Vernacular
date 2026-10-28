@@ -1,4 +1,5 @@
 import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { BELONGS_TO } from '../cybrilla/investor-options';
 import { JwtService } from '@nestjs/jwt';
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -293,6 +294,25 @@ export class AuthService {
     return this.createSession(user, deviceId);
   }
 
+  /**
+   * Sets the password at the end of signup. The OTP step has already created the account
+   * and signed the investor in, so this acts on that session rather than on a mobile
+   * number in the body - otherwise anyone could set a password on someone else's
+   * passwordless account. Changing an existing password is a different flow.
+   */
+  async setInitialPassword(userId: string, password: string, clientType?: string) {
+    if (!password || password.length < 8) throw new BadRequestException('Password must be at least 8 characters.');
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('Account not found.');
+    if (user.passwordHash) throw new BadRequestException('A password is already set on this account.');
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: this.hash(password), ...(clientType ? { clientType } : {}) },
+    });
+    return { status: 'PASSWORD_SET' };
+  }
+
   async loginPassword(mobile: string, password?: string, deviceId?: string) {
     const normalizedMobile = this.normalizeMobile(mobile);
     if (!password) throw new BadRequestException('Password is required.');
@@ -346,7 +366,46 @@ export class AuthService {
       include: { profile: true, riskProfile: true, onboardingProgress: true }
     });
     if (!user) throw new Error('User not found');
-    return { id: user.id, mobile: user.mobile, email: user.email, clientType: user.clientType, profile: user.profile, riskProfile: user.riskProfile, onboardingProgress: user.onboardingProgress };
+    return {
+      id: user.id,
+      mobile: user.mobile,
+      email: user.email,
+      emailBelongsTo: user.emailBelongsTo,
+      mobileBelongsTo: user.mobileBelongsTo,
+      clientType: user.clientType,
+      profile: user.profile,
+      riskProfile: user.riskProfile,
+      onboardingProgress: user.onboardingProgress,
+    };
+  }
+
+  /**
+   * The investor's self-declaration of whose email and mobile number these are
+   * (Cybrilla compliance points 1 and 3). Each is the investor's own choice from
+   * Cybrilla's belongs_to list; nothing is assumed, so an undeclared field stays null
+   * and investing is refused until it is answered.
+   */
+  async saveContactDeclarations(userId: string, data: { emailBelongsTo?: string; mobileBelongsTo?: string }) {
+    for (const [field, value] of Object.entries(data)) {
+      if (value !== undefined && !(BELONGS_TO as readonly string[]).includes(value)) {
+        throw new BadRequestException(`${field} must be one of: ${BELONGS_TO.join(', ')}.`);
+      }
+    }
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(data.emailBelongsTo !== undefined && { emailBelongsTo: data.emailBelongsTo }),
+        ...(data.mobileBelongsTo !== undefined && { mobileBelongsTo: data.mobileBelongsTo }),
+      },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'CONTACT_DECLARATION',
+        details: JSON.stringify({ emailBelongsTo: user.emailBelongsTo, mobileBelongsTo: user.mobileBelongsTo }),
+      },
+    });
+    return { emailBelongsTo: user.emailBelongsTo, mobileBelongsTo: user.mobileBelongsTo };
   }
 
   async updateProfile(userId: string, data: { fullName?: string; dateOfBirth?: string; pan?: string; clientType?: string; referralCode?: string }) {

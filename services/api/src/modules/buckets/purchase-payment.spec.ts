@@ -38,18 +38,22 @@ describe('BucketsService.numericOrderId', () => {
 });
 
 describe('BucketsService.startPayment', () => {
-  const makeService = (createPayment: jest.Mock) => ({
-    cybrilla: { createPayment },
+  const makeService = (createPayment: jest.Mock, fetchBankAccount = jest.fn(), update = jest.fn()) => ({
+    cybrilla: { createPayment, fetchBankAccount },
+    prisma: { fpMfInvestmentAccount: { update } },
     logger: { warn: jest.fn(), log: jest.fn() },
     numericOrderId: svc.numericOrderId,
+    bankAccountOldId: svc.bankAccountOldId,
   });
 
-  const run = (orderResult: unknown, bankAccountId: string | null, createPayment = jest.fn()) =>
-    svc.startPayment.call(makeService(createPayment), orderResult, bankAccountId);
+  const account = (bankAccountId: string | null, bankAccountOldId: number | null = null) => ({ id: 'a1', bankAccountId, bankAccountOldId });
 
-  it('passes the numeric old_id and bank account to the gateway', async () => {
+  const run = (orderResult: unknown, acct: ReturnType<typeof account>, createPayment = jest.fn(), fetchBankAccount = jest.fn(), update = jest.fn()) =>
+    svc.startPayment.call(makeService(createPayment, fetchBankAccount, update), orderResult, acct);
+
+  it('passes the numeric old_id and the stored numeric bank account to the gateway', async () => {
     const createPayment = jest.fn().mockResolvedValue({ id: 45, token_url: 'https://pay.example/t' });
-    const result = await run({ id: 'mfp_1', old_id: 71 }, '33', createPayment);
+    const result = await run({ id: 'mfp_1', old_id: 71 }, account('bac_1', 33), createPayment);
 
     expect(createPayment).toHaveBeenCalledWith(
       expect.objectContaining({ amcOrderIds: [71], bankAccountId: 33 }),
@@ -57,23 +61,35 @@ describe('BucketsService.startPayment', () => {
     expect(result.token_url).toBe('https://pay.example/t');
   });
 
+  it('looks up and saves the numeric id for an account that only has its bac_ id', async () => {
+    // Accounts opened before the numeric id was stored. Without this they could never pay.
+    const createPayment = jest.fn().mockResolvedValue({ id: 45, token_url: 'u' });
+    const fetchBankAccount = jest.fn().mockResolvedValue({ id: 'bac_1', old_id: 182 });
+    const update = jest.fn();
+    await run({ old_id: 71 }, account('bac_1'), createPayment, fetchBankAccount, update);
+
+    expect(createPayment).toHaveBeenCalledWith(expect.objectContaining({ bankAccountId: 182 }));
+    expect(update).toHaveBeenCalledWith({ where: { id: 'a1' }, data: { bankAccountOldId: 182 } });
+  });
+
   it('does not call the gateway without a numeric order id', async () => {
     const createPayment = jest.fn();
-    expect(await run({ id: 'mfp_1' }, '33', createPayment)).toBeNull();
+    expect(await run({ id: 'mfp_1' }, account('bac_1', 33), createPayment)).toBeNull();
     expect(createPayment).not.toHaveBeenCalled();
   });
 
   it('does not call the gateway without a bank account', async () => {
     const createPayment = jest.fn();
-    expect(await run({ old_id: 71 }, null, createPayment)).toBeNull();
+    expect(await run({ old_id: 71 }, account(null), createPayment)).toBeNull();
     expect(createPayment).not.toHaveBeenCalled();
   });
 
-  it('refuses a non-numeric bank account id rather than sending it', async () => {
-    // The endpoint takes an integer; posting a uuid would fail at the gateway with a
+  it('refuses rather than guessing when the numeric id cannot be found', async () => {
+    // The endpoint takes an integer; posting the bac_ id would fail at the gateway with a
     // far less obvious error than this.
     const createPayment = jest.fn();
-    expect(await run({ old_id: 71 }, 'bank_a174108c', createPayment)).toBeNull();
+    const fetchBankAccount = jest.fn().mockResolvedValue({ id: 'bac_1' });
+    expect(await run({ old_id: 71 }, account('bac_1'), createPayment, fetchBankAccount)).toBeNull();
     expect(createPayment).not.toHaveBeenCalled();
   });
 
@@ -81,6 +97,6 @@ describe('BucketsService.startPayment', () => {
     // The order exists and is confirmed at the gateway by this point. Throwing here
     // would abandon it, leaving a live order our side never recorded.
     const createPayment = jest.fn().mockRejectedValue(new Error('gateway down'));
-    await expect(run({ old_id: 71 }, '33', createPayment)).resolves.toBeNull();
+    await expect(run({ old_id: 71 }, account('bac_1', 33), createPayment)).resolves.toBeNull();
   });
 });

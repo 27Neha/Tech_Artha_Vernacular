@@ -23,6 +23,23 @@ export type CybrillaSipFrequency =
   | 'half_yearly'
   | 'yearly';
 
+/**
+ * A readable message from a gateway error body. Cybrilla puts field-level problems in
+ * `error.errors` as [{ field, message }]; passing that array straight into an exception
+ * made the app show "[object Object]" instead of, say, the minimum investment amount.
+ */
+export function gatewayMessage(responseData: any, fallback: string): string {
+  const errors = responseData?.error?.errors;
+  if (Array.isArray(errors) && errors.length) {
+    const parts = errors
+      .map((e: any) => (typeof e === 'string' ? e : [e?.field, e?.message].filter(Boolean).join(' ')))
+      .filter(Boolean);
+    if (parts.length) return `${parts.join('; ')}.`;
+  }
+  const message = responseData?.error?.message;
+  return typeof message === 'string' && message && !/^Validation failed/i.test(message) ? message : fallback;
+}
+
 @Injectable()
 export class CybrillaService {
   private readonly logger = new Logger(CybrillaService.name);
@@ -294,23 +311,140 @@ export class CybrillaService {
     return response.data;
   }
 
-  /** Contact detail resources - referenced by ID (not inline) in an MF Investment Account's folio_defaults. */
-  async createEmailAddress(investorProfileId: string, email: string) {
+  private async tenantGet(path: string) {
+    if (!this.accessToken) {
+      await this.authenticate();
+    }
+    const response = await axios.get(`${this.sandboxBaseUrl}${path}`, {
+      headers: {
+        Authorization: `Bearer ${this.accessToken}`,
+        'x-tenant-id': process.env.CYBRILLA_TENANT_ID,
+      },
+    });
+    return response.data;
+  }
+
+  /**
+   * POST /v2/related_parties - a nominee. folio_defaults.nominee1..3 take the id of one
+   * of these; passing the nominee's details inline is what the gateway rejected before.
+   */
+  async createRelatedParty(body: Record<string, unknown>) {
+    try {
+      return await this.tenantPost('/v2/related_parties', body);
+    } catch (error: any) {
+      const responseData = error?.response?.data;
+      this.logger.error(`Related party creation failed. HTTP ${error?.response?.status} - ${JSON.stringify(responseData)}`);
+      throw new BadRequestException(gatewayMessage(responseData, 'The nominee could not be registered with the fund house.'));
+    }
+  }
+
+  /**
+   * PATCH /v2/mf_investment_accounts with new folio_defaults. The account's current
+   * folio_defaults are read and merged first, so setting the nominees cannot clear the
+   * communication and payout details the account was opened with.
+   */
+  async updateFolioDefaults(fpAccountId: string, changes: Record<string, unknown>) {
+    const current = await this.fetchInvestmentAccount(fpAccountId);
+    const existing = Object.fromEntries(
+      Object.entries(current?.folio_defaults ?? {}).filter(([, v]) => v !== null && v !== undefined),
+    );
+    try {
+      return await this.tenantPatch('/v2/mf_investment_accounts', {
+        id: fpAccountId,
+        folio_defaults: { ...existing, ...changes },
+      });
+    } catch (error: any) {
+      const responseData = error?.response?.data;
+      this.logger.error(`folio_defaults update failed for ${fpAccountId}. HTTP ${error?.response?.status} - ${JSON.stringify(responseData)}`);
+      throw new BadRequestException(gatewayMessage(responseData, 'The nomination could not be registered with the fund house.'));
+    }
+  }
+
+  /**
+   * POST /api/pg/mandates - an auto-debit mandate on the investor's bank account.
+   * `bankAccountId` is the bank account's numeric old_id, as for payments.
+   */
+  async createMandate(params: { bankAccountId: number; mandateType: 'E_MANDATE' | 'UPI'; mandateLimit: number }) {
+    try {
+      return await this.tenantPost('/api/pg/mandates', {
+        mandate_type: params.mandateType,
+        bank_account_id: params.bankAccountId,
+        mandate_limit: params.mandateLimit,
+        provider_name: 'CYBRILLAPOA',
+      });
+    } catch (error: any) {
+      const responseData = error?.response?.data;
+      this.logger.error(`Mandate creation failed. HTTP ${error?.response?.status} - ${JSON.stringify(responseData)}`);
+      throw new BadRequestException(gatewayMessage(responseData, 'The auto-debit mandate could not be created.'));
+    }
+  }
+
+  /** POST /api/pg/payments/emandate/auth - the page where the investor approves the mandate. */
+  async authorizeMandate(mandateId: number, postbackUrl: string): Promise<{ id: number; token_url: string }> {
+    try {
+      return await this.tenantPost('/api/pg/payments/emandate/auth', {
+        mandate_id: mandateId,
+        payment_postback_url: postbackUrl,
+      });
+    } catch (error: any) {
+      const responseData = error?.response?.data;
+      this.logger.error(`Mandate authorisation failed for ${mandateId}. HTTP ${error?.response?.status} - ${JSON.stringify(responseData)}`);
+      throw new BadRequestException(gatewayMessage(responseData, 'The mandate authorisation page could not be opened.'));
+    }
+  }
+
+  /** GET /api/pg/mandates/:id - its current mandate_status and UMRN. */
+  async fetchMandate(mandateId: number) {
+    return this.tenantGet(`/api/pg/mandates/${mandateId}`);
+  }
+
+  /** GET /v2/mf_investment_accounts/:id. Used for its numeric `old_id`. */
+  async fetchInvestmentAccount(fpAccountId: string) {
+    return this.tenantGet(`/v2/mf_investment_accounts/${encodeURIComponent(fpAccountId)}`);
+  }
+
+  /**
+   * GET /api/oms/reports/holdings - units, NAV, market value and invested value per
+   * folio and scheme, as computed by Cybrilla from the RTA's records. Takes the
+   * investment account's numeric old_id; the mfia_... id is rejected as non-numeric.
+   */
+  async fetchHoldingsReport(accountOldId: number) {
+    return this.tenantGet(`/api/oms/reports/holdings?investment_account_id=${accountOldId}`);
+  }
+
+  /**
+   * GET /v2/bank_accounts/:id. Used for the numeric `old_id`, which the payment endpoint
+   * requires and which accounts created before it was stored do not have locally.
+   */
+  async fetchBankAccount(bankAccountId: string) {
+    return this.tenantGet(`/v2/bank_accounts/${encodeURIComponent(bankAccountId)}`);
+  }
+
+  /**
+   * Contact detail resources - referenced by ID (not inline) in an MF Investment Account's
+   * folio_defaults. `belongsTo` is the investor's own declaration of whose address this is
+   * (Cybrilla compliance point 1); it is passed through, never assumed.
+   */
+  async createEmailAddress(investorProfileId: string, email: string, belongsTo: string) {
     return this.tenantPost('/v2/email_addresses', {
       profile: investorProfileId,
       email,
+      belongs_to: belongsTo,
     });
   }
 
+  /** As createEmailAddress: `belongsTo` is the investor's declaration (compliance point 3). */
   async createPhoneNumber(
     investorProfileId: string,
     isd: string,
     number: string,
+    belongsTo: string,
   ) {
     return this.tenantPost('/v2/phone_numbers', {
       profile: investorProfileId,
       isd,
       number,
+      belongs_to: belongsTo,
     });
   }
 
@@ -411,9 +545,7 @@ export class CybrillaService {
       );
       if (status === 400) {
         throw new BadRequestException(
-          responseData?.error?.errors ??
-            responseData?.error?.message ??
-            'Could not place this order.',
+          gatewayMessage(responseData, 'Could not place this order.'),
         );
       }
       throw new InternalServerErrorException('Cybrilla purchase order failed.');
@@ -492,7 +624,7 @@ export class CybrillaService {
         throw new BadRequestException(
           responseData?.error?.code === 'invalid_folio'
             ? 'That folio could not be found. Refresh your holdings and try again.'
-            : (responseData?.error?.errors ?? responseData?.error?.message ?? 'Could not place this redemption.'),
+            : (gatewayMessage(responseData, 'Could not place this redemption.')),
         );
       }
       throw new InternalServerErrorException('Cybrilla redemption failed.');
@@ -530,6 +662,7 @@ export class CybrillaService {
   async createPurchasePlan(params: {
     mfInvestmentAccount: string;
     scheme: string;
+    gateway: string;
     amount: number;
     frequency: CybrillaSipFrequency;
     installmentDay: number;
@@ -547,6 +680,7 @@ export class CybrillaService {
       return await this.tenantPost('/v2/mf_purchase_plans', {
         mf_investment_account: params.mfInvestmentAccount,
         scheme: params.scheme,
+        gateway: params.gateway,
         amount: params.amount,
         frequency: params.frequency,
         installment_day: params.installmentDay,
@@ -576,9 +710,7 @@ export class CybrillaService {
       );
       if (status === 400) {
         throw new BadRequestException(
-          responseData?.error?.errors ??
-            responseData?.error?.message ??
-            'Could not register this SIP.',
+          gatewayMessage(responseData, 'Could not register this SIP.'),
         );
       }
       throw new InternalServerErrorException('Cybrilla SIP registration failed.');
@@ -617,7 +749,7 @@ export class CybrillaService {
       );
       if (status === 400) {
         throw new BadRequestException(
-          responseData?.error?.errors ?? responseData?.error?.message ?? 'Could not confirm this order.',
+          gatewayMessage(responseData, 'Could not confirm this order.'),
         );
       }
       throw new InternalServerErrorException('Cybrilla order confirmation failed.');
@@ -669,7 +801,7 @@ export class CybrillaService {
       );
       if (status === 400) {
         throw new BadRequestException(
-          responseData?.error?.errors ?? responseData?.error?.message ?? 'Could not confirm this SIP.',
+          gatewayMessage(responseData, 'Could not confirm this SIP.'),
         );
       }
       throw new InternalServerErrorException('Cybrilla SIP confirmation failed.');
@@ -708,7 +840,7 @@ export class CybrillaService {
       );
       if (status === 400) {
         throw new BadRequestException(
-          responseData?.error?.errors ?? responseData?.error?.message ?? 'Could not start this payment.',
+          gatewayMessage(responseData, 'Could not start this payment.'),
         );
       }
       throw new InternalServerErrorException('Cybrilla payment creation failed.');

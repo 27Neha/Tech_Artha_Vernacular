@@ -26,9 +26,14 @@ export type TransactionPayload = {
 type Challenge = {
   challengeId: string;
   summary: string;
+  /** The server's wording; it stores this same text with the authorisation. */
+  consentStatement?: string;
   expiresInSeconds: number;
   devOtp?: string;
 };
+
+/** Sent with the transaction: the code, and the investor's consent given with it. */
+export type TransactionAuth = { challengeId: string; otp: string; transactionConsent: true };
 
 export const TransactionOtpModal = ({
   visible,
@@ -40,18 +45,21 @@ export const TransactionOtpModal = ({
   payload: TransactionPayload | null;
   onCancel: () => void;
   /** Called with the fields the transaction endpoint needs alongside the payload. */
-  onAuthorised: (auth: { challengeId: string; otp: string }) => void;
+  onAuthorised: (auth: TransactionAuth) => void;
 }) => {
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
+  // Never pre-ticked: consent is the investor's act at the moment of entering the code.
+  const [consented, setConsented] = useState(false);
 
   useEffect(() => {
     if (!visible || !payload) {
       setChallenge(null);
       setOtp('');
       setError('');
+      setConsented(false);
       return;
     }
     let active = true;
@@ -75,7 +83,8 @@ export const TransactionOtpModal = ({
   const confirm = () => {
     if (!challenge) return;
     if (otp.trim().length < 4) return setError('Enter the 4-digit code.');
-    onAuthorised({ challengeId: challenge.challengeId, otp: otp.trim() });
+    if (!consented) return setError('Tick the box to confirm you authorise this transaction.');
+    onAuthorised({ challengeId: challenge.challengeId, otp: otp.trim(), transactionConsent: true });
   };
 
   return (
@@ -112,12 +121,30 @@ export const TransactionOtpModal = ({
               {__DEV__ && challenge?.devOtp ? (
                 <Text style={styles.devNote}>Dev bypass: code {challenge.devOtp} filled in automatically.</Text>
               ) : null}
+              {challenge ? (
+                <Pressable
+                  style={styles.consentRow}
+                  onPress={() => {
+                    setConsented((v) => !v);
+                    setError('');
+                  }}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: consented }}
+                >
+                  <View style={[styles.checkbox, consented && styles.checkboxChecked]}>
+                    {consented ? <Text style={styles.checkmark}>✓</Text> : null}
+                  </View>
+                  <Text style={styles.consentText}>
+                    {challenge.consentStatement ?? 'I authorise TechArtha to place this transaction on my behalf.'}
+                  </Text>
+                </Pressable>
+              ) : null}
               {error ? <Text style={styles.error}>{error}</Text> : null}
 
               <Pressable
-                style={[styles.button, (!challenge || otp.trim().length < 4) && styles.disabled]}
+                style={[styles.button, (!challenge || otp.trim().length < 4 || !consented) && styles.disabled]}
                 onPress={confirm}
-                disabled={!challenge || otp.trim().length < 4}
+                disabled={!challenge || otp.trim().length < 4 || !consented}
               >
                 <Text style={styles.buttonText}>Authorise</Text>
               </Pressable>
@@ -141,6 +168,11 @@ const styles = StyleSheet.create({
   hint: { color: '#718096', fontSize: 12, marginTop: 8, lineHeight: 18 },
   input: { backgroundColor: '#F8F9FB', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, height: 52, paddingHorizontal: 16, fontSize: 18, letterSpacing: 4, color: '#102A54', marginTop: 16, textAlign: 'center' },
   devNote: { color: '#7A5B00', fontSize: 11, marginTop: 8, fontWeight: '600' },
+  consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 16 },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#3C3985', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+  checkboxChecked: { backgroundColor: '#3C3985' },
+  checkmark: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  consentText: { flex: 1, color: '#102A54', fontSize: 12, lineHeight: 18 },
   error: { color: '#C53030', fontSize: 12, marginTop: 8, fontWeight: '600' },
   button: { backgroundColor: '#3C3985', padding: 15, borderRadius: 12, alignItems: 'center', marginTop: 18 },
   buttonText: { color: '#fff', fontSize: 15, fontWeight: '700' },

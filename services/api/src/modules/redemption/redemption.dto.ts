@@ -10,6 +10,11 @@ export class CreateRedemptionDto {
   @IsOptional()
   otp?: string;
 
+  /** The investor ticked the consent statement shown with the code. See TwoFactorService. */
+  @IsBoolean()
+  @IsOptional()
+  transactionConsent?: boolean;
+
   @IsString()
   @MinLength(6)
   folioNumber: string;

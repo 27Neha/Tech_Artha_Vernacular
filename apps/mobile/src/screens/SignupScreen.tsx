@@ -52,6 +52,12 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
   // Returned by the server only outside production with AUTH_DEV_BYPASS on. Carried so
   // the OTP screen can prefill it while real SMS and WhatsApp delivery is unreliable.
   const [devOtp, setDevOtp] = useState<string | null>(null);
+  // Held between OTP verification (which creates the account) and the password step.
+  const [signupSession, setSignupSession] = useState<{
+    accessToken: string;
+    refreshToken: string;
+    user?: { id: string; mobile?: string };
+  } | null>(null);
   const [error, setError] = useState('');
   const [showReqs, setShowReqs] = useState(false);
 
@@ -85,26 +91,10 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
       }
     }
 
-    setLoading(true);
-    try {
-      const res = await fetch(`${apiUrl}/auth/check`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(channel === 'EMAIL' ? { email } : { mobile })
-      });
-      const data = await safeFetchJson(res);
-      if (data.exists) {
-        setError(channel === 'EMAIL' ? t('signup.emailExists', { defaultValue: 'This email is already registered. Please log in instead.' }) : t('signup.mobileExists', { defaultValue: 'This mobile number is already registered. Please log in instead.' }));
-        setLoading(false);
-        return;
-      }
-      
-      setAuthChannel(channel);
-      await handleSendSignupOtp(channel);
-    } catch (e: any) {
-      setError(t('common.error', { defaultValue: 'Something went wrong. Please try again.' }));
-      setLoading(false);
-    }
+    // No separate existence check: /auth/signup/start answers 409 for a registered
+    // number, which handleSendSignupOtp already turns into "please log in instead".
+    setAuthChannel(channel);
+    await handleSendSignupOtp(channel);
   };
 
   const handleSendSignupOtp = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL') => {
@@ -142,7 +132,22 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
       });
       const data = await safeFetchJson(res);
       if (!res.ok) throw new Error(data.message || t('login.invalidOtp', { defaultValue: 'Invalid OTP' }));
-      
+
+      // Verifying the OTP creates the account and signs the investor in. The session is
+      // kept for the password step, which acts on it rather than on the mobile number.
+      const token = data.accessToken || data.access_token;
+      setSignupSession({ accessToken: token, refreshToken: data.refreshToken || '', user: data.user });
+
+      // The terms were accepted on the first step, before an account existed to record
+      // them against. Recorded now, so acceptance is held server-side with its version,
+      // not only as a checkbox in the app.
+      const consentRes = await fetch(`${apiUrl}/consents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ type: 'TERMS_AND_CONDITIONS' }),
+      });
+      if (!consentRes.ok) throw new Error('Could not record your acceptance of the terms. Please try again.');
+
       setStep(1.6);
     } catch (e: any) {
       setError(e.message);
@@ -160,27 +165,32 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
       setError(t('signup.reqLength', { defaultValue: 'At least 8 characters required' }));
       return;
     }
+    if (!signupSession?.accessToken) {
+      setError('Your session has expired. Please verify your number again.');
+      setStep(1);
+      return;
+    }
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${apiUrl}/auth/signup`, {
+      // POST /auth/signup would refuse here: the OTP step already created the account.
+      // The password is set on that account through its own session instead.
+      const res = await fetch(`${apiUrl}/auth/password`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(authChannel === 'EMAIL' 
-          ? { email, password, clientType: 'retail' } 
-          : { mobile, password, clientType: 'retail' })
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${signupSession.accessToken}` },
+        body: JSON.stringify({ password, clientType: 'retail' })
       });
       const data = await safeFetchJson(res);
       if (!res.ok) throw new Error(data.message || 'Signup failed');
-      
-      const token = data.accessToken || data.access_token;
+
+      const { accessToken: token, refreshToken, user } = signupSession;
       authStore.accessToken = token;
-      authStore.userId = data.user?.id;
-      if (token && data.user) {
+      authStore.userId = user?.id;
+      if (token && user) {
         await signIn({
           accessToken: token,
-          refreshToken: data.refreshToken || '',
-          user: { id: data.user.id, mobile: data.user.mobile || mobile || '' }
+          refreshToken,
+          user: { id: user.id, mobile: user.mobile || mobile || '' }
         });
       }
       // 'ProfileSetup' was never a registered route, so signup dead-ended here. KYC is

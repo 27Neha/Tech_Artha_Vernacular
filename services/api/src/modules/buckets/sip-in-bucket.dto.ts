@@ -4,22 +4,11 @@ import { InvestInBucketDto } from './invest-in-bucket.dto';
 /**
  * A SIP needs everything a lumpsum does, plus the schedule.
  *
- * The frequency list is exactly what /v2/mf_purchase_plans accepts - taken from the
- * gateway's own validation error rather than the docs, which were truncated. It is
- * case sensitive.
+ * /v2/mf_purchase_plans accepts ten frequencies in general, but plans go through the
+ * ONDC gateway, which supports only these three (per the purchase plan API reference).
+ * Anything else would be accepted here and then rejected at the gateway. Case sensitive.
  */
-export const SIP_FREQUENCIES = [
-  'calendar_day_daily',
-  'daily',
-  'day_in_a_week',
-  'four_times_a_month',
-  'day_in_a_fortnight',
-  'twice_a_month',
-  'monthly',
-  'quarterly',
-  'half_yearly',
-  'yearly',
-] as const;
+export const SIP_FREQUENCIES = ['daily', 'calendar_day_daily', 'monthly'] as const;
 
 export class StartSipDto extends InvestInBucketDto {
   @IsIn(SIP_FREQUENCIES as unknown as string[])

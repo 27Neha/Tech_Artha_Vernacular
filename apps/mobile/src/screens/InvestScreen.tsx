@@ -13,7 +13,17 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../services/api/client';
-import { TransactionOtpModal, TransactionPayload } from '../components/TransactionOtpModal';
+import { TransactionAuth, TransactionOtpModal, TransactionPayload } from '../components/TransactionOtpModal';
+import { ChoiceChips } from '../components/ChoiceChips';
+import { TermsModal } from '../components/TermsModal';
+import {
+  ACCOUNT_TYPE_OPTIONS,
+  GENDER_OPTIONS,
+  INCOME_OPTIONS,
+  OCCUPATION_OPTIONS,
+  PEP_OPTIONS,
+  WEALTH_SOURCE_OPTIONS,
+} from '../constants/investorOptions';
 
 /**
  * POST /buckets/:bucketId/invest - places a REAL order through Cybrilla.
@@ -31,9 +41,10 @@ import { TransactionOtpModal, TransactionPayload } from '../components/Transacti
  * first: it may not be buyable at all, and if it is riskier than the investor's profile
  * they must acknowledge that before the order can be placed.
  *
- * A registered SIP collects nothing until an auto-debit mandate (UPI Autopay or e-NACH)
- * is authorised, so the SIP path says that in the confirmation, the warning and the
- * success dialog. It must not read as though money has started moving.
+ * A SIP collects its instalments through an approved auto-debit mandate (UPI Autopay or
+ * e-NACH), which the gateway requires before it will confirm the plan. The mandate needs
+ * the investment account's bank account, so a SIP comes after a first one-time
+ * investment and a mandate set up on the mandates screen; the form says so up front.
  */
 type InvestResult = {
   orderId: string;
@@ -82,22 +93,29 @@ const riskLabel = (level?: string) =>
 
 type Gender = 'male' | 'female' | 'transgender';
 
+/** GET /buckets/account-status - what this order needs before the form can be submitted. */
+type AccountStatus = {
+  hasInvestmentAccount: boolean;
+  /** Limit of an approved mandate, or null when there is none to collect a SIP through. */
+  approvedMandateLimit: number | null;
+  kycStatus: string;
+  kycMessage?: string | null;
+  emailVerified: boolean;
+  termsAccepted: boolean;
+  emailBelongsTo: string | null;
+  mobileBelongsTo: string | null;
+};
+
 type Mode = 'lumpsum' | 'sip';
 
 /**
- * The gateway accepts ten frequencies, but support is per-scheme - sending an
- * unsupported one returns "scheme: selected frequency is not supported". Only the two
- * standard SIP cadences are offered; the rest are available on the API if needed.
+ * Plans go through the ONDC gateway, which supports only daily, calendar_day_daily and
+ * monthly. Monthly is the standard SIP cadence; the daily options are left off the app.
  */
-const FREQUENCIES: { value: string; label: string }[] = [
-  { value: 'monthly', label: 'Monthly' },
-  { value: 'quarterly', label: 'Quarterly' },
-];
+const FREQUENCIES: { value: string; label: string }[] = [{ value: 'monthly', label: 'Monthly' }];
 
 /** Cybrilla rejects an instalment day of 29-31, so the picker stops at 28. */
 const INSTALLMENT_DAYS = [1, 5, 10, 15, 20, 25, 28];
-
-const GENDERS: Gender[] = ['male', 'female', 'transgender'];
 
 const MIN_AMOUNT = 100;
 
@@ -132,6 +150,20 @@ export const InvestScreen = () => {
   const [ifscCode, setIfscCode] = useState('');
   const [addressLine1, setAddressLine1] = useState('');
   const [postalCode, setPostalCode] = useState('');
+  // The investor's own declarations, collected only when this order opens the
+  // investment account. Every one starts unanswered (Cybrilla compliance point 11).
+  const [occupation, setOccupation] = useState<string | null>(null);
+  const [incomeSlab, setIncomeSlab] = useState<string | null>(null);
+  const [sourceOfWealth, setSourceOfWealth] = useState<string | null>(null);
+  const [pepDetails, setPepDetails] = useState<string | null>(null);
+  const [placeOfBirth, setPlaceOfBirth] = useState('');
+  const [residentIndian, setResidentIndian] = useState(false);
+  const [accountType, setAccountType] = useState<string | null>(null);
+  // Terms acceptance for investors who signed up before acceptance was recorded.
+  const [termsChecked, setTermsChecked] = useState(false);
+  const [termsVisible, setTermsVisible] = useState(false);
+  const [status, setStatus] = useState<AccountStatus | null>(null);
+  const opensAccount = status !== null && !status.hasInvestmentAccount;
   const [submitting, setSubmitting] = useState(false);
   // Purchases and SIPs both need a second factor before any money moves.
   const [pendingAuth, setPendingAuth] = useState<TransactionPayload | null>(null);
@@ -161,6 +193,41 @@ export const InvestScreen = () => {
       };
     }, []),
   );
+
+  // Re-read on focus: an investor sent to verify KYC or make their declarations comes
+  // back to a form that knows they have.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      api
+        .get<AccountStatus>('/buckets/account-status')
+        .then((data) => active && setStatus(data))
+        .catch(() => active && setStatus(null));
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
+
+  /** Anything that blocks investing outright, which no field on this form can fix. */
+  const blocker: { message: string; action?: { label: string; route: string } } | null = !status
+    ? null
+    : status.kycStatus !== 'VERIFIED'
+      ? {
+          message:
+            status.kycStatus === 'IN_PROGRESS'
+              ? 'Your KYC is still being verified. You can invest once it is complete.'
+              : (status.kycMessage ?? 'Complete your KYC before investing.'),
+          action: status.kycStatus === 'IN_PROGRESS' ? undefined : { label: 'Go to KYC', route: 'KYC' },
+        }
+      : !status.emailVerified || !status.emailBelongsTo || !status.mobileBelongsTo
+        ? {
+            message: !status.emailVerified
+              ? 'Verify your email address before investing.'
+              : 'Tell us whose email address and mobile number these are before investing.',
+            action: { label: 'Update my profile', route: 'EditProfile' },
+          }
+        : null;
 
   // Re-read on focus too: an investor sent off to take the risk assessment comes back
   // to a form that reflects their new profile.
@@ -193,16 +260,33 @@ export const InvestScreen = () => {
         return 'This fund is riskier than your profile. Confirm you understand the risk to continue.';
       }
     }
+    if (!status) return 'Still loading your account. Try again in a moment.';
+    if (blocker) return blocker.message;
+    if (!status.termsAccepted && !termsChecked) return 'Accept the Terms and Conditions to continue.';
     const value = Number(amount);
     if (!Number.isFinite(value) || value < MIN_AMOUNT) return `Enter an amount of at least ₹${MIN_AMOUNT}.`;
-    if (gender === null) return 'Select your gender.';
     if (!email) return 'Verify your email address before investing.';
-    if (bankAccountHolderName.trim().length < 3) return "Enter the bank account holder's full name.";
-    if (bankAccountNumber.trim().length < 5) return 'Enter a valid bank account number.';
-    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscCode)) return 'Enter a valid 11-character IFSC code, for example HDFC0000001.';
-    if (addressLine1.trim().length < 3) return 'Enter your address.';
-    if (!/^\d{6}$/.test(postalCode)) return 'Enter a valid 6-digit PIN code.';
+    if (opensAccount) {
+      if (gender === null) return 'Select your gender.';
+      if (!occupation) return 'Select your occupation.';
+      if (!incomeSlab) return 'Select your annual income range.';
+      if (!sourceOfWealth) return 'Select your main source of wealth.';
+      if (!pepDetails) return 'Answer whether you are a politically exposed person.';
+      if (placeOfBirth.trim().length < 2) return 'Enter your city of birth.';
+      if (!residentIndian) return 'Confirm your citizenship and tax residency to continue.';
+      if (bankAccountHolderName.trim().length < 3) return "Enter the bank account holder's full name.";
+      if (bankAccountNumber.trim().length < 5) return 'Enter a valid bank account number.';
+      if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscCode)) return 'Enter a valid 11-character IFSC code, for example HDFC0000001.';
+      if (!accountType) return 'Select the bank account type.';
+      if (addressLine1.trim().length < 3) return 'Enter your address.';
+      if (!/^\d{6}$/.test(postalCode)) return 'Enter a valid 6-digit PIN code.';
+    }
     if (mode === 'sip') {
+      if (opensAccount) return 'Make a one-time investment first to open your account, then set up auto-debit for SIPs.';
+      if (status.approvedMandateLimit === null) return 'Set up and approve an auto-debit mandate before starting a SIP.';
+      if (value > status.approvedMandateLimit) {
+        return `Your auto-debit limit is ₹${status.approvedMandateLimit.toLocaleString('en-IN')}. Lower the SIP amount or set up a mandate with a higher limit.`;
+      }
       if (installmentDay === null) return 'Choose the day of the month for your instalment.';
       const installments = Number(numberOfInstallments);
       if (!Number.isInteger(installments) || installments < 1) {
@@ -222,7 +306,7 @@ export const InvestScreen = () => {
     Alert.alert(
       mode === 'sip' ? 'Confirm your SIP' : 'Confirm your investment',
       mode === 'sip'
-        ? `₹${Number(amount).toLocaleString('en-IN')} ${freqLabel.toLowerCase()} on day ${installmentDay}, for ${numberOfInstallments} instalments, into ${targetName}.\n\nNo money is collected until you authorise an auto-debit mandate.`
+        ? `₹${Number(amount).toLocaleString('en-IN')} ${freqLabel.toLowerCase()} on day ${installmentDay}, for ${numberOfInstallments} instalments, into ${targetName}.\n\nThe first instalment is paid now; later ones are collected through your auto-debit mandate.`
         : `₹${Number(amount).toLocaleString('en-IN')} will be invested in ${targetName} as a one-time purchase.`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -261,9 +345,19 @@ export const InvestScreen = () => {
    * the code is issued for, and the same ones sent to the transaction endpoint, so the
    * server's fingerprint check passes only for an unchanged request.
    */
-  const submit = () => {
+  const submit = async () => {
     const problem = validate();
     if (problem) return Alert.alert('Check your details', problem);
+
+    // Recorded server-side, with its version, before anything is authorised.
+    if (status && !status.termsAccepted) {
+      try {
+        await api.post('/consents', { type: 'TERMS_AND_CONDITIONS' });
+        setStatus({ ...status, termsAccepted: true });
+      } catch (e) {
+        return Alert.alert('Could not record your acceptance', e instanceof Error ? e.message : 'Please try again.');
+      }
+    }
 
     // A bucket fixes its scheme server-side; a single fund is identified by the ISIN the
     // server reported, which it resolves again from the scheme code when the order runs.
@@ -281,21 +375,34 @@ export const InvestScreen = () => {
     );
   };
 
-  const placeAuthorised = async (auth: { challengeId: string; otp: string }) => {
+  const placeAuthorised = async (auth: TransactionAuth) => {
     setSubmitting(true);
     // Bucket endpoints don't take it, and the server's whitelist would strip it anyway.
     const acknowledgement = isFund ? { acknowledgeRiskMismatch: riskAcknowledged } : {};
+    // Sent only when this order opens the account; a returning investor's account
+    // already holds them, and the server ignores them then.
+    const accountDetails = opensAccount
+      ? {
+          gender,
+          occupation,
+          incomeSlab,
+          sourceOfWealth,
+          pepDetails,
+          placeOfBirth: placeOfBirth.trim(),
+          residentIndianDeclaration: residentIndian,
+          bankAccountHolderName: bankAccountHolderName.trim(),
+          bankAccountNumber: bankAccountNumber.trim(),
+          ifscCode: ifscCode.trim(),
+          accountType,
+          addressLine1: addressLine1.trim(),
+          postalCode: postalCode.trim(),
+        }
+      : {};
     try {
       if (mode === 'sip') {
         const sip = await api.post<SipResult>(`${basePath}/sip`, {
           amount: Number(amount),
-          gender,
-          email,
-          bankAccountHolderName: bankAccountHolderName.trim(),
-          bankAccountNumber: bankAccountNumber.trim(),
-          ifscCode: ifscCode.trim(),
-          addressLine1: addressLine1.trim(),
-          postalCode: postalCode.trim(),
+          ...accountDetails,
           frequency,
           installmentDay,
           numberOfInstallments: Number(numberOfInstallments),
@@ -303,12 +410,11 @@ export const InvestScreen = () => {
           ...auth,
         });
 
-        // The server registers the plan as PENDING_MANDATE_SETUP and says plainly that
-        // nothing is collected yet. Its message is used rather than a cheerier one.
+        // The server's message says what happens next (pay the first instalment, the
+        // rest through the mandate); it is used rather than a cheerier one.
         Alert.alert(
           'SIP registered',
-          sip?.message ??
-            'Your SIP has been registered. No money has been collected yet - an auto-debit mandate must be authorised before instalments can be collected.',
+          sip?.message ?? 'Your SIP has been registered.',
           paymentActions(sip?.paymentUrl),
         );
         return;
@@ -316,13 +422,7 @@ export const InvestScreen = () => {
 
       const result = await api.post<InvestResult>(`${basePath}/invest`, {
         amount: Number(amount),
-        gender,
-        email,
-        bankAccountHolderName: bankAccountHolderName.trim(),
-        bankAccountNumber: bankAccountNumber.trim(),
-        ifscCode: ifscCode.trim(),
-        addressLine1: addressLine1.trim(),
-        postalCode: postalCode.trim(),
+        ...accountDetails,
         ...acknowledgement,
         ...auth,
       });
@@ -354,6 +454,18 @@ export const InvestScreen = () => {
       </View>
 
       <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+        {blocker ? (
+          <View style={styles.blockedBox}>
+            <Text style={styles.blockedTitle}>Before you can invest</Text>
+            <Text style={styles.blockedText}>{blocker.message}</Text>
+            {blocker.action ? (
+              <Pressable style={styles.verifyButton} onPress={() => navigation.navigate(blocker.action!.route)}>
+                <Text style={styles.verifyButtonText}>{blocker.action.label}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
         {isFund && eligibility && !eligibility.investable ? (
           <View style={styles.blockedBox}>
             <Text style={styles.blockedTitle}>This fund can&apos;t be invested in</Text>
@@ -409,6 +521,22 @@ export const InvestScreen = () => {
           style={styles.input}
         />
 
+        {mode === 'sip' && status && (opensAccount || status.approvedMandateLimit === null) ? (
+          <View style={styles.riskBox}>
+            <Text style={styles.riskTitle}>Auto-debit needed for a SIP</Text>
+            <Text style={styles.riskText}>
+              {opensAccount
+                ? 'A SIP collects its instalments by auto-debit from your registered bank account. Make a one-time investment first to open your account, then set up auto-debit.'
+                : 'A SIP collects its instalments by auto-debit from your bank account. Set up a UPI Autopay or e-NACH mandate and approve it with your bank first.'}
+            </Text>
+            {!opensAccount ? (
+              <Pressable style={styles.verifyButton} onPress={() => navigation.navigate('ActiveMandates')}>
+                <Text style={styles.verifyButtonText}>Set up auto-debit</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
         {mode === 'sip' ? (
           <>
             <Text style={styles.label}>Frequency</Text>
@@ -451,21 +579,6 @@ export const InvestScreen = () => {
           </>
         ) : null}
 
-        <Text style={styles.label}>Gender</Text>
-        <View style={styles.genderRow}>
-          {GENDERS.map((option) => (
-            <Pressable
-              key={option}
-              onPress={() => setGender(option)}
-              style={[styles.genderChip, gender === option && styles.genderChipSelected]}
-            >
-              <Text style={gender === option ? styles.genderTextSelected : styles.genderText}>
-                {option.charAt(0).toUpperCase() + option.slice(1)}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
         <Text style={styles.label}>Email</Text>
         {email ? (
           <>
@@ -491,60 +604,120 @@ export const InvestScreen = () => {
           </>
         )}
 
-        <Text style={styles.sectionTitle}>Bank account</Text>
-        <Text style={styles.label}>Account holder name</Text>
-        <TextInput
-          value={bankAccountHolderName}
-          onChangeText={setBankAccountHolderName}
-          autoCapitalize="words"
-          style={styles.input}
-        />
+        {opensAccount ? (
+          <>
+            {/* Asked once, to open the investment account. Each is the investor's own
+                declaration and goes to the fund house as given. */}
+            <Text style={styles.sectionTitle}>About you</Text>
+            <Text style={styles.hint}>Needed once, to open your investment account with the fund house.</Text>
+            <Text style={styles.label}>Gender</Text>
+            <ChoiceChips options={GENDER_OPTIONS} value={gender} onChange={(v) => setGender(v as Gender)} />
+            <Text style={styles.label}>Occupation</Text>
+            <ChoiceChips options={OCCUPATION_OPTIONS} value={occupation} onChange={setOccupation} />
+            <Text style={styles.label}>Annual income</Text>
+            <ChoiceChips options={INCOME_OPTIONS} value={incomeSlab} onChange={setIncomeSlab} />
+            <Text style={styles.label}>Main source of wealth</Text>
+            <ChoiceChips options={WEALTH_SOURCE_OPTIONS} value={sourceOfWealth} onChange={setSourceOfWealth} />
+            <Text style={styles.label}>Are you, or are you related to, a politically exposed person?</Text>
+            <ChoiceChips options={PEP_OPTIONS} value={pepDetails} onChange={setPepDetails} />
+            <Text style={styles.label}>City of birth</Text>
+            <TextInput value={placeOfBirth} onChangeText={setPlaceOfBirth} autoCapitalize="words" maxLength={60} style={styles.input} />
+            <Pressable
+              style={styles.ackRow}
+              onPress={() => setResidentIndian((v) => !v)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: residentIndian }}
+            >
+              <View style={[styles.checkboxPlain, residentIndian && styles.checkboxPlainChecked]}>
+                {residentIndian ? <Text style={styles.checkmark}>✓</Text> : null}
+              </View>
+              <Text style={styles.ackText}>
+                I am an Indian citizen, born in India, and a tax resident of India only.
+              </Text>
+            </Pressable>
+            <Text style={styles.hint}>
+              Investors who are not tax resident only in India cannot invest through the app yet.
+            </Text>
 
-        <Text style={styles.label}>Account number</Text>
-        <TextInput
-          value={bankAccountNumber}
-          onChangeText={setBankAccountNumber}
-          keyboardType="number-pad"
-          style={styles.input}
-        />
+            <Text style={styles.sectionTitle}>Bank account</Text>
+            <Text style={styles.label}>Account holder name</Text>
+            <TextInput
+              value={bankAccountHolderName}
+              onChangeText={setBankAccountHolderName}
+              autoCapitalize="words"
+              style={styles.input}
+            />
 
-        <Text style={styles.label}>IFSC code</Text>
-        <TextInput
-          value={ifscCode}
-          onChangeText={(value) => setIfscCode(value.toUpperCase())}
-          autoCapitalize="characters"
-          maxLength={11}
-          placeholder="HDFC0000001"
-          style={styles.input}
-        />
+            <Text style={styles.label}>Account number</Text>
+            <TextInput
+              value={bankAccountNumber}
+              onChangeText={setBankAccountNumber}
+              keyboardType="number-pad"
+              style={styles.input}
+            />
 
-        <Text style={styles.sectionTitle}>Address</Text>
-        <Text style={styles.label}>Address line 1</Text>
-        <TextInput value={addressLine1} onChangeText={setAddressLine1} style={styles.input} />
+            <Text style={styles.label}>IFSC code</Text>
+            <TextInput
+              value={ifscCode}
+              onChangeText={(value) => setIfscCode(value.toUpperCase())}
+              autoCapitalize="characters"
+              maxLength={11}
+              placeholder="HDFC0000001"
+              style={styles.input}
+            />
 
-        <Text style={styles.label}>PIN code</Text>
-        <TextInput
-          value={postalCode}
-          onChangeText={(value) => setPostalCode(value.replace(/\D/g, ''))}
-          keyboardType="number-pad"
-          maxLength={6}
-          placeholder="400001"
-          style={styles.input}
-        />
+            <Text style={styles.label}>Account type</Text>
+            <ChoiceChips options={ACCOUNT_TYPE_OPTIONS} value={accountType} onChange={setAccountType} />
+
+            <Text style={styles.sectionTitle}>Address</Text>
+            <Text style={styles.label}>Address line 1</Text>
+            <TextInput value={addressLine1} onChangeText={setAddressLine1} style={styles.input} />
+
+            <Text style={styles.label}>PIN code</Text>
+            <TextInput
+              value={postalCode}
+              onChangeText={(value) => setPostalCode(value.replace(/\D/g, ''))}
+              keyboardType="number-pad"
+              maxLength={6}
+              placeholder="400001"
+              style={styles.input}
+            />
+          </>
+        ) : null}
+
+        {status && !status.termsAccepted ? (
+          <Pressable
+            style={styles.ackRow}
+            onPress={() => setTermsChecked((v) => !v)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: termsChecked }}
+          >
+            <View style={[styles.checkboxPlain, termsChecked && styles.checkboxPlainChecked]}>
+              {termsChecked ? <Text style={styles.checkmark}>✓</Text> : null}
+            </View>
+            <Text style={styles.ackText}>
+              I accept the{' '}
+              <Text style={styles.link} onPress={() => setTermsVisible(true)}>
+                Terms and Conditions
+              </Text>
+              .
+            </Text>
+          </Pressable>
+        ) : null}
 
         <View style={styles.warningBox}>
           <Text style={styles.warningText}>
             {mode === 'sip'
-              ? 'Registering a SIP does not collect money. An auto-debit mandate (UPI Autopay or e-NACH) must be authorised before the first instalment is taken. '
+              ? 'The first instalment is paid when you start the SIP; later instalments are debited through your mandate on the day you choose. '
               : 'This places a one-time purchase order. It is not a recurring SIP. '}
             Mutual fund investments are subject to market risks; read all scheme related documents carefully.
           </Text>
         </View>
 
         <Pressable
-          style={[styles.button, (submitting || fundBlocked) && styles.buttonDisabled]}
+          style={[styles.button, (submitting || fundBlocked || !!blocker) && styles.buttonDisabled]}
           onPress={confirmAndInvest}
-          disabled={submitting || fundBlocked}
+          disabled={submitting || fundBlocked || !!blocker}
         >
           <Text style={styles.buttonText}>
             {submitting
@@ -560,6 +733,7 @@ export const InvestScreen = () => {
           <Text style={styles.outlineText}>Cancel</Text>
         </Pressable>
       </ScrollView>
+      <TermsModal visible={termsVisible} onClose={() => setTermsVisible(false)} />
       <TransactionOtpModal
         visible={pendingAuth !== null}
         payload={pendingAuth}
@@ -612,6 +786,9 @@ const styles = StyleSheet.create({
   ackRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 12 },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#C05621', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
   checkboxChecked: { backgroundColor: '#C05621' },
+  checkboxPlain: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#3C3985', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+  checkboxPlainChecked: { backgroundColor: '#3C3985' },
+  link: { color: '#3C3985', fontWeight: '700', textDecorationLine: 'underline' },
   checkmark: { color: '#fff', fontSize: 13, fontWeight: '800' },
   ackText: { flex: 1, color: '#102A54', fontSize: 13, fontWeight: '600', lineHeight: 19 },
   warningBox: { backgroundColor: '#FFFAF0', padding: 16, borderRadius: 12, borderColor: '#FBD38D', borderWidth: 1, marginTop: 28 },

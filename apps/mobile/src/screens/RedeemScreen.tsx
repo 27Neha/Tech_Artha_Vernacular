@@ -14,7 +14,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { api } from '../services/api/client';
 import { Header } from '../components/Header';
-import { TransactionOtpModal, TransactionPayload } from '../components/TransactionOtpModal';
+import { TransactionAuth, TransactionOtpModal, TransactionPayload } from '../components/TransactionOtpModal';
 
 /**
  * Withdrawing money - Cybrilla compliance points 6 and 9.
@@ -30,7 +30,10 @@ type Holding = {
   schemeName: string | null;
   units: number;
   redeemableUnits: number;
-  currentValue: number | null;
+  /** Value of the redeemable units at the latest NAV, from Cybrilla's holdings report. */
+  redeemableValue: number | null;
+  nav: number | null;
+  navDate: string | null;
 };
 
 type HoldingsResponse = {
@@ -117,7 +120,7 @@ export const RedeemScreen = () => {
    * Runs once the code is accepted. The payload is sent exactly as it was authorised -
    * the server re-fingerprints it, so any difference is refused rather than executed.
    */
-  const placeAuthorised = async (auth: { challengeId: string; otp: string }) => {
+  const placeAuthorised = async (auth: TransactionAuth) => {
     const payload = pendingAuth;
     setPendingAuth(null);
     if (!payload) return;
@@ -175,9 +178,16 @@ export const RedeemScreen = () => {
                 >
                   <Text style={styles.holdingName}>{holding.schemeName ?? holding.schemeIsin}</Text>
                   <Text style={styles.holdingMeta}>Folio {holding.folioNumber}</Text>
+                  {/* Folio, scheme, units and balance are all on the card (compliance point 9). */}
                   <Text style={styles.holdingMeta}>
-                    {holding.redeemableUnits} units redeemable
-                    {holding.currentValue != null ? ` · ₹${holding.currentValue}` : ''}
+                    {holding.redeemableUnits.toFixed(3)} of {holding.units.toFixed(3)} units redeemable
+                  </Text>
+                  <Text style={styles.holdingMeta}>
+                    Available balance:{' '}
+                    {holding.redeemableValue != null
+                      ? `₹${holding.redeemableValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : 'not yet valued'}
+                    {holding.nav != null ? ` (NAV ₹${holding.nav.toFixed(4)}${holding.navDate ? ` on ${holding.navDate}` : ''})` : ''}
                   </Text>
                 </Pressable>
               );

@@ -14,6 +14,7 @@ import { RedemptionService } from '../redemption/redemption.service';
  * authorisation step is stubbed to throw REACHED, which proves the code was accepted.
  */
 const REACHED = 'REACHED';
+const IP = '203.0.113.5';
 
 const makeTwoFactor = () => {
   const rows: any[] = [];
@@ -56,7 +57,8 @@ afterAll(() => {
 /** Issues a code exactly as POST /transactions/2fa/challenge would. */
 const issue = async (twoFactor: TwoFactorService, payload: TransactionPayload) => {
   const { challengeId, devOtp } = await twoFactor.challenge('u1', payload);
-  return { challengeId, otp: devOtp as string };
+  // transactionConsent is what the app sends once the investor ticks the consent box.
+  return { challengeId, otp: devOtp as string, transactionConsent: true };
 };
 
 describe('purchase round trip', () => {
@@ -65,11 +67,13 @@ describe('purchase round trip', () => {
     const auth = await issue(twoFactor, authorised);
     const ctx = {
       twoFactor,
-      bucketScheme: async () => ({ isin: 'INF109K01605', gateway: 'cybrillapoa', fundName: 'Test' }),
+      assertCanInvest: async () => ({}),
+    requireMandate: async () => ({ id: 'm1', fpMandateId: 5 }),
+      bucketScheme: async () => ({ isin: 'INF109K01605', gateway: 'ondc', fundName: 'Test' }),
       placePurchase: jest.fn().mockRejectedValue(new Error(REACHED)),
       registerSip: jest.fn().mockRejectedValue(new Error(REACHED)),
     };
-    return BucketsService.prototype.invest.call(ctx, 'u1', 'balanced', { amount: sentAmount, ...auth } as any);
+    return BucketsService.prototype.invest.call(ctx, 'u1', 'balanced', { amount: sentAmount, ...auth } as any, IP);
   };
 
   it('accepts the payload InvestScreen authorises for a lumpsum', async () => {
@@ -103,7 +107,9 @@ describe('SIP round trip', () => {
     const auth = await issue(twoFactor, authorised);
     const ctx = {
       twoFactor,
-      bucketScheme: async () => ({ isin: 'INF109K01605', gateway: 'cybrillapoa', fundName: 'Test' }),
+      assertCanInvest: async () => ({}),
+    requireMandate: async () => ({ id: 'm1', fpMandateId: 5 }),
+      bucketScheme: async () => ({ isin: 'INF109K01605', gateway: 'ondc', fundName: 'Test' }),
       placePurchase: jest.fn().mockRejectedValue(new Error(REACHED)),
       registerSip: jest.fn().mockRejectedValue(new Error(REACHED)),
     };
@@ -114,7 +120,7 @@ describe('SIP round trip', () => {
       numberOfInstallments: 12,
       ...sent,
       ...auth,
-    } as any);
+    } as any, IP);
   };
 
   it('accepts the payload InvestScreen authorises for a SIP', async () => {
@@ -131,7 +137,7 @@ describe('SIP round trip', () => {
 });
 
 describe('redemption round trip', () => {
-  const folios = [{ folio_number: 'F12345678', scheme: 'INF109K01605', redeemable_units: 12.345 }];
+  const holdings = [{ folioNumber: 'F12345678', schemeIsin: 'INF109K01605', redeemableUnits: 12.345 }];
   const base = { folioNumber: 'F12345678', schemeIsin: 'INF109K01605' };
 
   const run = async (authorised: TransactionPayload, sent: Record<string, unknown>) => {
@@ -139,8 +145,8 @@ describe('redemption round trip', () => {
     const auth = await issue(twoFactor, authorised);
     const ctx = {
       twoFactor,
-      cybrilla: { fetchFolios: async () => folios },
-      accountFor: async () => ({ id: 'a1', fpAccountId: 'mfia_1' }),
+      holdingsService: { forAccount: async () => holdings },
+      accountFor: async () => ({ id: 'a1', fpAccountId: 'mfia_1', fpAccountOldId: 7 }),
       resolveQuantity: (RedemptionService.prototype as any).resolveQuantity,
       prisma: {
         user: { findUnique: async () => ({ email: 'a@b.c' }) },
@@ -177,19 +183,21 @@ describe('single use', () => {
     const { twoFactor } = makeTwoFactor();
     const payload: TransactionPayload = { action: 'PURCHASE', amount: 500, bucketId: 'balanced' };
     const { challengeId, otp } = await issue(twoFactor, payload);
-    await expect(twoFactor.verifyAndConsume('u1', payload, challengeId, otp)).resolves.toBe(true);
-    await expect(twoFactor.verifyAndConsume('u1', payload, challengeId, otp)).rejects.toThrow(/already been used/);
+    await expect(twoFactor.verifyAndConsume('u1', payload, challengeId, otp, true)).resolves.toBe(true);
+    await expect(twoFactor.verifyAndConsume('u1', payload, challengeId, otp, true)).rejects.toThrow(/already been used/);
   });
 });
 
 describe('single-fund round trip', () => {
   // The app gets schemeIsin from GET /funds/:code/invest-eligibility and passes it to the
   // challenge; the server resolves the same ISIN from the scheme code.
-  const fund = { isin: 'INF179K01XQ0', gateway: 'cybrillapoa', fundName: 'HDFC Mid Cap', category: 'Equity Scheme - Mid Cap Fund', schemeCode: '118989' };
+  const fund = { isin: 'INF179K01XQ0', gateway: 'ondc', fundName: 'HDFC Mid Cap', category: 'Equity Scheme - Mid Cap Fund', schemeCode: '118989' };
 
   const ctxFor = (twoFactor: TwoFactorService) => ({
     twoFactor,
     resolveFund: async () => fund,
+    assertCanInvest: async () => ({}),
+    requireMandate: async () => ({ id: 'm1', fpMandateId: 5 }),
     checkSuitability: async () => ({ requiresAcknowledgement: false }),
     placePurchase: jest.fn().mockRejectedValue(new Error(REACHED)),
     registerSip: jest.fn().mockRejectedValue(new Error(REACHED)),
@@ -199,7 +207,7 @@ describe('single-fund round trip', () => {
     const { twoFactor } = makeTwoFactor();
     const auth = await issue(twoFactor, { action: 'PURCHASE', amount: 500, schemeIsin: fund.isin });
     await expect(
-      BucketsService.prototype.investInFund.call(ctxFor(twoFactor), 'u1', '118989', { amount: 500, ...auth } as any),
+      BucketsService.prototype.investInFund.call(ctxFor(twoFactor), 'u1', '118989', { amount: 500, ...auth } as any, IP),
     ).rejects.toThrow(REACHED);
   });
 
@@ -213,7 +221,7 @@ describe('single-fund round trip', () => {
         installmentDay: 5,
         numberOfInstallments: 12,
         ...auth,
-      } as any),
+      } as any, IP),
     ).rejects.toThrow(REACHED);
   });
 
@@ -221,7 +229,7 @@ describe('single-fund round trip', () => {
     const { twoFactor } = makeTwoFactor();
     const auth = await issue(twoFactor, { action: 'PURCHASE', amount: 500, schemeIsin: 'INF109K01605' });
     await expect(
-      BucketsService.prototype.investInFund.call(ctxFor(twoFactor), 'u1', '118989', { amount: 500, ...auth } as any),
+      BucketsService.prototype.investInFund.call(ctxFor(twoFactor), 'u1', '118989', { amount: 500, ...auth } as any, IP),
     ).rejects.toThrow(UnauthorizedException);
   });
 
@@ -229,7 +237,27 @@ describe('single-fund round trip', () => {
     const { twoFactor } = makeTwoFactor();
     const auth = await issue(twoFactor, { action: 'PURCHASE', amount: 500, bucketId: 'balanced' });
     await expect(
-      BucketsService.prototype.investInFund.call(ctxFor(twoFactor), 'u1', '118989', { amount: 500, ...auth } as any),
+      BucketsService.prototype.investInFund.call(ctxFor(twoFactor), 'u1', '118989', { amount: 500, ...auth } as any, IP),
     ).rejects.toThrow(UnauthorizedException);
+  });
+});
+
+describe('transaction consent', () => {
+  it('refuses a correct code when the investor did not tick the consent', async () => {
+    const { twoFactor } = makeTwoFactor();
+    const payload: TransactionPayload = { action: 'PURCHASE', amount: 500, bucketId: 'balanced' };
+    const { challengeId, otp } = await issue(twoFactor, payload);
+    await expect(twoFactor.verifyAndConsume('u1', payload, challengeId, otp, false)).rejects.toThrow(/authorise this transaction/);
+    // The code survives: consent is checked before the code, so nothing was spent.
+    await expect(twoFactor.verifyAndConsume('u1', payload, challengeId, otp, true)).resolves.toBe(true);
+  });
+
+  it('records the exact statement the investor agreed to', async () => {
+    const { twoFactor, rows } = makeTwoFactor();
+    const payload: TransactionPayload = { action: 'REDEMPTION', amount: 500, folioNumber: 'F1' };
+    const { challengeId, otp } = await issue(twoFactor, payload);
+    await twoFactor.verifyAndConsume('u1', payload, challengeId, otp, true);
+    expect(rows[0].consentText).toContain('withdrawal of Rs.500.00 from folio F1');
+    expect(rows[0].consentedAt).toBeInstanceOf(Date);
   });
 });

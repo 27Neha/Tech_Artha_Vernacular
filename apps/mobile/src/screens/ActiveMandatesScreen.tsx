@@ -1,591 +1,200 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  ScrollView,
-  TextInput,
-  Alert,
-  Modal,
-  ActivityIndicator
-} from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
-import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Header } from '../components/Header';
+import { ChoiceChips } from '../components/ChoiceChips';
+import { api } from '../services/api/client';
 
-interface Mandate {
+/**
+ * Auto-debit mandates (UPI Autopay and e-NACH) - GET/POST /mandates.
+ *
+ * SIP instalments are collected through an APPROVED mandate, so a SIP cannot start
+ * without one. This screen previously showed a sample mandate (a made-up UMRN and
+ * bank) and "cancelled" it locally while claiming it had been revoked with NPCI. Every
+ * mandate shown now is the investor's own, with the gateway's status.
+ */
+type Mandate = {
   id: string;
-  umrn: string; // Unique Mandate Reference Number
-  bankName: string;
-  accountNumber: string;
-  maxLimit: number;
-  type: 'e-Mandate' | 'NPCI NACH';
-  status: 'ACTIVE' | 'PENDING' | 'CANCELLED';
-  createdDate: string;
-  expiryDate: string;
-  activeSipsCount: number;
-}
+  mandateType: 'UPI' | 'E_MANDATE';
+  mandateLimit: number;
+  status: string;
+  umrn: string | null;
+  authorizationUrl: string | null;
+  createdAt: string;
+};
+
+type MandatesResponse = { canCreate: boolean; mandates: Mandate[]; message: string | null };
+
+const TYPE_OPTIONS = [
+  { value: 'UPI', label: 'UPI Autopay' },
+  { value: 'E_MANDATE', label: 'e-NACH' },
+] as const;
+
+const typeLabel = (t: string) => (t === 'UPI' ? 'UPI Autopay' : 'e-NACH');
+
+const statusCopy: Record<string, { label: string; tone: 'ok' | 'wait' | 'bad' }> = {
+  APPROVED: { label: 'Approved', tone: 'ok' },
+  CREATED: { label: 'Awaiting your approval', tone: 'wait' },
+  SUBMITTED: { label: 'Submitted to your bank', tone: 'wait' },
+  REJECTED: { label: 'Rejected', tone: 'bad' },
+  CANCELLED: { label: 'Cancelled', tone: 'bad' },
+  EXPIRED: { label: 'Expired', tone: 'bad' },
+  FAILED: { label: 'Failed', tone: 'bad' },
+};
 
 export const ActiveMandatesScreen = () => {
-  const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
+  const [data, setData] = useState<MandatesResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  // Neither has a default: the type and the debit limit are the investor's decision.
+  const [mandateType, setMandateType] = useState<string | null>(null);
+  const [limit, setLimit] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const [mandates, setMandates] = useState<Mandate[]>([
-    {
-      id: 'mnd_1',
-      umrn: 'NACH00000000049182',
-      bankName: 'HDFC Bank',
-      accountNumber: '••••••••4829',
-      maxLimit: 100000,
-      type: 'e-Mandate',
-      status: 'ACTIVE',
-      createdDate: '12 Jan 2026',
-      expiryDate: '31 Dec 2055',
-      activeSipsCount: 2
+  const load = useCallback(async () => {
+    try {
+      setData(await api.get<MandatesResponse>('/mandates'));
+    } catch (e) {
+      Alert.alert('Could not load your mandates', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setLoading(false);
     }
-  ]);
+  }, []);
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [bankName, setBankName] = useState('HDFC Bank');
-  const [accountNumber, setAccountNumber] = useState('••••••••4829');
-  const [maxLimit, setMaxLimit] = useState('100000');
-  const [mandateType, setMandateType] = useState<'e-Mandate' | 'NPCI NACH'>('e-Mandate');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formError, setFormError] = useState('');
+  // Refreshed on focus: coming back from the bank's approval page should show the new status.
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
-  const handleCancelMandate = (id: string, activeSips: number) => {
-    if (activeSips > 0) {
-      Alert.alert(
-        'Active SIPs Linked',
-        `This mandate is currently funding ${activeSips} active SIP installment(s). Pausing or cancelling will stop those scheduled investments. Are you sure you wish to proceed?`,
-        [
-          { text: 'Keep Active', style: 'cancel' },
-          {
-            text: 'Cancel Mandate',
-            style: 'destructive',
-            onPress: () => {
-              setMandates(prev => prev.map(m => m.id === id ? { ...m, status: 'CANCELLED' } : m));
-              Alert.alert('Mandate Cancelled', 'The auto-debit authorization has been revoked with NPCI.');
-            }
-          }
-        ]
-      );
-    } else {
-      Alert.alert(
-        'Cancel Mandate',
-        'Are you sure you want to cancel this auto-pay mandate?',
-        [
-          { text: 'No', style: 'cancel' },
-          {
-            text: 'Yes, Cancel',
-            style: 'destructive',
-            onPress: () => {
-              setMandates(prev => prev.map(m => m.id === id ? { ...m, status: 'CANCELLED' } : m));
-              Alert.alert('Mandate Cancelled', 'The auto-debit authorization has been revoked with NPCI.');
-            }
-          }
-        ]
-      );
+  const openAuthorization = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Could not open the approval page', 'Please try again.');
     }
   };
 
-  const handleCreateMandate = () => {
-    setFormError('');
-    const parsedLimit = parseInt(maxLimit, 10);
-    if (isNaN(parsedLimit) || parsedLimit < 1000) {
-      setFormError('Minimum auto-debit limit is ₹1,000.');
-      return;
+  const create = async () => {
+    if (!mandateType) return Alert.alert('Choose a type', 'Choose UPI Autopay or e-NACH.');
+    const value = Number(limit);
+    if (!Number.isFinite(value) || value < 100) {
+      return Alert.alert('Check the limit', 'Enter the most that may be debited per instalment, at least ₹100.');
     }
+    setSubmitting(true);
+    try {
+      const mandate = await api.post<Mandate>('/mandates', { mandateType, mandateLimit: value });
+      setMandateType(null);
+      setLimit('');
+      await load();
+      if (mandate.authorizationUrl) {
+        Alert.alert('Approve with your bank', 'Your mandate has been created. Approve it with your bank to start using it for SIPs.', [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Approve now', onPress: () => void openAuthorization(mandate.authorizationUrl!) },
+        ]);
+      }
+    } catch (e) {
+      Alert.alert('Could not set up auto-debit', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-    setIsSubmitting(true);
-    setTimeout(() => {
-      const newMnd: Mandate = {
-        id: 'mnd_' + Date.now(),
-        umrn: 'NACH' + Math.floor(10000000000000 + Math.random() * 90000000000000),
-        bankName,
-        accountNumber,
-        maxLimit: parsedLimit,
-        type: mandateType,
-        status: 'ACTIVE',
-        createdDate: 'Today',
-        expiryDate: 'Until Cancelled',
-        activeSipsCount: 0
-      };
-      setMandates(prev => [newMnd, ...prev]);
-      setIsSubmitting(false);
-      setModalVisible(false);
-      Alert.alert('e-Mandate Created', 'Your auto-pay mandate has been registered with NPCI. You can now start automated SIPs without entering OTP every month.');
-    }, 900);
+  const reauthorize = async (m: Mandate) => {
+    try {
+      const updated = await api.post<Mandate>(`/mandates/${encodeURIComponent(m.id)}/authorize`, {});
+      if (updated.authorizationUrl) await openAuthorization(updated.authorizationUrl);
+    } catch (e) {
+      Alert.alert('Could not open the approval page', e instanceof Error ? e.message : 'Please try again.');
+    }
   };
 
   return (
     <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
       <StatusBar style="dark" />
-      <Header title="" onBack={() => navigation.goBack()} />
+      <Header title="Auto-debit mandates" onBack={() => navigation.goBack()} />
+      <ScrollView contentContainerStyle={styles.page}>
+        <Text style={styles.intro}>
+          A SIP collects each instalment from your bank account through an approved auto-debit mandate. You approve it
+          once with your bank, and set the most that may be debited per instalment.
+        </Text>
 
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Title Header */}
-        <View style={styles.titleSection}>
-          <Text style={styles.pageTitle}>{t('profile.mandatesTitle', { defaultValue: 'Active Mandates' })}</Text>
-          <Text style={styles.subtitle}>
-            {t('profile.mandatesSubtitle', { defaultValue: 'Automate your monthly SIP installments seamlessly through NPCI e-Mandate and Net Banking.' })}
-          </Text>
-        </View>
-
-        {/* Security & NPCI Assurance Banner */}
-        <View style={styles.assuranceBanner}>
-          <Ionicons name="card" size={20} color="#047857" style={{ marginTop: 2 }} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.assuranceTitle}>NPCI & RBI Regulated Auto-Pay</Text>
-            <Text style={styles.assuranceDesc}>
-              Debits only trigger for authorized investment orders placed by you. No funds can be deducted without an active scheduled SIP.
-            </Text>
-          </View>
-        </View>
-
-        {/* Section Header */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Your Mandates ({mandates.length})</Text>
-          <Pressable
-            style={styles.addInlineBtn}
-            onPress={() => setModalVisible(true)}
-          >
-            <Ionicons name="add" size={16} color="#3C3985" />
-            <Text style={styles.addInlineText}>Set Up Mandate</Text>
-          </Pressable>
-        </View>
-
-        {mandates.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIconBox}>
-              <Ionicons name="card-outline" size={36} color="#A0AEC0" />
-            </View>
-            <Text style={styles.emptyTitle}>No Active Mandates</Text>
-            <Text style={styles.emptySubtitle}>
-              Set up a one-time e-mandate via UPI or Net Banking to enable 1-click SIP investments.
-            </Text>
-            <Pressable style={styles.primaryBtn} onPress={() => setModalVisible(true)}>
-              <Text style={styles.primaryBtnText}>+ Set Up Auto-Pay Mandate</Text>
-            </Pressable>
-          </View>
+        {loading ? (
+          <ActivityIndicator color="#3C3985" style={{ marginTop: 32 }} />
         ) : (
-          <View style={{ gap: 14 }}>
-            {mandates.map(mnd => (
-              <View key={mnd.id} style={[styles.mandateCard, mnd.status === 'CANCELLED' && styles.mandateCardDisabled]}>
-                <View style={styles.cardTopRow}>
-                  <View style={[styles.bankIconContainer, mnd.status === 'CANCELLED' && { backgroundColor: '#F1F5F9' }]}>
-                    <Ionicons 
-                      name="card-outline" 
-                      size={22} 
-                      color={mnd.status === 'ACTIVE' ? '#3C3985' : '#94A3B8'} 
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={styles.bankName}>{mnd.bankName}</Text>
-                      <View style={styles.typePill}>
-                        <Text style={styles.typePillText}>{mnd.type}</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.accNum}>A/C: {mnd.accountNumber}</Text>
-                  </View>
-                  <View style={[styles.statusBadge, mnd.status === 'ACTIVE' ? styles.statusActive : styles.statusCancelled]}>
-                    <Ionicons 
-                      name={mnd.status === 'ACTIVE' ? 'checkmark-circle' : 'close-circle'} 
-                      size={13} 
-                      color={mnd.status === 'ACTIVE' ? '#059669' : '#DC2626'} 
-                    />
-                    <Text style={[styles.statusText, mnd.status === 'ACTIVE' ? styles.textActive : styles.textCancelled]}>
-                      {mnd.status}
-                    </Text>
-                  </View>
-                </View>
+          <>
+            {data?.message ? (
+              <View style={styles.notice}>
+                <Text style={styles.noticeText}>{data.message}</Text>
+              </View>
+            ) : null}
 
-                <View style={styles.cardDivider} />
-
-                <View style={styles.cardMetaGrid}>
-                  <View style={styles.metaCol}>
-                    <Text style={styles.metaLabel}>Max Daily Limit</Text>
-                    <Text style={styles.metaValueHighlight}>₹{mnd.maxLimit.toLocaleString('en-IN')}</Text>
+            {(data?.mandates ?? []).map((m) => {
+              const copy = statusCopy[m.status] ?? { label: m.status, tone: 'wait' as const };
+              return (
+                <View key={m.id} style={styles.card}>
+                  <View style={styles.cardRow}>
+                    <Text style={styles.cardTitle}>{typeLabel(m.mandateType)}</Text>
+                    <Text style={[styles.badge, styles[copy.tone]]}>{copy.label}</Text>
                   </View>
-                  <View style={styles.metaCol}>
-                    <Text style={styles.metaLabel}>Active SIPs</Text>
-                    <Text style={styles.metaValue}>{mnd.activeSipsCount} linked</Text>
-                  </View>
-                  <View style={[styles.metaCol, { alignItems: 'flex-end' }]}>
-                    <Text style={styles.metaLabel}>Expiry Date</Text>
-                    <Text style={styles.metaValue}>{mnd.expiryDate}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.umrnContainer}>
-                  <Text style={styles.umrnLabel}>UMRN: </Text>
-                  <Text style={styles.umrnValue}>{mnd.umrn}</Text>
-                </View>
-
-                {mnd.status === 'ACTIVE' && (
-                  <View style={styles.actionRow}>
-                    <Pressable
-                      style={styles.cancelActionBtn}
-                      onPress={() => handleCancelMandate(mnd.id, mnd.activeSipsCount)}
-                    >
-                      <Ionicons name="trash-outline" size={14} color="#EF4444" style={{ marginRight: 4 }} />
-                      <Text style={styles.cancelActionText}>Revoke Mandate</Text>
+                  <Text style={styles.meta}>Limit per instalment: ₹{m.mandateLimit.toLocaleString('en-IN')}</Text>
+                  {m.umrn ? <Text style={styles.meta}>UMRN {m.umrn}</Text> : null}
+                  <Text style={styles.meta}>Set up on {new Date(m.createdAt).toLocaleDateString('en-IN')}</Text>
+                  {m.authorizationUrl ? (
+                    <Pressable style={styles.button} onPress={() => void reauthorize(m)}>
+                      <Text style={styles.buttonText}>Approve with your bank</Text>
                     </Pressable>
-                  </View>
-                )}
+                  ) : null}
+                </View>
+              );
+            })}
+
+            {data?.canCreate ? (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Set up a new mandate</Text>
+                <Text style={styles.label}>Type</Text>
+                <ChoiceChips options={TYPE_OPTIONS} value={mandateType} onChange={setMandateType} />
+                <Text style={styles.label}>Most that may be debited per instalment (₹)</Text>
+                <TextInput
+                  value={limit}
+                  onChangeText={(v) => setLimit(v.replace(/\D/g, ''))}
+                  keyboardType="number-pad"
+                  style={styles.input}
+                />
+                <Text style={styles.hint}>Set it at or above the SIP amount you plan to invest. It is a ceiling, not the amount debited.</Text>
+                <Pressable style={[styles.button, submitting && styles.disabled]} onPress={create} disabled={submitting}>
+                  <Text style={styles.buttonText}>{submitting ? 'Setting up…' : 'Set up auto-debit'}</Text>
+                </Pressable>
               </View>
-            ))}
-          </View>
+            ) : null}
+          </>
         )}
-
-        {/* Informational Guidance */}
-        <View style={styles.infoCard}>
-          <Ionicons name="information-circle-outline" size={20} color="#4A5568" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.infoTitle}>What is a Maximum Daily Limit?</Text>
-            <Text style={styles.infoText}>
-              The limit (e.g. ₹1,00,000) is a security cap authorized with your bank. Only your actual SIP amount (e.g. ₹1,500/month) will ever be deducted on scheduled investment dates.
-            </Text>
-          </View>
-        </View>
       </ScrollView>
-
-      {/* Set Up Mandate Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Set Up Auto-Pay Mandate</Text>
-              <Pressable hitSlop={10} onPress={() => setModalVisible(false)}>
-                <Ionicons name="close-circle" size={24} color="#A0AEC0" />
-              </Pressable>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {formError ? (
-                <View style={styles.errorBox}>
-                  <Ionicons name="alert-circle" size={16} color="#DC2626" />
-                  <Text style={styles.errorText}>{formError}</Text>
-                </View>
-              ) : null}
-
-              <Text style={styles.inputLabel}>Select Linked Bank</Text>
-              <View style={styles.bankSelectBox}>
-                <Ionicons name="business" size={20} color="#3C3985" />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.bankSelectName}>{bankName}</Text>
-                  <Text style={styles.bankSelectAcc}>{accountNumber}</Text>
-                </View>
-                <Ionicons name="checkmark-circle" size={18} color="#059669" />
-              </View>
-
-              <Text style={styles.inputLabel}>Authorization Method</Text>
-              <View style={styles.authMethodRow}>
-                <Pressable
-                  style={[styles.authOption, mandateType === 'e-Mandate' && styles.authOptionActive]}
-                  onPress={() => setMandateType('e-Mandate')}
-                >
-                  <Ionicons name="flash-outline" size={16} color={mandateType === 'e-Mandate' ? '#3C3985' : '#64748B'} />
-                  <Text style={[styles.authOptionText, mandateType === 'e-Mandate' && styles.authOptionTextActive]}>
-                    UPI / Net Banking (Instant)
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  style={[styles.authOption, mandateType === 'NPCI NACH' && styles.authOptionActive]}
-                  onPress={() => setMandateType('NPCI NACH')}
-                >
-                  <Ionicons name="document-text-outline" size={16} color={mandateType === 'NPCI NACH' ? '#3C3985' : '#64748B'} />
-                  <Text style={[styles.authOptionText, mandateType === 'NPCI NACH' && styles.authOptionTextActive]}>
-                    Debit Card (OTP)
-                  </Text>
-                </Pressable>
-              </View>
-
-              <Text style={styles.inputLabel}>Maximum Per-Day Limit (₹)</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="100000"
-                keyboardType="number-pad"
-                value={maxLimit}
-                onChangeText={setMaxLimit}
-              />
-              <Text style={styles.helperText}>
-                Standard cap is ₹1,00,000 to cover future SIP expansions.
-              </Text>
-
-              <Pressable
-                style={[styles.submitBtn, isSubmitting && { opacity: 0.7 }]}
-                onPress={handleCreateMandate}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.submitBtnText}>Authorize with Bank</Text>
-                )}
-              </Pressable>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F8F9FB' },
-  container: { padding: 20, paddingBottom: 40 },
-  titleSection: { marginBottom: 20 },
-  pageTitle: { fontSize: 26, fontWeight: '800', color: '#102A54', marginBottom: 6 },
-  subtitle: { fontSize: 13, color: '#64748B', lineHeight: 19 },
-  assuranceBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    padding: 14,
-    borderRadius: 14,
-    gap: 12,
-    marginBottom: 24
-  },
-  assuranceTitle: { fontSize: 13, fontWeight: '700', color: '#065F46', marginBottom: 2 },
-  assuranceDesc: { fontSize: 11, color: '#047857', lineHeight: 16 },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14
-  },
-  sectionTitle: { fontSize: 15, fontWeight: '800', color: '#102A54' },
-  addInlineBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EBEAF8',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    gap: 4
-  },
-  addInlineText: { fontSize: 12, fontWeight: '700', color: '#3C3985' },
-  mandateCard: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2
-  },
-  mandateCardDisabled: {
-    opacity: 0.7,
-    borderColor: '#CBD5E1'
-  },
-  cardTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12
-  },
-  bankIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F0F4FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E7FF'
-  },
-  bankName: { fontSize: 15, fontWeight: '800', color: '#102A54' },
-  typePill: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6
-  },
-  typePillText: { fontSize: 9, fontWeight: '800', color: '#475569' },
-  accNum: { fontSize: 12, color: '#64748B', marginTop: 2 },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8
-  },
-  statusActive: { backgroundColor: '#ECFDF5' },
-  statusCancelled: { backgroundColor: '#FEE2E2' },
-  statusText: { fontSize: 11, fontWeight: '800' },
-  textActive: { color: '#059669' },
-  textCancelled: { color: '#DC2626' },
-  cardDivider: {
-    height: 1,
-    backgroundColor: '#F1F5F9',
-    marginVertical: 14
-  },
-  cardMetaGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center'
-  },
-  metaCol: {},
-  metaLabel: { fontSize: 11, color: '#94A3B8', fontWeight: '600', marginBottom: 2 },
-  metaValueHighlight: { fontSize: 14, fontWeight: '800', color: '#3C3985' },
-  metaValue: { fontSize: 12, fontWeight: '700', color: '#334155' },
-  umrnContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    padding: 8,
-    borderRadius: 8,
-    marginTop: 12
-  },
-  umrnLabel: { fontSize: 10, fontWeight: '700', color: '#64748B' },
-  umrnValue: { fontSize: 10, fontWeight: '700', color: '#0F172A', letterSpacing: 0.5 },
-  actionRow: {
-    marginTop: 12,
-    alignItems: 'flex-end'
-  },
-  cancelActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 8
-  },
-  cancelActionText: { fontSize: 11, fontWeight: '700', color: '#EF4444' },
-  emptyState: {
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    padding: 32,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 20
-  },
-  emptyIconBox: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16
-  },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: '#102A54', marginBottom: 6 },
-  emptySubtitle: { fontSize: 12, color: '#64748B', textAlign: 'center', lineHeight: 18, marginBottom: 20 },
-  primaryBtn: {
-    backgroundColor: '#3C3985',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12
-  },
-  primaryBtnText: { color: '#fff', fontSize: 13, fontWeight: '800' },
-  infoCard: {
-    flexDirection: 'row',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 14,
-    padding: 16,
-    gap: 12,
-    marginTop: 24
-  },
-  infoTitle: { fontSize: 12, fontWeight: '700', color: '#334155', marginBottom: 4 },
-  infoText: { fontSize: 11, color: '#64748B', lineHeight: 17 },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end'
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    maxHeight: '90%'
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20
-  },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: '#102A54' },
-  errorBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#FEE2E2',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 14
-  },
-  errorText: { color: '#DC2626', fontSize: 12, fontWeight: '600' },
-  inputLabel: { fontSize: 12, fontWeight: '700', color: '#334155', marginBottom: 6, marginTop: 12 },
-  bankSelectBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 12,
-    borderRadius: 12
-  },
-  bankSelectName: { fontSize: 14, fontWeight: '700', color: '#102A54' },
-  bankSelectAcc: { fontSize: 12, color: '#64748B' },
-  authMethodRow: {
-    gap: 8
-  },
-  authOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#F8FAFC'
-  },
-  authOptionActive: {
-    borderColor: '#3C3985',
-    backgroundColor: '#EBEAF8'
-  },
-  authOptionText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
-  authOptionTextActive: { color: '#3C3985', fontWeight: '800' },
-  modalInput: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    height: 48,
-    fontSize: 14,
-    color: '#0F172A'
-  },
-  helperText: { fontSize: 11, color: '#94A3B8', marginTop: 4 },
-  submitBtn: {
-    backgroundColor: '#3C3985',
-    height: 52,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 24,
-    marginBottom: 20
-  },
-  submitBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' }
+  page: { padding: 20, paddingBottom: 48, gap: 16 },
+  intro: { color: '#4A5568', fontSize: 13, lineHeight: 20 },
+  notice: { backgroundColor: '#FFFAF0', borderColor: '#FBD38D', borderWidth: 1, borderRadius: 12, padding: 14 },
+  noticeText: { color: '#C05621', fontSize: 13, lineHeight: 19 },
+  card: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', padding: 18, gap: 6 },
+  cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardTitle: { color: '#102A54', fontSize: 16, fontWeight: '800' },
+  badge: { fontSize: 11, fontWeight: '800', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, overflow: 'hidden' },
+  ok: { backgroundColor: '#E6F6EC', color: '#2F7D32' },
+  wait: { backgroundColor: '#FFF6E5', color: '#B7791F' },
+  bad: { backgroundColor: '#FDECEC', color: '#C53030' },
+  meta: { color: '#4A5568', fontSize: 13 },
+  label: { color: '#4A5568', fontSize: 13, fontWeight: '600', marginTop: 12, marginBottom: 6 },
+  input: { backgroundColor: '#F8F9FB', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, height: 50, paddingHorizontal: 14, fontSize: 16, color: '#102A54' },
+  hint: { color: '#718096', fontSize: 11, marginTop: 4, lineHeight: 16 },
+  button: { backgroundColor: '#3C3985', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 12 },
+  buttonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  disabled: { opacity: 0.5 },
 });

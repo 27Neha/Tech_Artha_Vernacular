@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Ip, Param, Post, UseGuards } from '@nestjs/common';
 import { AccessTokenGuard, CurrentUser } from '../../common/auth';
 import type { AuthenticatedUser } from '../../common/auth';
 import { BucketsService } from './buckets.service';
@@ -23,12 +23,22 @@ export class FundInvestController {
   }
 
   @Post(':schemeCode/invest')
-  invest(@CurrentUser() user: AuthenticatedUser, @Param('schemeCode') schemeCode: string, @Body() dto: InvestInFundDto) {
-    return this.buckets.investInFund(user.id, schemeCode, dto);
+  invest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('schemeCode') schemeCode: string,
+    @Body() dto: InvestInFundDto,
+    @Ip() ip: string,
+  ) {
+    return this.buckets.investInFund(user.id, schemeCode, dto, ip);
   }
 
   @Post(':schemeCode/sip')
-  startSip(@CurrentUser() user: AuthenticatedUser, @Param('schemeCode') schemeCode: string, @Body() dto: StartFundSipDto) {
-    return this.buckets.startFundSip(user.id, schemeCode, dto);
+  startSip(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('schemeCode') schemeCode: string,
+    @Body() dto: StartFundSipDto,
+    @Ip() ip: string,
+  ) {
+    return this.buckets.startFundSip(user.id, schemeCode, dto, ip);
   }
 }

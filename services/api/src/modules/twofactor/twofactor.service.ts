@@ -99,6 +99,15 @@ export class TwoFactorService {
     }
   }
 
+  /**
+   * The consent the investor gives when entering the code (Cybrilla compliance points
+   * 5 to 7). Shown beside the code field, and stored with the challenge once accepted,
+   * so the record shows exactly what was agreed to - not just that a code matched.
+   */
+  consentStatement(payload: TransactionPayload): string {
+    return `I authorise TechArtha to place this ${this.describe(payload)} on my behalf. I have checked the details and understand that mutual fund investments are subject to market risks.`;
+  }
+
   /** Issues a code for one specific transaction and sends it to the investor. */
   async challenge(userId: string, payload: TransactionPayload, channel: OtpChannel = 'WHATSAPP') {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -151,6 +160,7 @@ export class TwoFactorService {
       challengeId: challenge.id,
       action: payload.action,
       summary,
+      consentStatement: this.consentStatement(payload),
       expiresInSeconds: OTP_TTL_MS / 1000,
       devOtp: devBypass ? code : undefined,
     };
@@ -167,9 +177,14 @@ export class TwoFactorService {
     payload: TransactionPayload,
     challengeId: string | undefined,
     otp: string | undefined,
+    consent: boolean | undefined,
   ) {
     if (!challengeId || !otp) {
       throw new UnauthorizedException('This transaction needs to be authorised. Request a code and enter it to continue.');
+    }
+    // Checked before the code is looked at, so a missing consent never costs an attempt.
+    if (consent !== true) {
+      throw new BadRequestException('Confirm that you authorise this transaction to continue.');
     }
 
     const challenge = await this.prisma.transactionChallenge.findFirst({
@@ -217,14 +232,24 @@ export class TwoFactorService {
 
     await this.prisma.transactionChallenge.update({
       where: { id: challenge.id },
-      data: { status: 'CONSUMED', consumedAt: new Date() },
+      data: {
+        status: 'CONSUMED',
+        consumedAt: new Date(),
+        consentText: this.consentStatement(payload),
+        consentedAt: new Date(),
+      },
     });
 
     await this.prisma.auditLog.create({
       data: {
         userId,
         action: 'TRANSACTION_AUTHORISED',
-        details: JSON.stringify({ challengeId: challenge.id, transaction: challenge.action, summary: challenge.summary }),
+        details: JSON.stringify({
+          challengeId: challenge.id,
+          transaction: challenge.action,
+          summary: challenge.summary,
+          consent: this.consentStatement(payload),
+        }),
       },
     });
 
