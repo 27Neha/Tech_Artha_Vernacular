@@ -125,7 +125,7 @@ export class RedemptionService {
         const confirmed = await this.cybrilla.confirmRedemption(
           fpId,
           user.email,
-          user.mobile.replace(/^\+?91/, ''),
+          (user.mobile ?? '').replace(/^\+?91/, ''),
         );
         state = confirmed?.state ?? state;
       } catch {

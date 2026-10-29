@@ -112,6 +112,7 @@ export class TwoFactorService {
   async challenge(userId: string, payload: TransactionPayload, channel: OtpChannel = 'WHATSAPP') {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('Account not found.');
+    if (!user.mobile) throw new BadRequestException('Account has no mobile number registered.');
 
     const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MS);
     const recent = await this.prisma.transactionChallenge.count({
