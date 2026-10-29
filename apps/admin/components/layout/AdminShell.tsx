@@ -10,9 +10,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { isLoading, token } = useAdminAuth();
 
-  const isLoginPage = pathname === '/login';
+  const isPublicPage = pathname === '/login' || pathname.startsWith('/invite');
 
-  if (isLoginPage) {
+  if (isPublicPage) {
     return <main className="min-h-screen bg-[#F8F9FB]">{children}</main>;
   }
 

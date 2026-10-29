@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -28,6 +29,7 @@ model User {
   expenses          Expense[]
   FpInvestorProfile FpInvestorProfile?
   FpMandate         FpMandate[]
+  FpPayment         FpPayment[]
   goals             Goal[]
   guardian          Guardian?
   guardianConsents  GuardianConsent[]
@@ -192,13 +194,19 @@ model KycEvent {
 }
 
 model AuditLog {
-  id        String   @id @default(uuid())
-  userId    String?
-  action    String
-  details   String?
-  ipAddress String?
-  createdAt DateTime @default(now())
-  user      User?    @relation(fields: [userId], references: [id])
+  id           String   @id @default(uuid())
+  userId       String?
+  action       String
+  details      String?
+  ipAddress    String?
+  actorEmail   String?
+  actorRole    String?
+  resourceType String?
+  resourceId   String?
+  result       String?  @default("SUCCESS")
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  user         User?    @relation(fields: [userId], references: [id])
 }
 
 model WebhookEvent {
@@ -252,6 +260,7 @@ model Goal {
   currentSavings   Float    @default(0)
   inflationRate    Float    @default(0)
   returnAssumption Float    @default(0)
+  customAdjustments Json?
   status           String   @default("ACTIVE")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -310,14 +319,66 @@ model LearningProgress {
 }
 
 model SupportTicket {
-  id        String   @id @default(uuid())
-  userId    String
-  subject   String
-  message   String
-  status    String   @default("OPEN")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id])
+  id                  String               @id @default(uuid())
+  referenceId         String?              @unique
+  freshdeskTicketId   BigInt?              @unique
+  freshdeskContactId  String?
+  freshdeskStatus     Int?                 @default(2)
+  channel             String               @default("WHATSAPP")
+  priority            String               @default("MEDIUM")
+  customerPhone       String?
+  customerEmail       String?
+  customerName        String?
+  assignedAgentName   String?
+  assignedAgentEmail  String?
+  lastCustomerMessage String?
+  lastAgentReply      String?
+  resolutionNotes     String?
+  resolvedAt          DateTime?
+  isOverdue           Boolean              @default(false)
+  userId              String?
+  subject             String
+  message             String
+  status              String               @default("OPEN")
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  user                User?                @relation(fields: [userId], references: [id])
+  messages            SupportMessage[]
+  auditEvents         SupportAuditEvent[]
+
+  @@index([freshdeskTicketId])
+  @@index([customerPhone])
+  @@index([status])
+}
+
+model SupportMessage {
+  id               String        @id @default(uuid())
+  ticketId         String
+  senderType       String
+  senderName       String
+  senderEmail      String?
+  content          String
+  channel          String        @default("WHATSAPP")
+  channelMessageId String?
+  deliveryStatus   String        @default("SENT")
+  isInternal       Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+  ticket           SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+}
+
+model SupportAuditEvent {
+  id        String        @id @default(uuid())
+  ticketId  String
+  action    String
+  actorName String
+  actorRole String?
+  details   String?
+  createdAt DateTime      @default(now())
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
 }
 
 model Notification {
@@ -472,6 +533,28 @@ model FpMandate {
   user          User     @relation(fields: [userId], references: [id])
 }
 
+model FpPayment {
+  id             String    @id @default(uuid())
+  fpPaymentId    String?   @unique
+  orderId        String?
+  userId         String
+  amount         Float
+  currency       String    @default("INR")
+  method         String?   // UPI | NETBANKING
+  status         String    @default("PENDING") // PENDING | SUCCESSFUL | FAILED | REJECTED
+  unitsAllotted  Boolean   @default(false)
+  allottedUnits  Float?
+  nav            Float?
+  allottedAt     DateTime?
+  failureReason  String?
+  rawResponse    Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  user           User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
 model GuardianConsent {
   id                 String    @id @default(uuid())
   minorUserId        String
@@ -484,4 +567,134 @@ model GuardianConsent {
   verifiedAt         DateTime?
   createdAt          DateTime  @default(now())
   minorUser          User      @relation(fields: [minorUserId], references: [id])
+}
+
+model TechnicalAgent {
+  id                 String   @id @default(uuid())
+  fullName           String
+  email              String   @unique
+  phone              String?
+  role               String   @default("TECHNICAL_SUPPORT")
+  department         String   @default("Technical Support")
+  isActive           Boolean  @default(true)
+  notifyOnTickets    Boolean  @default(true)
+  notificationEmail  String?
+  notificationPhone  String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model AdminUser {
+  id           String            @id @default(uuid())
+  email        String            @unique
+  name         String
+  passwordHash String?
+  role         String            @default("OPERATIONS")
+  roleId       String?
+  department   String            @default("Operations")
+  status       String            @default("ACTIVE")
+  isActive     Boolean           @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  assignedRole AdminRole?        @relation(fields: [roleId], references: [id])
+  invitationsSent AdminInvitation[] @relation("InvitedByAdmin")
+
+  @@index([email])
+  @@index([role])
+}
+
+model AdminRole {
+  id          String                @id @default(uuid())
+  name        String                @unique
+  displayName String
+  description String?
+  department  String?
+  isSystem    Boolean               @default(false)
+  status      String                @default("ACTIVE")
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  permissions AdminRolePermission[]
+  users       AdminUser[]
+  invitations AdminInvitation[]
+}
+
+model AdminPermission {
+  id          String                @id @default(uuid())
+  slug        String                @unique
+  module      String
+  action      String
+  description String?
+  createdAt   DateTime              @default(now())
+  roles       AdminRolePermission[]
+
+  @@index([module])
+}
+
+model AdminRolePermission {
+  id           String          @id @default(uuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime        @default(now())
+  role         AdminRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   AdminPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model AdminInvitation {
+  id              String     @id @default(uuid())
+  invitedEmail    String
+  invitedName     String
+  tokenHash       String     @unique
+  role            String     @default("SUPPORT")
+  roleId          String?
+  department      String?    @default("Support")
+  status          String     @default("INVITED")
+  message         String?
+  invitedByUserId String?
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  roleModel       AdminRole? @relation(fields: [roleId], references: [id])
+  invitedByUser   AdminUser? @relation("InvitedByAdmin", fields: [invitedByUserId], references: [id])
+
+  @@index([invitedEmail])
+  @@index([tokenHash])
+  @@index([status])
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  category    String
+  key         String   @unique
+  value       Json
+  description String?
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+}
+
+model AdminMember {
+  id                  String    @id @default(uuid())
+  email               String?   @unique
+  name                String?
+  role                String?
+  phone               String?
+  position            String?
+  department          String?
+  status              String?   @default("ACTIVE")
+  invitationToken     String?   @unique
+  passwordHash        String?
+  permissions         Json?
+  failedLoginAttempts Int?      @default(0)
+  sessionVersion      Int?      @default(1)
+  lastLoginAt         DateTime?
+  lastLoginIp         String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 }

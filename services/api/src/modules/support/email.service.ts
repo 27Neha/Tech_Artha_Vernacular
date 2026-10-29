@@ -10,6 +10,16 @@ export interface SendSupportAcknowledgementInput {
   createdAt?: Date;
 }
 
+export interface SendAgentReplyEmailInput {
+  to: string;
+  customerName?: string;
+  referenceId: string;
+  subject: string;
+  replyMessage: string;
+  originalMessage?: string;
+  agentName?: string;
+}
+
 export interface EmailSendResult {
   provider: 'resend' | 'zeptomail' | 'smtp' | 'mock';
   success: boolean;
@@ -41,8 +51,8 @@ export class SupportEmailService {
     }
 
     // 2. Zoho ZeptoMail Integration (if configured and enabled)
-    const zeptoEnabled = process.env.ZEPTOMAIL_ENABLED === 'true';
-    const zeptoToken = process.env.ZEPTOMAIL_SEND_MAIL_TOKEN;
+    const zeptoEnabled = process.env.ZEPTOMAIL_ENABLED === 'true' || process.env.EMAIL_PROVIDER === 'zeptomail';
+    const zeptoToken = process.env.ZEPTOMAIL_SEND_MAIL_TOKEN || process.env.ZEPTOMAIL_API_KEY;
     if (zeptoEnabled && zeptoToken && !zeptoToken.includes('<')) {
       return this.sendViaZeptoMail({
         token: zeptoToken,
@@ -70,6 +80,63 @@ export class SupportEmailService {
       provider: 'mock',
       success: true,
       messageId: `mock-${Date.now()}-${input.referenceId}`,
+    };
+  }
+
+  /**
+   * Dispatches an agent's reply from TechArtha Admin Portal to the customer's email.
+   * Sends via ZeptoMail (or configured provider) from support@techartha.com with reply_to preserved.
+   */
+  async sendAgentReplyEmail(input: SendAgentReplyEmailInput): Promise<EmailSendResult> {
+    const toAddress = input.to.trim();
+    if (!toAddress || !toAddress.includes('@')) {
+      throw new Error(`Invalid recipient email address: "${input.to}"`);
+    }
+
+    const html = this.buildAgentReplyEmailHtml(input);
+    const emailSubject = `Re: [${input.referenceId}] ${input.subject}`;
+
+    // 1. Resend Integration (if RESEND_API_KEY is configured)
+    const resendApiKey = process.env.RESEND_API_KEY;
+    if (resendApiKey && resendApiKey !== '<server-side-api-key>' && !resendApiKey.includes('<')) {
+      return this.sendViaResend({
+        apiKey: resendApiKey,
+        to: toAddress,
+        subject: emailSubject,
+        html,
+      });
+    }
+
+    // 2. Zoho ZeptoMail Integration (if configured and enabled)
+    const zeptoEnabled = process.env.ZEPTOMAIL_ENABLED === 'true' || process.env.EMAIL_PROVIDER === 'zeptomail';
+    const zeptoToken = process.env.ZEPTOMAIL_SEND_MAIL_TOKEN || process.env.ZEPTOMAIL_API_KEY;
+    if (zeptoEnabled && zeptoToken && !zeptoToken.includes('<')) {
+      return this.sendViaZeptoMail({
+        token: zeptoToken,
+        to: toAddress,
+        subject: emailSubject,
+        html,
+      });
+    }
+
+    // 3. SMTP / Nodemailer Integration (if SMTP is configured)
+    const smtpHost = process.env.EMAIL_HOST || process.env.SMTP_HOST;
+    if (smtpHost && process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
+      return this.sendViaSmtp({
+        host: smtpHost,
+        to: toAddress,
+        subject: emailSubject,
+        html,
+      });
+    }
+
+    // 4. Safe Development / Mock Fallback
+    const masked = toAddress.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => `${a}***${c}`);
+    this.logger.log(`[SupportEmailService] [MOCK] Sent agent reply email to ${masked} for query ${input.referenceId}`);
+    return {
+      provider: 'mock',
+      success: true,
+      messageId: `mock-reply-${Date.now()}-${input.referenceId}`,
     };
   }
 
@@ -124,6 +191,7 @@ export class SupportEmailService {
     const payload = {
       from: { address: fromAddress, name: fromName },
       to: [{ email_address: { address: opts.to, name: 'Valued Investor' } }],
+      reply_to: [{ address: fromAddress, name: fromName }],
       subject: opts.subject,
       htmlbody: opts.html,
     };
@@ -447,6 +515,201 @@ export class SupportEmailService {
         <div class="security-note">
           <strong>Security Notice:</strong> TechArtha representatives will never ask for your password, PIN, or OTP. If anyone contacts you requesting confidential credentials, please report it immediately.
         </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+  }
+
+  buildAgentReplyEmailHtml(input: SendAgentReplyEmailInput): string {
+    const greetingName = input.customerName?.trim() ? input.customerName.trim() : 'Valued Investor';
+    const agentLabel = input.agentName || 'TechArtha Support Team';
+    const formattedDate = new Date().toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const escapeHtml = (str: string) =>
+      str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
+    const safeSubject = escapeHtml(input.subject);
+    const safeReply = escapeHtml(input.replyMessage).replace(/\n/g, '<br/>');
+    const safeOriginal = input.originalMessage ? escapeHtml(input.originalMessage).replace(/\n/g, '<br/>') : null;
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Support Update - TechArtha</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #F8F9FB;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #102A54;
+      line-height: 1.5;
+    }
+    .wrapper {
+      width: 100%;
+      background-color: #F8F9FB;
+      padding: 32px 16px;
+      box-sizing: border-box;
+    }
+    .container {
+      max-width: 580px;
+      margin: 0 auto;
+      background: #FFFFFF;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid #E2E8F0;
+      box-shadow: 0 4px 12px rgba(16, 42, 84, 0.05);
+    }
+    .header {
+      background: linear-gradient(135deg, #102A54 0%, #36358D 100%);
+      padding: 28px 24px;
+      text-align: left;
+    }
+    .brand-tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #F7941D;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .brand-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: #FFFFFF;
+      margin: 0;
+      letter-spacing: -0.5px;
+    }
+    .body-content {
+      padding: 28px 24px;
+    }
+    .ref-pill {
+      display: inline-block;
+      background: #EEF0FB;
+      color: #36358D;
+      font-family: monospace;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid #D8DCF5;
+      margin-bottom: 16px;
+    }
+    .greeting {
+      font-size: 16px;
+      font-weight: 700;
+      color: #102A54;
+      margin: 0 0 16px 0;
+    }
+    .reply-card {
+      background-color: #EEF0FB;
+      border-left: 4px solid #36358D;
+      border-radius: 8px;
+      padding: 18px 20px;
+      margin-bottom: 24px;
+      font-size: 14.5px;
+      color: #102A54;
+      line-height: 1.6;
+    }
+    .reply-header {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #36358D;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .original-card {
+      background-color: #FAFAFC;
+      border: 1px solid #EDF2F7;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 24px;
+      font-size: 13px;
+      color: #718096;
+    }
+    .original-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #A0AEC0;
+      margin-bottom: 6px;
+    }
+    .reply-instruction {
+      background-color: #FFFDF9;
+      border: 1px dashed #FBD38D;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 24px;
+      font-size: 12.5px;
+      color: #7B341E;
+    }
+    .footer {
+      background-color: #F8F9FA;
+      border-top: 1px solid #EDF2F7;
+      padding: 20px 24px;
+      font-size: 11px;
+      color: #718096;
+      text-align: center;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="header">
+        <div class="brand-tag">Support Update</div>
+        <h1 class="brand-title">TechArtha</h1>
+      </div>
+      <div class="body-content">
+        <div class="ref-pill">Reference: ${input.referenceId}</div>
+        <p class="greeting">Hello ${greetingName},</p>
+
+        <div class="reply-card">
+          <div class="reply-header">
+            <span>Response from TechArtha Support (${agentLabel})</span>
+            <span>${formattedDate}</span>
+          </div>
+          <div>${safeReply}</div>
+        </div>
+
+        ${
+          safeOriginal
+            ? `<div class="original-card">
+          <div class="original-title">Regarding your inquiry: "${safeSubject}"</div>
+          <div>${safeOriginal}</div>
+        </div>`
+            : ''
+        }
+
+        <div class="reply-instruction">
+          <strong>Need to reply?</strong> Simply reply directly to this email or send a message on WhatsApp at <strong>+91 83088 16023</strong>. Your response will automatically attach to this support ticket.
+        </div>
+      </div>
+
+      <div class="footer">
+        <div><strong>TechArtha Technologies Private Limited</strong> &bull; AMFI Registered Mutual Fund Distributor</div>
+        <div style="margin-top: 4px;">Mutual fund investments are subject to market risks. Read all scheme-related documents carefully before investing.</div>
       </div>
     </div>
   </div>

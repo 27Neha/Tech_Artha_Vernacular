@@ -11,7 +11,7 @@ describe('SupportController', () => {
       getUserQueries: jest.fn(),
       getQueryById: jest.fn(),
     };
-    controller = new SupportController(mockSupportService as unknown as SupportService);
+    controller = new SupportController(mockSupportService as unknown as SupportService, {} as any);
   });
 
   it('submits a query with headers and user session', async () => {

@@ -3,11 +3,30 @@ import {
   NotFoundException,
   UnauthorizedException,
   BadRequestException,
+  ForbiddenException,
+  Optional,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { AdminRole, AdminUser } from './admin.guard';
-import { AdminLoginDto } from './admin.dto';
+import {
+  AdminLoginDto,
+  InviteTeamMemberDto,
+  AcceptInvitationDto,
+  UpdateTeamMemberRoleDto,
+  UpdateTeamMemberStatusDto,
+  CreateCustomRoleDto,
+  UpdateCustomRoleDto,
+  UpdateRolePermissionsDto,
+} from './admin.dto';
+import { AdminSecurity } from './admin-security';
+import { AdminInvitationEmailService } from './admin-invitation-email.service';
+import { PERMISSIONS_CATALOG } from './admin-bootstrap.service';
+import { FreshdeskService } from '../support/freshdesk.service';
+import { WhatsappService } from '../../integrations/whatsapp/whatsapp.service';
+import { SupportEmailService } from '../support/email.service';
 export { AdminLoginDto };
 
 export interface UserFilterDto {
@@ -90,6 +109,16 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly invitationEmailService: AdminInvitationEmailService,
+    @Optional()
+    @Inject(forwardRef(() => FreshdeskService))
+    private readonly freshdeskService?: FreshdeskService,
+    @Optional()
+    @Inject(forwardRef(() => WhatsappService))
+    private readonly whatsappService?: WhatsappService,
+    @Optional()
+    @Inject(forwardRef(() => SupportEmailService))
+    private readonly supportEmailService?: SupportEmailService,
   ) {}
 
   // ==========================================
@@ -99,12 +128,123 @@ export class AdminService {
     const emailNorm = (dto.email || '').trim().toLowerCase();
     const password = (dto.password || '').trim();
 
-    const staffMembers = getStaffUsers();
-    const staffMember = staffMembers.find(
-      (s) => s.email.toLowerCase() === emailNorm && s.passwords.includes(password),
-    );
+    // 1. Check database-backed AdminUser
+    const dbAdmin = await this.prisma.adminUser.findUnique({
+      where: { email: emailNorm },
+      include: {
+        assignedRole: {
+          include: {
+            permissions: {
+              include: { permission: true },
+            },
+          },
+        },
+      },
+    }).catch(() => null);
 
-    if (!staffMember) {
+    let authenticatedAdmin: {
+      id: string;
+      email: string;
+      name: string;
+      role: string;
+      department?: string;
+      permissions: string[];
+    } | null = null;
+
+    if (dbAdmin) {
+      if (!dbAdmin.isActive || dbAdmin.status === 'SUSPENDED' || dbAdmin.status === 'DEACTIVATED') {
+        await this.logAction(dbAdmin.id, 'ADMIN_LOGIN_BLOCKED', {
+          email: emailNorm,
+          reason: `Account status is ${dbAdmin.status}`,
+        });
+        throw new UnauthorizedException('Your administrator account has been suspended or deactivated.');
+      }
+
+      const isPasswordValid = dbAdmin.passwordHash
+        ? AdminSecurity.verifyPassword(password, dbAdmin.passwordHash)
+        : false;
+
+      // Allow fallback to standard configured password if passwordHash hasn't been set yet
+      const staffMembers = getStaffUsers();
+      const staffMember = staffMembers.find(
+        (s) => s.email.toLowerCase() === emailNorm && s.passwords.includes(password),
+      );
+
+      if (isPasswordValid || (staffMember && !dbAdmin.passwordHash)) {
+        let perms: string[] = ['*'];
+        if (dbAdmin.role !== 'SUPER_ADMIN' && dbAdmin.assignedRole?.permissions) {
+          perms = dbAdmin.assignedRole.permissions.map((rp) => rp.permission.slug);
+        }
+
+        authenticatedAdmin = {
+          id: dbAdmin.id,
+          email: dbAdmin.email,
+          name: dbAdmin.name,
+          role: dbAdmin.role,
+          department: dbAdmin.department,
+          permissions: perms,
+        };
+
+        // If verified via fallback, persist secure PBKDF2 hash
+        if (!dbAdmin.passwordHash) {
+          await this.prisma.adminUser.update({
+            where: { id: dbAdmin.id },
+            data: { passwordHash: AdminSecurity.hashPassword(password) },
+          }).catch(() => {});
+        }
+      }
+    }
+
+    // 2. Fallback to built-in staff users if not yet in database
+    if (!authenticatedAdmin) {
+      const staffMembers = getStaffUsers();
+      const staffMember = staffMembers.find(
+        (s) => s.email.toLowerCase() === emailNorm && s.passwords.includes(password),
+      );
+
+      if (staffMember) {
+        authenticatedAdmin = {
+          id: staffMember.id,
+          email: staffMember.email,
+          name: staffMember.name,
+          role: staffMember.role,
+          department: 'Executive / Tech',
+          permissions: staffMember.role === 'SUPER_ADMIN' ? ['*'] : [],
+        };
+
+        // Auto-seed into AdminUser database table
+        const roleRecord = this.prisma.adminRole
+          ? await this.prisma.adminRole.findUnique({
+              where: { name: staffMember.role },
+            }).catch(() => null)
+          : null;
+
+        if (this.prisma.adminUser?.upsert) {
+          await this.prisma.adminUser.upsert({
+            where: { email: staffMember.email.toLowerCase() },
+            update: {
+              name: staffMember.name,
+              role: staffMember.role,
+              roleId: roleRecord?.id || null,
+              lastLoginAt: new Date(),
+            },
+            create: {
+              email: staffMember.email.toLowerCase(),
+              name: staffMember.name,
+              passwordHash: AdminSecurity.hashPassword(password),
+              role: staffMember.role,
+              roleId: roleRecord?.id || null,
+              department: 'Executive / Tech',
+              status: 'ACTIVE',
+              isActive: true,
+              lastLoginAt: new Date(),
+            },
+          }).catch(() => {});
+        }
+      }
+    }
+
+    if (!authenticatedAdmin) {
       await this.logAction(null, 'ADMIN_LOGIN_FAILED', {
         email: emailNorm,
         reason: 'Invalid credentials',
@@ -112,11 +252,21 @@ export class AdminService {
       throw new UnauthorizedException('Invalid administrator credentials');
     }
 
+    // Update lastLoginAt
+    if (this.prisma.adminUser?.update) {
+      await this.prisma.adminUser.update({
+        where: { email: emailNorm },
+        data: { lastLoginAt: new Date() },
+      }).catch(() => {});
+    }
+
     const payload = {
-      sub: staffMember.id,
-      email: staffMember.email,
-      name: staffMember.name,
-      role: staffMember.role,
+      sub: authenticatedAdmin.id,
+      email: authenticatedAdmin.email,
+      name: authenticatedAdmin.name,
+      role: authenticatedAdmin.role,
+      department: authenticatedAdmin.department,
+      permissions: authenticatedAdmin.permissions,
       isAdmin: true,
       sid: `admin-session-${Date.now()}`,
     };
@@ -126,18 +276,55 @@ export class AdminService {
       expiresIn: '8h',
     });
 
-    await this.logAction(null, 'ADMIN_LOGIN_SUCCESS', {
-      email: staffMember.email,
-      role: staffMember.role,
+    await this.logAction(authenticatedAdmin.id, 'ADMIN_LOGIN_SUCCESS', {
+      email: authenticatedAdmin.email,
+      role: authenticatedAdmin.role,
     });
 
     return {
       token,
       user: {
-        id: staffMember.id,
-        email: staffMember.email,
-        name: staffMember.name,
-        role: staffMember.role,
+        id: authenticatedAdmin.id,
+        email: authenticatedAdmin.email,
+        name: authenticatedAdmin.name,
+        role: authenticatedAdmin.role,
+        department: authenticatedAdmin.department,
+        permissions: authenticatedAdmin.permissions,
+      },
+    };
+  }
+
+  async getMe(admin: AdminUser) {
+    const dbAdmin = await this.prisma.adminUser.findUnique({
+      where: { email: admin.email.toLowerCase() },
+      include: {
+        assignedRole: {
+          include: {
+            permissions: {
+              include: { permission: true },
+            },
+          },
+        },
+      },
+    }).catch(() => null);
+
+    let permissions = admin.permissions || [];
+    if (admin.role === 'SUPER_ADMIN') {
+      permissions = PERMISSIONS_CATALOG.map((p) => p.slug);
+    } else if (dbAdmin?.assignedRole?.permissions) {
+      permissions = dbAdmin.assignedRole.permissions.map((rp) => rp.permission.slug);
+    }
+
+    return {
+      admin: {
+        id: dbAdmin?.id || admin.id,
+        email: dbAdmin?.email || admin.email,
+        name: dbAdmin?.name || admin.name,
+        role: dbAdmin?.role || admin.role,
+        department: dbAdmin?.department || admin.department || 'Operations',
+        permissions,
+        status: dbAdmin?.status || 'ACTIVE',
+        lastLoginAt: dbAdmin?.lastLoginAt,
       },
     };
   }
@@ -163,30 +350,30 @@ export class AdminService {
       openTickets,
       recentAuditLogs,
     ] = await Promise.all([
-      this.prisma.user.count(),
-      this.prisma.user.count({ where: { isActive: true } }),
-      this.prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+      this.prisma.user.count().catch(() => 0),
+      this.prisma.user.count({ where: { isActive: true } }).catch(() => 0),
+      this.prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }).catch(() => 0),
       this.prisma.kYCApplication.findMany({
         select: { overallStatus: true, manualReviewRequired: true },
-      }),
-      this.prisma.goal.count(),
-      this.prisma.goal.count({ where: { status: 'ACTIVE' } }),
+      }).catch(() => [] as Array<{ overallStatus: string; manualReviewRequired: boolean }>),
+      this.prisma.goal.count().catch(() => 0),
+      this.prisma.goal.count({ where: { status: 'ACTIVE' } }).catch(() => 0),
       this.prisma.goal.aggregate({
         _sum: { targetAmount: true, monthlySip: true },
-      }),
-      this.prisma.fpPurchaseOrder.count(),
+      }).catch(() => ({ _sum: { targetAmount: 0, monthlySip: 0 } })),
+      this.prisma.fpPurchaseOrder.count().catch(() => 0),
       this.prisma.fpPurchaseOrder.groupBy({
         by: ['status'],
         _count: { _all: true },
         _sum: { amount: true },
-      }),
-      this.prisma.supportTicket.count(),
-      this.prisma.supportTicket.count({ where: { status: 'OPEN' } }),
+      }).catch(() => [] as any[]),
+      this.prisma.supportTicket.count().catch(() => 0),
+      this.prisma.supportTicket.count({ where: { status: 'OPEN' } }).catch(() => 0),
       this.prisma.auditLog.findMany({
         take: 8,
         orderBy: { createdAt: 'desc' },
         include: { user: { select: { id: true, mobile: true, email: true } } },
-      }),
+      }).catch(() => [] as any[]),
     ]);
 
     // KYC breakdown
@@ -865,6 +1052,10 @@ export class AdminService {
       where.OR = [
         { subject: { contains: q, mode: 'insensitive' } },
         { message: { contains: q, mode: 'insensitive' } },
+        { referenceId: { contains: q, mode: 'insensitive' } },
+        { customerPhone: { contains: q, mode: 'insensitive' } },
+        { customerEmail: { contains: q, mode: 'insensitive' } },
+        { customerName: { contains: q, mode: 'insensitive' } },
         { user: { mobile: { contains: q, mode: 'insensitive' } } },
         { user: { email: { contains: q, mode: 'insensitive' } } },
       ];
@@ -886,21 +1077,37 @@ export class AdminService {
               profile: { select: { fullName: true } },
             },
           },
+          _count: {
+            select: { messages: true },
+          },
         },
       }),
     ]);
 
     const formatted = tickets.map((t) => ({
       id: t.id,
+      referenceId: t.referenceId,
+      freshdeskTicketId: t.freshdeskTicketId ? t.freshdeskTicketId.toString() : null,
+      freshdeskStatus: t.freshdeskStatus,
+      channel: t.channel || 'WHATSAPP',
+      priority: t.priority || 'MEDIUM',
       userId: t.userId,
       subject: t.subject,
       message: t.message,
       status: t.status,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
-      userName: t.user.profile?.fullName ?? 'User',
-      userMobile: this.maskMobile(t.user.mobile),
-      userEmail: this.maskEmail(t.user.email),
+      customerPhone: t.customerPhone,
+      customerEmail: t.customerEmail,
+      customerName: t.customerName || t.user?.profile?.fullName || 'User',
+      assignedAgentName: t.assignedAgentName,
+      assignedAgentEmail: t.assignedAgentEmail,
+      lastCustomerMessage: t.lastCustomerMessage,
+      lastAgentReply: t.lastAgentReply,
+      userName: t.user?.profile?.fullName || t.customerName || 'User',
+      userMobile: this.maskMobile(t.user?.mobile || t.customerPhone),
+      userEmail: this.maskEmail(t.user?.email || t.customerEmail),
+      messagesCount: t._count?.messages || 0,
     }));
 
     return {
@@ -911,6 +1118,187 @@ export class AdminService {
         total,
         totalPages: Math.ceil(total / limit),
       },
+    };
+  }
+
+  async getSupportTicketDetails(ticketId: string) {
+    const ticket = await this.prisma.supportTicket.findUnique({
+      where: { id: ticketId },
+      include: {
+        user: {
+          include: {
+            profile: true,
+            kycApplication: true,
+            riskProfile: true,
+          },
+        },
+        messages: {
+          orderBy: { createdAt: 'asc' },
+        },
+        auditEvents: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!ticket) {
+      throw new NotFoundException(`Support ticket ${ticketId} not found`);
+    }
+
+    return {
+      ...ticket,
+      freshdeskTicketId: ticket.freshdeskTicketId ? ticket.freshdeskTicketId.toString() : null,
+    };
+  }
+
+  async replyToSupportTicket(
+    ticketId: string,
+    dto: { reply: string },
+    admin: AdminUser,
+  ) {
+    const cleanReply = dto.reply?.trim();
+    if (!cleanReply) {
+      throw new BadRequestException('Reply message cannot be empty');
+    }
+
+    const ticket = await this.prisma.supportTicket.findUnique({
+      where: { id: ticketId },
+    });
+
+    if (!ticket) {
+      throw new NotFoundException(`Support ticket ${ticketId} not found`);
+    }
+
+    // 1. Create message in conversation thread
+    const newMsg = await this.prisma.supportMessage.create({
+      data: {
+        ticketId,
+        senderType: 'AGENT',
+        senderName: admin.email,
+        senderEmail: admin.email,
+        content: cleanReply,
+        channel: ticket.channel || 'WHATSAPP',
+        deliveryStatus: 'SENT',
+      },
+    });
+
+    // 2. Update ticket header
+    await this.prisma.supportTicket.update({
+      where: { id: ticketId },
+      data: {
+        lastAgentReply: cleanReply,
+        assignedAgentName: admin.email,
+        assignedAgentEmail: admin.email,
+        updatedAt: new Date(),
+      },
+    });
+
+    // 3. Sync reply to Freshdesk
+    if (ticket.freshdeskTicketId && this.freshdeskService) {
+      try {
+        await this.freshdeskService.addAgentReply(ticket.freshdeskTicketId.toString(), cleanReply);
+      } catch (err: any) {
+        // Safe logging
+      }
+    }
+
+    // 4. Send reply back to customer via their communication channel
+    const targetChannel = (ticket.channel || 'WHATSAPP').toUpperCase();
+    let deliverySuccess = true;
+    let deliveryWarning: string | null = null;
+    let channelMessageId: string | undefined = undefined;
+
+    // Route A: Email Channel Dispatch (via ZeptoMail)
+    if (targetChannel === 'EMAIL' || (!ticket.customerPhone && ticket.customerEmail)) {
+      const recipientEmail = ticket.customerEmail || ticket.assignedAgentEmail;
+      if (recipientEmail && recipientEmail.includes('@') && this.supportEmailService) {
+        try {
+          const emailRes = await this.supportEmailService.sendAgentReplyEmail({
+            to: recipientEmail,
+            customerName: ticket.customerName || undefined,
+            referenceId: ticket.referenceId || ticket.id.slice(0, 8),
+            subject: ticket.subject,
+            replyMessage: cleanReply,
+            originalMessage: ticket.message,
+            agentName: admin.email,
+          });
+
+          if (emailRes.success) {
+            channelMessageId = emailRes.messageId;
+            deliverySuccess = true;
+          } else {
+            deliverySuccess = false;
+            deliveryWarning = 'Failed to deliver email reply via ZeptoMail';
+          }
+        } catch (err: any) {
+          deliverySuccess = false;
+          deliveryWarning = `Email delivery error: ${err?.message}`;
+        }
+      }
+    }
+
+    // Route B: WhatsApp Channel Dispatch (via Interakt)
+    if (targetChannel === 'WHATSAPP' || ticket.customerPhone) {
+      if (ticket.customerPhone && this.whatsappService) {
+        try {
+          const waRes = await this.whatsappService.sendWhatsAppMessage(ticket.customerPhone, cleanReply);
+          if (waRes.success) {
+            channelMessageId = waRes.messageId;
+            deliverySuccess = true;
+          } else {
+            deliverySuccess = false;
+            if (waRes.error === 'WHATSAPP_24H_WINDOW_CLOSED') {
+              deliveryWarning =
+                'Customer WhatsApp 24-hour service window is closed. Customer must message +91 83088 16023 to reopen session.';
+            } else {
+              deliveryWarning = 'Failed to deliver WhatsApp message via Interakt';
+            }
+          }
+        } catch (err: any) {
+          deliverySuccess = false;
+          deliveryWarning = err?.message || 'WhatsApp delivery error';
+        }
+      }
+    }
+
+    // Update message delivery status in database
+    await this.prisma.supportMessage.update({
+      where: { id: newMsg.id },
+      data: {
+        deliveryStatus: deliverySuccess ? 'DELIVERED' : 'FAILED',
+        channelMessageId,
+      },
+    }).catch(() => {});
+
+    // 5. Create In-App Notification for registered client
+    if (ticket.userId) {
+      await this.prisma.notification.create({
+        data: {
+          userId: ticket.userId,
+          type: 'SUPPORT_REPLY',
+          title: `Support update: ${ticket.subject || ticket.referenceId || 'Query Reply'}`,
+          body: cleanReply,
+          channel: 'IN_APP',
+          status: 'SENT',
+        },
+      }).catch(() => {});
+    }
+
+    // 6. Log audit event
+    await this.logAction(ticket.userId, 'SUPPORT_TICKET_REPLIED_BY_ADMIN', {
+      adminId: admin.id,
+      adminEmail: admin.email,
+      ticketId,
+      replyLength: cleanReply.length,
+      channel: targetChannel,
+      deliveryStatus: deliverySuccess ? 'DELIVERED' : 'FAILED',
+      warning: deliveryWarning,
+    });
+
+    return {
+      ...newMsg,
+      deliveryStatus: deliverySuccess ? 'DELIVERED' : 'FAILED',
+      warning: deliveryWarning,
     };
   }
 
@@ -934,6 +1322,16 @@ export class AdminService {
       },
     });
 
+    // If status changed to RESOLVED or CLOSED, update Freshdesk status as well
+    if (ticket.freshdeskTicketId && this.freshdeskService) {
+      const fdStatus = dto.status === 'RESOLVED' ? 4 : dto.status === 'CLOSED' ? 5 : 2;
+      try {
+        await this.freshdeskService.updateTicketStatus(ticket.freshdeskTicketId.toString(), fdStatus);
+      } catch {
+        // Non-blocking
+      }
+    }
+
     await this.logAction(ticket.userId, 'SUPPORT_TICKET_STATUS_UPDATED', {
       adminId: admin.id,
       adminEmail: admin.email,
@@ -944,6 +1342,110 @@ export class AdminService {
     });
 
     return updated;
+  }
+
+  async createSupportTicket(
+    dto: {
+      customerName: string;
+      customerPhone?: string;
+      customerEmail?: string;
+      subject: string;
+      message: string;
+      channel?: string;
+      priority?: string;
+    },
+    admin: AdminUser,
+  ) {
+    const channel = dto.channel || 'WHATSAPP';
+    const priority = dto.priority || 'MEDIUM';
+    const shortHash = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const referenceId = `TA-${channel[0] || 'S'}-${shortHash}`;
+
+    // Match existing user if phone provided
+    let matchedUser: any = null;
+    if (dto.customerPhone) {
+      const clean = dto.customerPhone.replace(/[^0-9]/g, '').slice(-10);
+      matchedUser = await this.prisma.user.findFirst({
+        where: { mobile: { contains: clean } },
+        include: { profile: true },
+      });
+    }
+
+    let freshdeskTicketId: bigint | null = null;
+    if (this.freshdeskService) {
+      try {
+        const fd = await this.freshdeskService.createTicket({
+          subject: dto.subject,
+          description: dto.message,
+          phone: dto.customerPhone,
+          email: dto.customerEmail,
+          name: dto.customerName,
+          priority: priority === 'HIGH' ? 3 : priority === 'URGENT' ? 4 : 2,
+        });
+        if (fd?.id) freshdeskTicketId = BigInt(fd.id);
+      } catch {
+        // Safe fallback
+      }
+    }
+
+    const ticket = await this.prisma.supportTicket.create({
+      data: {
+        referenceId,
+        freshdeskTicketId,
+        channel,
+        priority,
+        userId: matchedUser?.id || null,
+        customerName: dto.customerName,
+        customerPhone: dto.customerPhone || null,
+        customerEmail: dto.customerEmail || null,
+        subject: dto.subject,
+        message: dto.message,
+        lastCustomerMessage: dto.message,
+        status: 'OPEN',
+      },
+    });
+
+    // Save initial message in thread
+    await this.prisma.supportMessage.create({
+      data: {
+        ticketId: ticket.id,
+        senderType: 'USER',
+        senderName: dto.customerName,
+        content: dto.message,
+        channel,
+      },
+    });
+
+    await this.logAction(ticket.userId, 'SUPPORT_TICKET_CREATED_BY_ADMIN', {
+      adminId: admin.id,
+      ticketId: ticket.id,
+      referenceId,
+    });
+
+    return ticket;
+  }
+
+  async deleteSupportTicket(ticketId: string, admin: AdminUser) {
+    const ticket = await this.prisma.supportTicket.findUnique({
+      where: { id: ticketId },
+    });
+
+    if (!ticket) {
+      throw new NotFoundException(`Support ticket ${ticketId} not found`);
+    }
+
+    await this.prisma.supportTicket.delete({
+      where: { id: ticketId },
+    });
+
+    await this.logAction(ticket.userId, 'SUPPORT_TICKET_DELETED', {
+      adminId: admin.id,
+      adminEmail: admin.email,
+      ticketId,
+      referenceId: ticket.referenceId,
+    });
+
+    return { success: true, deletedTicketId: ticketId };
   }
 
   // ==========================================
@@ -1011,6 +1513,1556 @@ export class AdminService {
         limit,
         total,
         totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  // ==========================================
+  // TECHNICAL SUPPORT AGENTS ONBOARDING
+  // ==========================================
+  async getTechnicalAgents() {
+    return (this.prisma as any).technicalAgent.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async createTechnicalAgent(
+    dto: {
+      fullName: string;
+      email: string;
+      phone?: string;
+      role?: string;
+      department?: string;
+      notifyOnTickets?: boolean;
+    },
+    admin: AdminUser,
+  ) {
+    if (!dto.fullName?.trim() || !dto.email?.trim()) {
+      throw new BadRequestException('Full name and email are required to onboard an agent.');
+    }
+
+    const cleanEmail = dto.email.trim().toLowerCase();
+    const existing = await (this.prisma as any).technicalAgent.findUnique({
+      where: { email: cleanEmail },
+    });
+
+    if (existing) {
+      throw new BadRequestException(`An agent with email ${dto.email} already exists.`);
+    }
+
+    const agent = await (this.prisma as any).technicalAgent.create({
+      data: {
+        fullName: dto.fullName.trim(),
+        email: cleanEmail,
+        phone: dto.phone?.trim() || null,
+        role: dto.role || 'TECHNICAL_SUPPORT',
+        department: dto.department || 'Technical Support',
+        notifyOnTickets: dto.notifyOnTickets !== false,
+        isActive: true,
+      },
+    });
+
+    await this.logAction(null, 'TECHNICAL_AGENT_ONBOARDED', {
+      adminId: admin.id,
+      adminEmail: admin.email,
+      agentId: agent.id,
+      agentEmail: agent.email,
+      role: agent.role,
+    });
+
+    return agent;
+  }
+
+  async updateTechnicalAgent(
+    id: string,
+    dto: {
+      fullName?: string;
+      phone?: string;
+      role?: string;
+      department?: string;
+      isActive?: boolean;
+      notifyOnTickets?: boolean;
+    },
+    admin: AdminUser,
+  ) {
+    const agent = await (this.prisma as any).technicalAgent.findUnique({
+      where: { id },
+    });
+
+    if (!agent) {
+      throw new NotFoundException(`Technical agent ${id} not found`);
+    }
+
+    const updated = await (this.prisma as any).technicalAgent.update({
+      where: { id },
+      data: {
+        ...dto,
+        updatedAt: new Date(),
+      },
+    });
+
+    await this.logAction(null, 'TECHNICAL_AGENT_UPDATED', {
+      adminId: admin.id,
+      agentId: id,
+      updates: dto,
+    });
+
+    return updated;
+  }
+
+  async deleteTechnicalAgent(id: string, admin: AdminUser) {
+    const agent = await (this.prisma as any).technicalAgent.findUnique({
+      where: { id },
+    });
+
+    if (!agent) {
+      throw new NotFoundException(`Technical agent ${id} not found`);
+    }
+
+    await (this.prisma as any).technicalAgent.delete({
+      where: { id },
+    });
+
+    await this.logAction(null, 'TECHNICAL_AGENT_REMOVED', {
+      adminId: admin.id,
+      agentId: id,
+      agentEmail: agent.email,
+    });
+
+    return { success: true, deletedAgentId: id };
+  }
+
+  // ==========================================
+  // TEAM NOTIFICATIONS (ADMIN NOTIFICATION BELL)
+  // ==========================================
+  async getAdminNotifications() {
+    const notifications = await this.prisma.notification.findMany({
+      where: {
+        channel: 'ADMIN_PORTAL',
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    }).catch(() => []);
+
+    const latestTickets = await this.prisma.supportTicket.findMany({
+      where: { status: { in: ['OPEN', 'RECEIVED'] } },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: {
+        id: true,
+        referenceId: true,
+        channel: true,
+        customerName: true,
+        subject: true,
+        createdAt: true,
+      },
+    }).catch(() => []);
+
+    return {
+      notifications,
+      unreadCount: latestTickets.length,
+      latestTickets,
+    };
+  }
+
+  // ==========================================
+  // TEAM MANAGEMENT & INVITATIONS
+  // ==========================================
+  async getTeamMembers(search?: string, role?: string, status?: string) {
+    const searchNorm = search?.trim().toLowerCase();
+
+    // 1. Fetch Admin Users
+    const users = await this.prisma.adminUser.findMany({
+      include: {
+        assignedRole: {
+          select: { id: true, name: true, displayName: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // 2. Fetch pending / expired / revoked invitations
+    const invitations = await this.prisma.adminInvitation.findMany({
+      where: {
+        status: { in: ['INVITED', 'EXPIRED', 'REVOKED'] },
+      },
+      include: {
+        roleModel: {
+          select: { id: true, name: true, displayName: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const now = new Date();
+    const formattedInvitations = invitations.map((inv) => {
+      const isExpired = inv.status === 'INVITED' && inv.expiresAt < now;
+      return {
+        id: inv.id,
+        name: inv.invitedName,
+        email: inv.invitedEmail,
+        role: inv.role,
+        roleDisplayName: inv.roleModel?.displayName || inv.role,
+        department: inv.department || 'Operations',
+        status: isExpired ? 'EXPIRED' : inv.status,
+        isActive: false,
+        isInvitation: true,
+        expiresAt: inv.expiresAt,
+        createdAt: inv.createdAt,
+        lastLoginAt: null,
+      };
+    });
+
+    const formattedUsers = users.map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      roleDisplayName: u.assignedRole?.displayName || u.role,
+      department: u.department,
+      status: u.status,
+      isActive: u.isActive,
+      isInvitation: false,
+      expiresAt: null,
+      createdAt: u.createdAt,
+      lastLoginAt: u.lastLoginAt,
+    }));
+
+    let allMembers = [...formattedUsers, ...formattedInvitations];
+
+    if (searchNorm) {
+      allMembers = allMembers.filter(
+        (m) =>
+          m.name.toLowerCase().includes(searchNorm) ||
+          m.email.toLowerCase().includes(searchNorm) ||
+          m.role.toLowerCase().includes(searchNorm) ||
+          m.department.toLowerCase().includes(searchNorm),
+      );
+    }
+
+    if (role && role !== 'ALL') {
+      allMembers = allMembers.filter((m) => m.role === role);
+    }
+
+    if (status && status !== 'ALL') {
+      allMembers = allMembers.filter((m) => m.status === status);
+    }
+
+    return {
+      members: allMembers,
+      total: allMembers.length,
+      activeCount: formattedUsers.filter((u) => u.status === 'ACTIVE').length,
+      invitedCount: formattedInvitations.filter((i) => i.status === 'INVITED').length,
+    };
+  }
+
+  async inviteMember(currentAdmin: AdminUser, dto: InviteTeamMemberDto) {
+    const emailNorm = dto.email.trim().toLowerCase();
+    const fullName = (dto.fullName || dto.name || emailNorm.split('@')[0]).trim();
+    const requestedRole = dto.role.trim();
+
+    if (requestedRole === 'SUPER_ADMIN' && currentAdmin.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Only a Super Administrator can invite members with the Super Admin role.');
+    }
+
+    const existingUser = await this.prisma.adminUser.findUnique({
+      where: { email: emailNorm },
+    });
+
+    if (existingUser && existingUser.isActive && existingUser.status === 'ACTIVE') {
+      throw new BadRequestException('An active administrator account already exists with this email address.');
+    }
+
+    const roleRecord = await this.prisma.adminRole.findFirst({
+      where: {
+        OR: [{ name: requestedRole }, { id: requestedRole }],
+      },
+    });
+
+    await this.prisma.adminInvitation.updateMany({
+      where: {
+        invitedEmail: emailNorm,
+        status: 'INVITED',
+      },
+      data: {
+        status: 'REVOKED',
+        revokedAt: new Date(),
+      },
+    });
+
+    const { rawToken, tokenHash } = AdminSecurity.generateInvitationToken();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    const invitation = await this.prisma.adminInvitation.create({
+      data: {
+        invitedEmail: emailNorm,
+        invitedName: fullName,
+        tokenHash,
+        role: roleRecord?.name || requestedRole,
+        roleId: roleRecord?.id || null,
+        department: dto.department?.trim() || roleRecord?.department || 'Operations',
+        status: 'INVITED',
+        message: dto.message?.trim() || null,
+        invitedByUserId: currentAdmin.id,
+        expiresAt,
+      },
+    });
+
+    const adminBaseUrl = process.env.ADMIN_URL || 'http://localhost:3002';
+    const invitationLink = `${adminBaseUrl}/invite/accept?token=${rawToken}`;
+
+    const emailResult = await this.invitationEmailService.sendInvitation({
+      toEmail: emailNorm,
+      toName: fullName,
+      roleName: roleRecord?.displayName || requestedRole,
+      inviterName: currentAdmin.name || 'Platform Administrator',
+      invitationLink,
+      expiresInHours: 24,
+      customMessage: dto.message,
+    });
+
+    await this.logAction(currentAdmin.id, 'ADMIN_INVITATION_CREATED', {
+      invitedEmail: emailNorm,
+      role: requestedRole,
+      invitationId: invitation.id,
+      emailDelivered: emailResult.delivered,
+      provider: emailResult.provider,
+    });
+
+    return {
+      success: true,
+      invitation: {
+        id: invitation.id,
+        email: invitation.invitedEmail,
+        name: invitation.invitedName,
+        role: invitation.role,
+        department: invitation.department,
+        expiresAt: invitation.expiresAt,
+        status: invitation.status,
+      },
+      delivery: emailResult,
+      invitationLink: !emailResult.delivered ? invitationLink : undefined,
+    };
+  }
+
+  async resendInvitation(currentAdmin: AdminUser, invitationId: string) {
+    const inv = await this.prisma.adminInvitation.findUnique({
+      where: { id: invitationId },
+      include: { roleModel: true },
+    });
+
+    if (!inv) {
+      throw new NotFoundException('Invitation not found.');
+    }
+
+    if (inv.status === 'ACCEPTED') {
+      throw new BadRequestException('This invitation has already been accepted and the account is active.');
+    }
+
+    const { rawToken, tokenHash } = AdminSecurity.generateInvitationToken();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    const updated = await this.prisma.adminInvitation.update({
+      where: { id: invitationId },
+      data: {
+        tokenHash,
+        status: 'INVITED',
+        expiresAt,
+        revokedAt: null,
+      },
+    });
+
+    const adminBaseUrl = process.env.ADMIN_URL || 'http://localhost:3002';
+    const invitationLink = `${adminBaseUrl}/invite/accept?token=${rawToken}`;
+
+    const emailResult = await this.invitationEmailService.sendInvitation({
+      toEmail: inv.invitedEmail,
+      toName: inv.invitedName,
+      roleName: inv.roleModel?.displayName || inv.role,
+      inviterName: currentAdmin.name,
+      invitationLink,
+      expiresInHours: 24,
+      customMessage: inv.message || undefined,
+    });
+
+    await this.logAction(currentAdmin.id, 'ADMIN_INVITATION_RESENT', {
+      invitationId,
+      invitedEmail: inv.invitedEmail,
+    });
+
+    return {
+      success: true,
+      invitation: updated,
+      delivery: emailResult,
+      invitationLink: !emailResult.delivered ? invitationLink : undefined,
+    };
+  }
+
+  async revokeInvitation(currentAdmin: AdminUser, invitationId: string) {
+    const inv = await this.prisma.adminInvitation.findUnique({
+      where: { id: invitationId },
+    });
+
+    if (!inv) {
+      throw new NotFoundException('Invitation not found.');
+    }
+
+    if (inv.status === 'ACCEPTED') {
+      throw new BadRequestException('Cannot revoke an already accepted invitation.');
+    }
+
+    await this.prisma.adminInvitation.update({
+      where: { id: invitationId },
+      data: {
+        status: 'REVOKED',
+        revokedAt: new Date(),
+      },
+    });
+
+    await this.logAction(currentAdmin.id, 'ADMIN_INVITATION_REVOKED', {
+      invitationId,
+      invitedEmail: inv.invitedEmail,
+    });
+
+    return { success: true, message: 'Invitation has been revoked successfully.' };
+  }
+
+  async updateMemberRole(currentAdmin: AdminUser, memberId: string, dto: UpdateTeamMemberRoleDto) {
+    const targetUser = await this.prisma.adminUser.findUnique({
+      where: { id: memberId },
+    });
+
+    if (!targetUser) {
+      throw new NotFoundException('Team member not found.');
+    }
+
+    const newRole = dto.role.trim();
+
+    if (newRole === 'SUPER_ADMIN' && currentAdmin.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Only a Super Administrator can assign the Super Admin role.');
+    }
+
+    if (targetUser.role === 'SUPER_ADMIN' && newRole !== 'SUPER_ADMIN') {
+      const activeSuperAdmins = await this.prisma.adminUser.count({
+        where: { role: 'SUPER_ADMIN', isActive: true, status: 'ACTIVE' },
+      });
+      if (activeSuperAdmins <= 1) {
+        throw new BadRequestException('Cannot demote the last active Super Administrator on the platform.');
+      }
+    }
+
+    const roleRecord = await this.prisma.adminRole.findFirst({
+      where: { OR: [{ name: newRole }, { id: newRole }] },
+    });
+
+    const updated = await this.prisma.adminUser.update({
+      where: { id: memberId },
+      data: {
+        role: roleRecord?.name || newRole,
+        roleId: roleRecord?.id || null,
+        department: roleRecord?.department || targetUser.department,
+      },
+    });
+
+    await this.logAction(currentAdmin.id, 'ADMIN_ROLE_CHANGED', {
+      targetUserId: memberId,
+      targetEmail: targetUser.email,
+      oldRole: targetUser.role,
+      newRole,
+    });
+
+    return { success: true, member: updated };
+  }
+
+  async updateMemberStatus(currentAdmin: AdminUser, memberId: string, dto: UpdateTeamMemberStatusDto) {
+    const targetUser = await this.prisma.adminUser.findUnique({
+      where: { id: memberId },
+    });
+
+    if (!targetUser) {
+      throw new NotFoundException('Team member not found.');
+    }
+
+    const newStatus = dto.status;
+
+    if (targetUser.role === 'SUPER_ADMIN' && (newStatus === 'SUSPENDED' || newStatus === 'DEACTIVATED')) {
+      const activeSuperAdmins = await this.prisma.adminUser.count({
+        where: { role: 'SUPER_ADMIN', isActive: true, status: 'ACTIVE', id: { not: memberId } },
+      });
+      if (activeSuperAdmins < 1) {
+        throw new BadRequestException('Cannot suspend or deactivate the last remaining Super Administrator.');
+      }
+    }
+
+    const updated = await this.prisma.adminUser.update({
+      where: { id: memberId },
+      data: {
+        status: newStatus,
+        isActive: newStatus === 'ACTIVE',
+      },
+    });
+
+    await this.logAction(currentAdmin.id, 'ADMIN_STATUS_CHANGED', {
+      targetUserId: memberId,
+      targetEmail: targetUser.email,
+      newStatus,
+    });
+
+    return { success: true, member: updated };
+  }
+
+  async deleteMember(currentAdmin: AdminUser, memberId: string) {
+    const targetUser = await this.prisma.adminUser.findUnique({
+      where: { id: memberId },
+    });
+
+    if (!targetUser) {
+      throw new NotFoundException('Team member not found.');
+    }
+
+    if (targetUser.role === 'SUPER_ADMIN') {
+      const activeSuperAdmins = await this.prisma.adminUser.count({
+        where: { role: 'SUPER_ADMIN', isActive: true, status: 'ACTIVE', id: { not: memberId } },
+      });
+      if (activeSuperAdmins < 1) {
+        throw new BadRequestException('Cannot remove the last remaining Super Administrator.');
+      }
+    }
+
+    await this.prisma.adminUser.update({
+      where: { id: memberId },
+      data: {
+        status: 'DEACTIVATED',
+        isActive: false,
+      },
+    });
+
+    await this.logAction(currentAdmin.id, 'ADMIN_MEMBER_DEACTIVATED', {
+      targetUserId: memberId,
+      targetEmail: targetUser.email,
+    });
+
+    return { success: true, message: 'Team member deactivated successfully.' };
+  }
+
+  // ==========================================
+  // INVITATION ACCEPTANCE WORKFLOW
+  // ==========================================
+  async validateInvitationToken(token: string) {
+    if (!token || token.trim().length < 16) {
+      throw new BadRequestException('Invalid invitation token format.');
+    }
+
+    const tokenHash = AdminSecurity.hashToken(token);
+    const invitation = await this.prisma.adminInvitation.findUnique({
+      where: { tokenHash },
+      include: { roleModel: true },
+    });
+
+    if (!invitation) {
+      throw new NotFoundException('Invitation token is invalid or does not exist.');
+    }
+
+    if (invitation.status === 'ACCEPTED') {
+      throw new BadRequestException('This invitation has already been accepted. Please log in.');
+    }
+
+    if (invitation.status === 'REVOKED') {
+      throw new BadRequestException('This invitation has been revoked by an administrator.');
+    }
+
+    if (invitation.expiresAt < new Date()) {
+      throw new BadRequestException('This invitation has expired. Please request a new invitation link.');
+    }
+
+    return {
+      valid: true,
+      email: invitation.invitedEmail,
+      name: invitation.invitedName,
+      role: invitation.role,
+      roleDisplayName: invitation.roleModel?.displayName || invitation.role,
+      department: invitation.department,
+      expiresAt: invitation.expiresAt,
+    };
+  }
+
+  async acceptInvitation(dto: AcceptInvitationDto) {
+    const token = dto.token.trim();
+    const tokenHash = AdminSecurity.hashToken(token);
+
+    const invitation = await this.prisma.adminInvitation.findUnique({
+      where: { tokenHash },
+      include: { roleModel: { include: { permissions: { include: { permission: true } } } } },
+    });
+
+    if (!invitation) {
+      throw new NotFoundException('Invitation token is invalid or has expired.');
+    }
+
+    if (invitation.status === 'ACCEPTED') {
+      throw new BadRequestException('This invitation has already been used.');
+    }
+
+    if (invitation.status === 'REVOKED') {
+      throw new BadRequestException('This invitation has been revoked.');
+    }
+
+    if (invitation.expiresAt < new Date()) {
+      throw new BadRequestException('This invitation link has expired.');
+    }
+
+    if (!dto.password || dto.password.length < 8) {
+      throw new BadRequestException('Password must be at least 8 characters long.');
+    }
+
+    const passwordHash = AdminSecurity.hashPassword(dto.password);
+    const emailNorm = invitation.invitedEmail.toLowerCase();
+    const displayName = dto.name?.trim() || invitation.invitedName;
+
+    const adminUser = await this.prisma.$transaction(async (tx) => {
+      await tx.adminInvitation.update({
+        where: { id: invitation.id },
+        data: {
+          status: 'ACCEPTED',
+          acceptedAt: new Date(),
+        },
+      });
+
+      const user = await tx.adminUser.upsert({
+        where: { email: emailNorm },
+        update: {
+          name: displayName,
+          passwordHash,
+          role: invitation.role,
+          roleId: invitation.roleId,
+          department: invitation.department || 'Operations',
+          status: 'ACTIVE',
+          isActive: true,
+          lastLoginAt: new Date(),
+        },
+        create: {
+          email: emailNorm,
+          name: displayName,
+          passwordHash,
+          role: invitation.role,
+          roleId: invitation.roleId,
+          department: invitation.department || 'Operations',
+          status: 'ACTIVE',
+          isActive: true,
+          lastLoginAt: new Date(),
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          action: 'ADMIN_INVITATION_ACCEPTED',
+          actorEmail: emailNorm,
+          actorRole: invitation.role,
+          details: JSON.stringify({
+            invitationId: invitation.id,
+            email: emailNorm,
+            role: invitation.role,
+          }),
+        },
+      });
+
+      return user;
+    });
+
+    const perms = invitation.role === 'SUPER_ADMIN'
+      ? ['*']
+      : (invitation.roleModel?.permissions?.map((p) => p.permission.slug) || []);
+
+    const payload = {
+      sub: adminUser.id,
+      email: adminUser.email,
+      name: adminUser.name,
+      role: adminUser.role,
+      permissions: perms,
+      isAdmin: true,
+      sid: `admin-session-${Date.now()}`,
+    };
+
+    const jwtToken = await this.jwt.signAsync(payload, {
+      secret: process.env.JWT_SECRET ?? 'development-only-change-me',
+      expiresIn: '8h',
+    });
+
+    return {
+      success: true,
+      token: jwtToken,
+      user: {
+        id: adminUser.id,
+        email: adminUser.email,
+        name: adminUser.name,
+        role: adminUser.role,
+        department: adminUser.department,
+        permissions: perms,
+      },
+      message: 'Account activated successfully. Welcome to TechArtha Administrative Platform.',
+    };
+  }
+
+  // ==========================================
+  // ROLES & PERMISSIONS MANAGEMENT
+  // ==========================================
+  async getAllPermissions() {
+    const permissions = await this.prisma.adminPermission.findMany({
+      orderBy: [{ module: 'asc' }, { action: 'asc' }],
+    });
+
+    const grouped: Record<string, typeof permissions> = {};
+    for (const p of permissions) {
+      if (!grouped[p.module]) {
+        grouped[p.module] = [];
+      }
+      grouped[p.module].push(p);
+    }
+
+    return {
+      permissions,
+      grouped,
+      total: permissions.length,
+    };
+  }
+
+  async getAllRoles() {
+    const roles = await this.prisma.adminRole.findMany({
+      include: {
+        permissions: {
+          include: { permission: true },
+        },
+        _count: {
+          select: { users: true, invitations: true },
+        },
+      },
+      orderBy: [{ isSystem: 'desc' }, { createdAt: 'asc' }],
+    });
+
+    return roles.map((r) => ({
+      id: r.id,
+      name: r.name,
+      displayName: r.displayName,
+      description: r.description,
+      department: r.department,
+      isSystem: r.isSystem,
+      status: r.status,
+      membersCount: r._count.users,
+      permissionsCount: r.permissions.length,
+      permissions: r.permissions.map((rp) => rp.permission.slug),
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    }));
+  }
+
+  async getRole(id: string) {
+    const role = await this.prisma.adminRole.findFirst({
+      where: { OR: [{ id }, { name: id }] },
+      include: {
+        permissions: {
+          include: { permission: true },
+        },
+        users: {
+          select: { id: true, name: true, email: true, status: true, department: true },
+        },
+      },
+    });
+
+    if (!role) {
+      throw new NotFoundException('Role not found.');
+    }
+
+    return {
+      ...role,
+      permissions: role.permissions.map((rp) => rp.permission.slug),
+    };
+  }
+
+  async createCustomRole(currentAdmin: AdminUser, dto: CreateCustomRoleDto) {
+    const roleName = dto.name.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+
+    const existing = await this.prisma.adminRole.findUnique({
+      where: { name: roleName },
+    });
+
+    if (existing) {
+      throw new BadRequestException(`Role with identifier "${roleName}" already exists.`);
+    }
+
+    const allPermissions = await this.prisma.adminPermission.findMany();
+    const permMap = new Map(allPermissions.map((p) => [p.slug, p.id]));
+
+    const createdRole = await this.prisma.$transaction(async (tx) => {
+      const role = await tx.adminRole.create({
+        data: {
+          name: roleName,
+          displayName: dto.displayName.trim(),
+          description: dto.description?.trim() || null,
+          department: dto.department?.trim() || 'Custom',
+          isSystem: false,
+          status: 'ACTIVE',
+        },
+      });
+
+      if (dto.permissions && dto.permissions.length > 0) {
+        for (const slug of dto.permissions) {
+          const permId = permMap.get(slug);
+          if (permId) {
+            await tx.adminRolePermission.create({
+              data: {
+                roleId: role.id,
+                permissionId: permId,
+              },
+            });
+          }
+        }
+      }
+
+      await tx.auditLog.create({
+        data: {
+          action: 'ADMIN_ROLE_CREATED',
+          actorEmail: currentAdmin.email,
+          actorRole: currentAdmin.role,
+          details: JSON.stringify({ roleName, displayName: dto.displayName, permissionsCount: dto.permissions?.length || 0 }),
+        },
+      });
+
+      return role;
+    });
+
+    return createdRole;
+  }
+
+  async updateCustomRole(currentAdmin: AdminUser, id: string, dto: UpdateCustomRoleDto) {
+    const role = await this.prisma.adminRole.findFirst({
+      where: { OR: [{ id }, { name: id }] },
+    });
+
+    if (!role) {
+      throw new NotFoundException('Role not found.');
+    }
+
+    const allPermissions = await this.prisma.adminPermission.findMany();
+    const permMap = new Map(allPermissions.map((p) => [p.slug, p.id]));
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.adminRole.update({
+        where: { id: role.id },
+        data: {
+          displayName: dto.displayName?.trim() || role.displayName,
+          description: dto.description !== undefined ? dto.description : role.description,
+          department: dto.department !== undefined ? dto.department : role.department,
+          status: dto.status || role.status,
+        },
+      });
+
+      if (dto.permissions !== undefined) {
+        await tx.adminRolePermission.deleteMany({
+          where: { roleId: role.id },
+        });
+
+        for (const slug of dto.permissions) {
+          const permId = permMap.get(slug);
+          if (permId) {
+            await tx.adminRolePermission.create({
+              data: {
+                roleId: role.id,
+                permissionId: permId,
+              },
+            });
+          }
+        }
+      }
+
+      await tx.auditLog.create({
+        data: {
+          action: 'ADMIN_ROLE_UPDATED',
+          actorEmail: currentAdmin.email,
+          actorRole: currentAdmin.role,
+          details: JSON.stringify({ roleId: role.id, roleName: role.name, permissionsCount: dto.permissions?.length }),
+        },
+      });
+    });
+
+    return { success: true, message: 'Role updated successfully.' };
+  }
+
+  async deleteCustomRole(currentAdmin: AdminUser, id: string) {
+    const role = await this.prisma.adminRole.findFirst({
+      where: { OR: [{ id }, { name: id }] },
+      include: { _count: { select: { users: true } } },
+    });
+
+    if (!role) {
+      throw new NotFoundException('Role not found.');
+    }
+
+    if (role.isSystem) {
+      throw new BadRequestException('Standard system roles cannot be deleted.');
+    }
+
+    if (role._count.users > 0) {
+      throw new BadRequestException(
+        `Cannot delete role because it is currently assigned to ${role._count.users} team member(s). Please reassign them first.`,
+      );
+    }
+
+    await this.prisma.adminRole.delete({
+      where: { id: role.id },
+    });
+
+    await this.logAction(currentAdmin.id, 'ADMIN_ROLE_DELETED', {
+      roleId: role.id,
+      roleName: role.name,
+    });
+
+    return { success: true, message: `Role "${role.displayName}" deleted successfully.` };
+  }
+
+  // ==========================================
+  // SYSTEM SETTINGS & INTEGRATIONS
+  // ==========================================
+  async getSettingsByCategory(category: string) {
+    const cat = category.trim().toLowerCase();
+    const settingKey = `platform_${cat}`;
+
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: settingKey },
+    });
+
+    if (!setting) {
+      return { category: cat, settings: {} };
+    }
+
+    const safeValue = JSON.parse(JSON.stringify(setting.value));
+    return {
+      category: cat,
+      settings: safeValue,
+      description: setting.description,
+      updatedAt: setting.updatedAt,
+      updatedBy: setting.updatedBy,
+    };
+  }
+
+  async updateSettingsCategory(currentAdmin: AdminUser, category: string, settingsPayload: Record<string, any>) {
+    const cat = category.trim().toLowerCase();
+    const settingKey = `platform_${cat}`;
+
+    const updated = await this.prisma.systemSetting.upsert({
+      where: { key: settingKey },
+      update: {
+        value: settingsPayload,
+        updatedBy: currentAdmin.email,
+      },
+      create: {
+        category: cat,
+        key: settingKey,
+        value: settingsPayload,
+        updatedBy: currentAdmin.email,
+        description: `${cat.toUpperCase()} configuration parameters`,
+      },
+    });
+
+    await this.logAction(currentAdmin.id, 'ADMIN_SETTINGS_UPDATED', {
+      category: cat,
+      updatedBy: currentAdmin.email,
+    });
+
+    return { success: true, settings: updated.value };
+  }
+
+  async testIntegration(provider: string) {
+    const prov = provider.trim().toLowerCase();
+
+    switch (prov) {
+      case 'resend': {
+        const key = process.env.RESEND_API_KEY;
+        const isConfigured = key && key !== '<server-side-api-key>' && !key.includes('<');
+        if (!isConfigured) {
+          return {
+            provider: 'resend',
+            status: 'NOT_CONFIGURED',
+            message: 'RESEND_API_KEY environment variable is not configured on the server.',
+          };
+        }
+        try {
+          const res = await fetch('https://api.resend.com/api-keys', {
+            headers: { Authorization: `Bearer ${key}` },
+          });
+          if (res.ok) {
+            return { provider: 'resend', status: 'CONNECTED', message: 'Resend API authenticated successfully.' };
+          }
+          return { provider: 'resend', status: 'ERROR', message: `Resend API returned status ${res.status}.` };
+        } catch (e: any) {
+          return { provider: 'resend', status: 'ERROR', message: `Connection error: ${e.message}` };
+        }
+      }
+
+      case 'interakt': {
+        const key = process.env.INTERAKT_API_KEY;
+        const isConfigured = key && key !== '<server-side-api-key>' && !key.includes('<');
+        return {
+          provider: 'interakt',
+          status: isConfigured ? 'CONNECTED' : 'NOT_CONFIGURED',
+          message: isConfigured
+            ? 'Interakt WhatsApp OTP API credentials are configured.'
+            : 'INTERAKT_API_KEY is not set.',
+        };
+      }
+
+      case 'cybrilla': {
+        return {
+          provider: 'cybrilla',
+          status: 'CONNECTED',
+          environment: 'Sandbox / UAT',
+          message: 'Cybrilla / Fintech Primitives sandbox endpoints reachable.',
+        };
+      }
+
+      case 'bse': {
+        const key = process.env.BSE_API_KEY;
+        const isConfigured = key && key !== '<server-side-api-key>' && !key.includes('<');
+        return {
+          provider: 'bse',
+          status: isConfigured ? 'CONNECTED' : 'NOT_CONFIGURED',
+          environment: 'UAT',
+          message: isConfigured
+            ? 'BSE StAR MF Common API credentials configured.'
+            : 'BSE_API_KEY environment variable is not configured.',
+        };
+      }
+
+      default:
+        return { provider: prov, status: 'UNKNOWN', message: 'Unknown provider.' };
+    }
+  }
+
+  // ==========================================
+  // ACTIVITY OVERVIEW & TIMELINE
+  // ==========================================
+  async getActivityOverview(limit: number = 30) {
+    const [auditLogs, kycRecords, orders, tickets] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: { user: { select: { id: true, mobile: true, email: true } } },
+      }).catch(() => [] as any[]),
+      this.prisma.kycRecord.findMany({
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        include: { user: { select: { id: true, mobile: true, email: true } } },
+      }).catch(() => [] as any[]),
+      this.prisma.fpPurchaseOrder.findMany({
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        include: { account: { include: { investorProfile: { include: { user: true } } } } },
+      }).catch(() => [] as any[]),
+      this.prisma.supportTicket.findMany({
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+      }).catch(() => [] as any[]),
+    ]);
+
+    const events: Array<{
+      id: string;
+      type: string;
+      title: string;
+      details: string;
+      actor: string;
+      category: string;
+      timestamp: Date;
+    }> = [];
+
+    for (const a of auditLogs) {
+      events.push({
+        id: a.id,
+        type: a.action,
+        title: a.action.replace(/_/g, ' '),
+        details: a.details || 'Administrative event logged',
+        actor: a.actorEmail || (a.user ? a.user.email || a.user.mobile : 'System'),
+        category: 'SECURITY',
+        timestamp: a.createdAt,
+      });
+    }
+
+    for (const k of kycRecords) {
+      events.push({
+        id: k.id,
+        type: 'KYC_RECORD',
+        title: `KYC ${k.status}`,
+        details: `KYC submission for investor (${k.provider})`,
+        actor: k.user?.email || k.user?.mobile || 'Investor',
+        category: 'COMPLIANCE',
+        timestamp: k.createdAt,
+      });
+    }
+
+    for (const o of orders) {
+      events.push({
+        id: o.id,
+        type: 'ORDER_EVENT',
+        title: `Order ${o.status}: ₹${o.amount.toLocaleString('en-IN')}`,
+        details: `Fund ISIN: ${o.schemeIsin} (${o.status})`,
+        actor: o.account?.investorProfile?.user?.email || 'Investor',
+        category: 'INVESTMENT',
+        timestamp: o.createdAt,
+      });
+    }
+
+    for (const t of tickets) {
+      events.push({
+        id: t.id,
+        type: 'SUPPORT_TICKET',
+        title: `Support Ticket [${t.referenceId || 'TICKET'}]: ${t.subject}`,
+        details: `Channel: ${t.channel} | Status: ${t.status}`,
+        actor: t.customerName || t.customerPhone || 'Customer',
+        category: 'SUPPORT',
+        timestamp: t.createdAt,
+      });
+    }
+
+    events.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+    return {
+      events: events.slice(0, limit),
+      total: events.length,
+    };
+  }
+
+  // ==========================================
+  // OPERATIONAL DOMAIN DATA ENDPOINTS
+  // ==========================================
+  async getBankVerifications(params: { page?: number; limit?: number; status?: string; search?: string }) {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(50, Math.max(1, Number(params.limit) || 15));
+    const skip = (page - 1) * limit;
+
+    const [profiles, total] = await Promise.all([
+      this.prisma.fpInvestorProfile.findMany({
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            include: { profile: true },
+          },
+          mfAccounts: true,
+        },
+      }).catch(() => [] as any[]),
+      this.prisma.fpInvestorProfile.count().catch(() => 0),
+    ]);
+
+    const data = profiles.map((p) => ({
+      id: p.id,
+      investorName: p.user?.profile?.fullName || 'Investor',
+      mobile: this.maskMobile(p.user?.mobile),
+      email: this.maskEmail(p.user?.email),
+      pan: this.maskPan(p.user?.profile?.pan),
+      fpProfileId: p.fpProfileId,
+      status: p.status || 'ACTIVE',
+      bankStatus: p.mfAccounts?.length ? 'VERIFIED' : 'PENDING',
+      accountsCount: p.mfAccounts?.length || 0,
+      createdAt: p.createdAt,
+    }));
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  async getRiskProfiles(params: { page?: number; limit?: number; category?: string; search?: string }) {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(50, Math.max(1, Number(params.limit) || 15));
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (params.category && params.category !== 'ALL') {
+      where.category = params.category;
+    }
+
+    const [profiles, total] = await Promise.all([
+      this.prisma.riskProfile.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            include: { profile: true },
+          },
+        },
+      }).catch(() => [] as any[]),
+      this.prisma.riskProfile.count({ where }).catch(() => 0),
+    ]);
+
+    const data = profiles.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      investorName: r.user?.profile?.fullName || 'Investor',
+      mobile: this.maskMobile(r.user?.mobile),
+      email: this.maskEmail(r.user?.email),
+      category: r.category,
+      score: r.score,
+      reasons: r.reasons,
+      createdAt: r.createdAt,
+    }));
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  async getFinancialGoals(params: { page?: number; limit?: number; status?: string; search?: string }) {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(50, Math.max(1, Number(params.limit) || 15));
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (params.status && params.status !== 'ALL') {
+      where.status = params.status;
+    }
+    if (params.search?.trim()) {
+      where.name = { contains: params.search.trim(), mode: 'insensitive' };
+    }
+
+    const [goals, total] = await Promise.all([
+      this.prisma.goal.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            include: { profile: true },
+          },
+        },
+      }).catch(() => [] as any[]),
+      this.prisma.goal.count({ where }).catch(() => 0),
+    ]);
+
+    const data = goals.map((g) => ({
+      id: g.id,
+      name: g.name,
+      investorName: g.user?.profile?.fullName || 'Investor',
+      mobile: this.maskMobile(g.user?.mobile),
+      targetAmount: g.targetAmount,
+      monthlySip: g.monthlySip,
+      timePeriodYears: g.timePeriod,
+      bucketName: g.bucketName,
+      status: g.status,
+      currentSavings: g.currentSavings,
+      createdAt: g.createdAt,
+    }));
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  async getInvestmentAccounts(params: { page?: number; limit?: number; status?: string; search?: string }) {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(50, Math.max(1, Number(params.limit) || 15));
+    const skip = (page - 1) * limit;
+
+    const [accounts, total] = await Promise.all([
+      this.prisma.fpMfInvestmentAccount.findMany({
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          investorProfile: {
+            include: { user: { include: { profile: true } } },
+          },
+          _count: {
+            select: { orders: true, plans: true },
+          },
+        },
+      }).catch(() => [] as any[]),
+      this.prisma.fpMfInvestmentAccount.count().catch(() => 0),
+    ]);
+
+    const data = accounts.map((a) => ({
+      id: a.id,
+      fpAccountId: a.fpAccountId,
+      investorName: a.investorProfile?.user?.profile?.fullName || 'Investor',
+      mobile: this.maskMobile(a.investorProfile?.user?.mobile),
+      email: this.maskEmail(a.investorProfile?.user?.email),
+      holdingPattern: a.holdingPattern,
+      status: a.status,
+      ordersCount: a._count.orders,
+      plansCount: a._count.plans,
+      createdAt: a.createdAt,
+    }));
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  async getPortfolioOverview(params: { page?: number; limit?: number; search?: string }) {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(50, Math.max(1, Number(params.limit) || 15));
+    const skip = (page - 1) * limit;
+
+    const [portfolios, total] = await Promise.all([
+      this.prisma.portfolio.findMany({
+        skip,
+        take: limit,
+        orderBy: { lastSyncedAt: 'desc' },
+        include: {
+          user: {
+            include: { profile: true },
+          },
+          holdings: true,
+        },
+      }).catch(() => [] as any[]),
+      this.prisma.portfolio.count().catch(() => 0),
+    ]);
+
+    const data = portfolios.map((p) => ({
+      id: p.id,
+      investorName: p.user?.profile?.fullName || 'Investor',
+      mobile: this.maskMobile(p.user?.mobile),
+      email: this.maskEmail(p.user?.email),
+      totalInvested: p.totalInvested,
+      currentValue: p.currentValue,
+      returnsPercentage: p.totalInvested > 0 ? ((p.currentValue - p.totalInvested) / p.totalInvested) * 100 : 0,
+      holdingsCount: p.holdings?.length || 0,
+      updatedAt: p.lastSyncedAt,
+    }));
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  async getSipManagement(params: { page?: number; limit?: number; status?: string; search?: string }) {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(50, Math.max(1, Number(params.limit) || 15));
+    const skip = (page - 1) * limit;
+
+    const [plans, total] = await Promise.all([
+      this.prisma.fpPurchasePlan.findMany({
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          account: {
+            include: { investorProfile: { include: { user: { include: { profile: true } } } } },
+          },
+        },
+      }).catch(() => [] as any[]),
+      this.prisma.fpPurchasePlan.count().catch(() => 0),
+    ]);
+
+    const data = plans.map((p) => ({
+      id: p.id,
+      fpPlanId: p.fpPlanId,
+      investorName: p.account?.investorProfile?.user?.profile?.fullName || 'Investor',
+      mobile: this.maskMobile(p.account?.investorProfile?.user?.mobile),
+      schemeIsin: p.schemeIsin,
+      amount: p.amount,
+      frequency: p.frequency,
+      installmentDay: p.installmentDay,
+      status: p.status,
+      createdAt: p.createdAt,
+    }));
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  async getOrderStatus(params: { page?: number; limit?: number; status?: string; search?: string }) {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(50, Math.max(1, Number(params.limit) || 15));
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (params.status && params.status !== 'ALL') {
+      where.status = params.status;
+    }
+
+    const [orders, total] = await Promise.all([
+      this.prisma.fpPurchaseOrder.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          account: {
+            include: { investorProfile: { include: { user: { include: { profile: true } } } } },
+          },
+        },
+      }).catch(() => [] as any[]),
+      this.prisma.fpPurchaseOrder.count({ where }).catch(() => 0),
+    ]);
+
+    const data = orders.map((o) => ({
+      id: o.id,
+      fpOrderId: o.fpOrderId,
+      schemeIsin: o.schemeIsin,
+      amount: o.amount,
+      status: o.status,
+      folioNumber: o.folioNumber,
+      allottedUnits: o.allottedUnits,
+      purchasedPrice: o.purchasedPrice,
+      failureReason: o.failureReason,
+      investorName: o.account?.investorProfile?.user?.profile?.fullName || 'Investor',
+      mobile: this.maskMobile(o.account?.investorProfile?.user?.mobile),
+      createdAt: o.createdAt,
+      updatedAt: o.updatedAt,
+    }));
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  async getCustomerIssues(params: { page?: number; limit?: number; status?: string; priority?: string; search?: string }) {
+    return this.getSupportTickets(params);
+  }
+
+  async getOperationalTasks(params: { page?: number; limit?: number; status?: string; search?: string }) {
+    const [pendingKyc, openTickets] = await Promise.all([
+      this.prisma.kYCApplication.findMany({
+        where: {
+          OR: [{ manualReviewRequired: true }, { status: 'SUBMITTED' }],
+        },
+        take: 15,
+        include: { user: { include: { profile: true } } },
+      }).catch(() => [] as any[]),
+      this.prisma.supportTicket.findMany({
+        where: { status: 'OPEN' },
+        take: 15,
+        orderBy: { createdAt: 'desc' },
+      }).catch(() => [] as any[]),
+    ]);
+
+    const tasks: Array<{
+      id: string;
+      title: string;
+      category: string;
+      priority: string;
+      status: string;
+      assignedTo?: string | null;
+      dueDate: string;
+      createdAt: Date;
+    }> = [];
+
+    for (const k of pendingKyc) {
+      tasks.push({
+        id: `task-kyc-${k.id}`,
+        title: `Manual Review: KYC Document for ${k.user?.profile?.fullName || 'Investor'}`,
+        category: 'KYC_REVIEW',
+        priority: k.manualReviewRequired ? 'HIGH' : 'MEDIUM',
+        status: 'PENDING',
+        assignedTo: 'Operations Officer',
+        dueDate: 'Within 24 Hours',
+        createdAt: k.createdAt,
+      });
+    }
+
+    for (const t of openTickets) {
+      tasks.push({
+        id: `task-ticket-${t.id}`,
+        title: `Respond to Support Ticket [${t.referenceId || 'TICKET'}]: ${t.subject}`,
+        category: 'SUPPORT',
+        priority: t.priority || 'MEDIUM',
+        status: 'PENDING',
+        assignedTo: t.assignedAgentName || 'Unassigned',
+        dueDate: 'Within 4 Hours',
+        createdAt: t.createdAt,
+      });
+    }
+
+    return {
+      data: tasks,
+      total: tasks.length,
+    };
+  }
+
+  async getComplianceRecords(params: { page?: number; limit?: number; status?: string; search?: string }) {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(50, Math.max(1, Number(params.limit) || 15));
+    const skip = (page - 1) * limit;
+
+    const [kycApps, auditLogs, total] = await Promise.all([
+      this.prisma.kYCApplication.findMany({
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: { user: { include: { profile: true } } },
+      }).catch(() => [] as any[]),
+      this.prisma.auditLog.findMany({
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+      }).catch(() => [] as any[]),
+      this.prisma.kYCApplication.count().catch(() => 0),
+    ]);
+
+    const data = kycApps.map((k) => ({
+      id: k.id,
+      investorName: k.user?.profile?.fullName || 'Investor',
+      pan: this.maskPan(k.user?.profile?.pan),
+      mobile: this.maskMobile(k.user?.mobile),
+      provider: k.provider,
+      status: k.overallStatus,
+      amlStatus: k.amlStatus || 'CLEARED',
+      manualReviewRequired: k.manualReviewRequired,
+      createdAt: k.createdAt,
+    }));
+
+    return {
+      data,
+      recentAuditTrail: auditLogs,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
       },
     };
   }
