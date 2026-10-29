@@ -11,6 +11,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
+  hasPermission: (permissionSlug: string) => boolean;
+  isSuperAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,6 +23,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+
+  const isPublicRoute =
+    pathname === '/login' ||
+    pathname.startsWith('/invite') ||
+    pathname.startsWith('/activate');
 
   const refreshUser = async () => {
     try {
@@ -36,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const savedToken = adminApi.getToken();
       if (!savedToken) {
         setIsLoading(false);
-        if (pathname !== '/login') {
+        if (!isPublicRoute) {
           router.push('/login');
         }
         return;
@@ -46,11 +53,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const res = await adminApi.getMe();
         setUser(res.admin);
-      } catch (err) {
+      } catch {
         adminApi.setToken(null);
         setToken(null);
         setUser(null);
-        if (pathname !== '/login') {
+        if (!isPublicRoute) {
           router.push('/login');
         }
       } finally {
@@ -59,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     initAuth();
-  }, [pathname, router]);
+  }, [pathname, router, isPublicRoute]);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
@@ -80,8 +87,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push('/login');
   };
 
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
+  const hasPermission = (permissionSlug: string): boolean => {
+    if (!user) return false;
+    if (user.role === 'SUPER_ADMIN') return true;
+    if (user.permissions?.includes('*')) return true;
+    return user.permissions?.includes(permissionSlug) ?? false;
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, refreshUser }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        isLoading,
+        login,
+        logout,
+        refreshUser,
+        hasPermission,
+        isSuperAdmin,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

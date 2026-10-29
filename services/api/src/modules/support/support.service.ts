@@ -62,7 +62,7 @@ export class SupportService {
    * 5. Returns immediate acknowledgement message, query status, and reference ID.
    */
   async createQuery(
-    userId: string,
+    userId: string | null,
     dto: CreateSupportQueryDto,
   ): Promise<SupportQueryResponseDto> {
     const subject = dto.subject?.trim();
@@ -80,7 +80,7 @@ export class SupportService {
     const cleanKey = dto.idempotencyKey?.trim();
     const compoundKey = cleanKey
       ? `key:${cleanKey}`
-      : `hash:${userId}:${subject.toLowerCase()}:${message.toLowerCase()}`;
+      : `hash:${userId || 'guest'}:${subject.toLowerCase()}:${message.toLowerCase()}`;
 
     const cached = this.idempotencyCache.get(compoundKey);
     const now = Date.now();
@@ -100,7 +100,7 @@ export class SupportService {
     const fiveMinutesAgo = new Date(now - this.IDEMPOTENCY_TTL_MS);
     const recentDuplicate = await this.prisma.supportTicket.findFirst({
       where: {
-        userId,
+        ...(userId ? { userId } : {}),
         subject,
         message,
         createdAt: { gte: fiveMinutesAgo },
@@ -110,19 +110,19 @@ export class SupportService {
     });
 
     if (recentDuplicate) {
-      this.logger.warn(`Duplicate support query detected in DB within 5 min window for user ${userId}. Returning existing ticket.`);
+      this.logger.warn(`Duplicate support query detected in DB within 5 min window for user ${userId || 'guest'}. Returning existing ticket.`);
       this.idempotencyCache.set(compoundKey, { ticketId: recentDuplicate.id, timestamp: now });
       return this.mapToResponse(recentDuplicate, false, null, true);
     }
 
-    // 2. Persist to Database FIRST.
+    // 2. Persist Support Ticket to Database FIRST.
     // If database save fails, an exception is thrown here and NO email is ever dispatched.
     const ticket = await this.prisma.supportTicket.create({
       data: {
-        userId,
+        userId: userId || null,
         subject,
         message,
-        status: 'RECEIVED',
+        status: 'OPEN',
       },
       include: {
         user: {
@@ -137,17 +137,92 @@ export class SupportService {
     this.idempotencyCache.set(compoundKey, { ticketId: ticket.id, timestamp: now });
     this.cleanupIdempotencyCache();
 
-    // 3. Resolve user email and full name
+    // 3. Resolve user email, full name, phone and reference ID
+    const targetChannel = (dto.channel || 'APP').toUpperCase();
     const resolvedEmail =
       dto.email?.trim() ||
       ticket.user?.email ||
       ticket.user?.profile?.email ||
       null;
 
-    const resolvedName = ticket.user?.profile?.fullName || 'Valued Investor';
-    const referenceId = generateReferenceId(ticket.id);
+    const resolvedName =
+      dto.customerName?.trim() ||
+      ticket.user?.profile?.fullName ||
+      (targetChannel === 'WHATSAPP' ? 'WhatsApp Investor' : 'Valued Investor');
 
-    // 4. Send Automatic Acknowledgement Email (isolated with graceful error handling)
+    const resolvedPhone =
+      dto.customerPhone?.trim() ||
+      ticket.user?.mobile ||
+      null;
+
+    const shortRef = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const prefix = targetChannel === 'WHATSAPP' ? 'TA-W-' : targetChannel === 'EMAIL' ? 'TA-E-' : targetChannel === 'SMS' ? 'TA-S-' : 'TA-A-';
+    const referenceId = `${prefix}${shortRef}`;
+
+    // Enrich ticket with channel, customer details, and conversation thread
+    ticket.referenceId = referenceId;
+    ticket.channel = targetChannel;
+    ticket.customerName = resolvedName;
+    ticket.customerPhone = resolvedPhone;
+    ticket.customerEmail = resolvedEmail;
+
+    if (this.prisma?.supportTicket?.update) {
+      await this.prisma.supportTicket.update({
+        where: { id: ticket.id },
+        data: {
+          referenceId,
+          channel: targetChannel,
+          customerName: resolvedName,
+          customerPhone: resolvedPhone,
+          customerEmail: resolvedEmail,
+          lastCustomerMessage: ticket.message,
+        },
+      }).catch(() => {});
+    }
+
+    if (this.prisma?.supportMessage?.create) {
+      await this.prisma.supportMessage.create({
+        data: {
+          ticketId: ticket.id,
+          senderType: 'USER',
+          senderName: resolvedName,
+          senderEmail: resolvedEmail,
+          content: ticket.message,
+          channel: targetChannel,
+          deliveryStatus: 'DELIVERED',
+        },
+      }).catch(() => {});
+    }
+
+    // 4. Notify all active Technical Support Agents
+    if ((this.prisma as any)?.technicalAgent?.findMany) {
+      try {
+        const activeAgents = await (this.prisma as any).technicalAgent.findMany({
+          where: { isActive: true, notifyOnTickets: true },
+        });
+
+        const targetUserId = ticket.userId || (await this.prisma.user.findFirst({ select: { id: true } }))?.id;
+
+        if (targetUserId) {
+          for (const agent of activeAgents) {
+            await this.prisma.notification.create({
+              data: {
+                userId: targetUserId,
+                type: 'AGENT_NEW_TICKET_ALERT',
+                title: `New ${targetChannel} Ticket: ${referenceId}`,
+                body: `${resolvedName} (${resolvedPhone || ticket.user?.mobile || 'Investor'}): "${ticket.subject}"`,
+                channel: 'ADMIN_PORTAL',
+                status: 'SENT',
+              },
+            }).catch(() => {});
+          }
+        }
+      } catch (err: any) {
+        this.logger.warn(`Failed to notify technical agents: ${err?.message}`);
+      }
+    }
+
+    // 5. Send Automatic Acknowledgement Email (isolated with graceful error handling)
     let emailSent = false;
     let emailDeliveryError: string | null = null;
 
@@ -163,36 +238,42 @@ export class SupportService {
           createdAt: ticket.createdAt,
         });
         emailSent = true;
+        this.logger.log(`Automatic acknowledgement email sent for ticket ${referenceId} to ${resolvedEmail}`);
 
-        // Log notification entry in database
-        await this.prisma.notification.create({
-          data: {
-            userId,
-            type: 'SUPPORT_ACKNOWLEDGEMENT',
-            title: `Query Received: ${referenceId}`,
-            body: `We have received your query "${ticket.subject}". Reference ID: ${referenceId}`,
-            channel: 'EMAIL',
-            status: 'SENT',
-          },
-        }).catch((err) => this.logger.warn(`Failed to create notification record: ${err?.message}`));
+        const notifUserId = ticket.userId || (await this.prisma.user.findFirst({ select: { id: true } }))?.id;
+        if (notifUserId) {
+          await this.prisma.notification.create({
+            data: {
+              userId: notifUserId,
+              type: 'SUPPORT_ACKNOWLEDGEMENT',
+              title: `Query Received: ${referenceId}`,
+              body: `We have received your query "${ticket.subject}". Reference ID: ${referenceId}`,
+              channel: 'EMAIL',
+              status: 'SENT',
+            },
+          }).catch((err) => this.logger.warn(`Failed to create notification record: ${err?.message}`));
+        }
       } catch (err: any) {
         // If email fails, the saved ticket is NEVER lost.
         emailDeliveryError = err?.message || 'Email delivery failed';
         this.logger.error(`Graceful email delivery failure for ticket ${ticket.id}: ${emailDeliveryError}`);
 
-        await this.prisma.notification.create({
-          data: {
-            userId,
-            type: 'SUPPORT_ACKNOWLEDGEMENT',
-            title: `Query Received: ${referenceId}`,
-            body: `We have received your query "${ticket.subject}". Reference ID: ${referenceId}`,
-            channel: 'EMAIL',
-            status: 'FAILED',
-          },
-        }).catch((e) => this.logger.warn(`Failed to log notification error: ${e?.message}`));
+        const notifUserId = ticket.userId || (await this.prisma.user.findFirst({ select: { id: true } }))?.id;
+        if (notifUserId) {
+          await this.prisma.notification.create({
+            data: {
+              userId: notifUserId,
+              type: 'SUPPORT_ACKNOWLEDGEMENT',
+              title: `Query Received: ${referenceId}`,
+              body: `We have received your query "${ticket.subject}". Reference ID: ${referenceId}`,
+              channel: 'EMAIL',
+              status: 'FAILED',
+            },
+          }).catch((e) => this.logger.warn(`Failed to log notification error: ${e?.message}`));
+        }
       }
     } else {
-      this.logger.log(`No verified email address on file for user ${userId}. Skipping email dispatch.`);
+      this.logger.log(`No verified email address on file for ticket ${referenceId}. Skipping email dispatch.`);
     }
 
     return this.mapToResponse(ticket, emailSent, resolvedEmail, false, emailDeliveryError);
@@ -201,9 +282,31 @@ export class SupportService {
   /**
    * Get all queries for a given user.
    */
+  /**
+   * Get all queries for a given user (including WhatsApp and Freshdesk tickets).
+   */
   async getUserQueries(userId: string): Promise<SupportQueryResponseDto[]> {
+    const user = this.prisma?.user?.findUnique
+      ? await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, mobile: true, email: true },
+        })
+      : null;
+
+    const userPhones: string[] = [];
+    if (user?.mobile) {
+      const clean = user.mobile.replace(/[^0-9]/g, '');
+      const last10 = clean.slice(-10);
+      userPhones.push(user.mobile, clean, last10, `+91${last10}`, `91${last10}`);
+    }
+
     const tickets = await this.prisma.supportTicket.findMany({
-      where: { userId },
+      where: {
+        OR: [
+          { userId },
+          ...(userPhones.length > 0 ? [{ customerPhone: { in: userPhones } }] : []),
+        ],
+      },
       include: { user: { include: { profile: true } } },
       orderBy: { createdAt: 'desc' },
     });
@@ -212,7 +315,7 @@ export class SupportService {
       this.mapToResponse(
         t,
         false,
-        t.user?.email || t.user?.profile?.email || null,
+        t.user?.email || t.user?.profile?.email || t.customerEmail || null,
         false,
       ),
     );
@@ -222,21 +325,59 @@ export class SupportService {
    * Get a specific query by ID or Reference ID.
    */
   async getQueryById(userId: string, idOrRef: string): Promise<SupportQueryResponseDto> {
+    const user = this.prisma?.user?.findUnique
+      ? await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, mobile: true },
+        })
+      : null;
+
+    const userPhones: string[] = [];
+    if (user?.mobile) {
+      const clean = user.mobile.replace(/[^0-9]/g, '');
+      const last10 = clean.slice(-10);
+      userPhones.push(user.mobile, clean, last10, `+91${last10}`, `91${last10}`);
+    }
+
     let ticket = await this.prisma.supportTicket.findFirst({
-      where: { id: idOrRef, userId },
+      where: {
+        AND: [
+          {
+            OR: [
+              { id: idOrRef },
+              { referenceId: idOrRef },
+              { referenceId: { equals: idOrRef, mode: 'insensitive' } },
+            ],
+          },
+          {
+            OR: [
+              { userId },
+              ...(userPhones.length > 0 ? [{ customerPhone: { in: userPhones } }] : []),
+            ],
+          },
+        ],
+      },
       include: { user: { include: { profile: true } } },
     });
 
     if (!ticket) {
-      // Check if user provided reference ID like TA-Q-XXXXXXXX
-      const clean = idOrRef.toUpperCase().replace('TA-Q-', '');
+      // Fallback check for short code
+      const clean = idOrRef.toUpperCase().replace('TA-Q-', '').replace('TA-W-', '');
       const allUserTickets = await this.prisma.supportTicket.findMany({
-        where: { userId },
+        where: {
+          OR: [
+            { userId },
+            ...(userPhones.length > 0 ? [{ customerPhone: { in: userPhones } }] : []),
+          ],
+        },
         include: { user: { include: { profile: true } } },
       });
-      ticket = allUserTickets.find(
-        (t) => t.id.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 8) === clean,
-      ) ?? null;
+      ticket =
+        allUserTickets.find(
+          (t) =>
+            t.id.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 8) === clean ||
+            (t.referenceId && t.referenceId.toUpperCase().includes(clean)),
+        ) ?? null;
     }
 
     if (!ticket) {
@@ -246,7 +387,7 @@ export class SupportService {
     return this.mapToResponse(
       ticket,
       false,
-      ticket.user?.email || ticket.user?.profile?.email || null,
+      ticket.user?.email || ticket.user?.profile?.email || ticket.customerEmail || null,
       false,
     );
   }
@@ -260,7 +401,7 @@ export class SupportService {
   ): SupportQueryResponseDto {
     return {
       id: ticket.id,
-      referenceId: generateReferenceId(ticket.id),
+      referenceId: ticket.referenceId || generateReferenceId(ticket.id),
       subject: ticket.subject,
       message: ticket.message,
       status: formatTicketStatus(ticket.status),
@@ -268,10 +409,15 @@ export class SupportService {
       createdAt: ticket.createdAt?.toISOString ? ticket.createdAt.toISOString() : new Date(ticket.createdAt).toISOString(),
       updatedAt: ticket.updatedAt?.toISOString ? ticket.updatedAt.toISOString() : new Date(ticket.updatedAt).toISOString(),
       emailSent,
-      recipientEmail: recipientEmail || ticket.user?.email || ticket.user?.profile?.email || null,
+      recipientEmail: recipientEmail || ticket.user?.email || ticket.user?.profile?.email || ticket.customerEmail || null,
       isDuplicate,
       acknowledgementMessage: ACKNOWLEDGEMENT_MESSAGE,
       emailDeliveryError,
+      channel: ticket.channel || 'WHATSAPP',
+      lastCustomerMessage: ticket.lastCustomerMessage || null,
+      lastAgentReply: ticket.lastAgentReply || null,
+      assignedAgentName: ticket.assignedAgentName || null,
+      freshdeskTicketId: ticket.freshdeskTicketId ? ticket.freshdeskTicketId.toString() : null,
     };
   }
 

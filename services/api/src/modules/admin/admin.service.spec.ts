@@ -3,11 +3,19 @@ import { AdminService } from './admin.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { UnauthorizedException, NotFoundException } from '@nestjs/common';
+import { AdminInvitationEmailService } from './admin-invitation-email.service';
+import { FreshdeskService } from '../support/freshdesk.service';
+import { WhatsappService } from '../../integrations/whatsapp/whatsapp.service';
+import { SupportEmailService } from '../support/email.service';
 
 describe('AdminService', () => {
   let service: AdminService;
   let prisma: any;
   let jwt: any;
+  let invitationEmail: any;
+  let freshdesk: any;
+  let whatsapp: any;
+  let supportEmail: any;
 
   beforeEach(async () => {
     prisma = {
@@ -42,6 +50,14 @@ describe('AdminService', () => {
         create: jest.fn().mockResolvedValue({}),
         count: jest.fn().mockResolvedValue(5),
       },
+      adminUser: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        upsert: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      adminRole: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'role-super-admin' }),
+      },
     };
 
     jwt = {
@@ -49,11 +65,32 @@ describe('AdminService', () => {
       verifyAsync: jest.fn(),
     };
 
+    invitationEmail = {
+      sendInvitationEmail: jest.fn().mockResolvedValue(true),
+    };
+
+    freshdesk = {
+      createTicket: jest.fn().mockResolvedValue({ id: 1001 }),
+      replyToTicket: jest.fn().mockResolvedValue({}),
+    };
+
+    whatsapp = {
+      sendWhatsAppMessage: jest.fn().mockResolvedValue({ success: true }),
+    };
+
+    supportEmail = {
+      sendAgentReplyEmail: jest.fn().mockResolvedValue({ success: true }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AdminService,
         { provide: PrismaService, useValue: prisma },
         { provide: JwtService, useValue: jwt },
+        { provide: AdminInvitationEmailService, useValue: invitationEmail },
+        { provide: FreshdeskService, useValue: freshdesk },
+        { provide: WhatsappService, useValue: whatsapp },
+        { provide: SupportEmailService, useValue: supportEmail },
       ],
     }).compile();
 
@@ -114,7 +151,15 @@ describe('AdminService', () => {
 
       const result = await service.getUsers(
         {},
-        { id: 'staff-ops', email: 'ops@techartha.com', name: 'Ops', role: 'OPERATIONS', isAdmin: true },
+        {
+          id: 'staff-ops',
+          email: 'ops@techartha.com',
+          name: 'Ops',
+          role: 'OPERATIONS',
+          permissions: ['customers.view'],
+          canViewSensitivePii: false,
+          isAdmin: true,
+        },
       );
 
       expect(result.data.length).toBe(1);
@@ -195,6 +240,8 @@ describe('AdminService', () => {
         email: 'admin@techartha.com',
         name: 'Admin',
         role: 'SUPER_ADMIN',
+        permissions: ['*'],
+        canViewSensitivePii: true,
         isAdmin: true,
       });
 

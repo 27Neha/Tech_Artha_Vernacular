@@ -13,6 +13,8 @@ describe('AdminController', () => {
     email: 'admin@techartha.com',
     name: 'Super Admin',
     role: 'SUPER_ADMIN',
+    permissions: ['*'],
+    canViewSensitivePii: true,
     isAdmin: true,
   };
 

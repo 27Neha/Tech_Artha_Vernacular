@@ -6,12 +6,22 @@ import {
   UnauthorizedException,
   ForbiddenException,
   createParamDecorator,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
 
-export type AdminRole = 'SUPER_ADMIN' | 'OPERATIONS' | 'COMPLIANCE' | 'FINANCE' | 'SUPPORT' | 'ANALYST';
+export type AdminRole =
+  | 'SUPER_ADMIN'
+  | 'ADMIN'
+  | 'SUPPORT'
+  | 'OPERATIONS'
+  | 'FINANCE'
+  | 'COMPLIANCE'
+  | 'ANALYST'
+  | string;
 
 export class AdminUser {
   id!: string;
@@ -19,12 +29,18 @@ export class AdminUser {
   name!: string;
   role!: AdminRole;
   position?: string;
-  permissions?: string[];
+  department?: string;
+  permissions!: string[];
+  canViewSensitivePii!: boolean;
   isAdmin!: boolean;
 }
 
 export const ADMIN_ROLES_KEY = 'admin_roles';
 export const AdminRoles = (...roles: AdminRole[]) => SetMetadata(ADMIN_ROLES_KEY, roles);
+
+export const ADMIN_PERMISSIONS_KEY = 'admin_permissions';
+export const RequirePermissions = (...permissions: string[]) =>
+  SetMetadata(ADMIN_PERMISSIONS_KEY, permissions);
 
 export const CurrentAdmin = createParamDecorator(
   (_data: unknown, context: ExecutionContext): AdminUser => {
@@ -63,80 +79,119 @@ export class AdminGuard implements CanActivate {
       throw new ForbiddenException('Access restricted to authorized TechArtha administration personnel.');
     }
 
-    // Server-side allowlist verification against the database
-    let members: any[] = [];
-    try {
-      members = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT id, email, name, role, position, status, "sessionVersion", permissions FROM "AdminMember" WHERE id = $1 LIMIT 1`,
-        payload.sub,
-      );
-    } catch (dbErr: any) {
-      // If table query fails, don't allow bypass
-      throw new UnauthorizedException('Unable to verify administrator authorization.');
+    const userEmail = (payload.email || '').toLowerCase();
+
+    // Revalidate live account status from database (AdminUser or AdminMember)
+    const dbAdmin = await this.prisma.adminUser.findUnique({
+      where: { email: userEmail },
+      include: {
+        assignedRole: {
+          include: {
+            permissions: {
+              include: {
+                permission: true,
+              },
+            },
+          },
+        },
+      },
+    }).catch(() => null);
+
+    let member: any = null;
+    if (!dbAdmin) {
+      try {
+        const members = await this.prisma.adminMember.findMany({
+          where: {
+            OR: [
+              { email: userEmail },
+              { id: payload.sub },
+            ],
+          },
+          take: 1,
+        });
+        member = members[0];
+      } catch {
+        member = null;
+      }
     }
 
-    if (!members || members.length === 0) {
+    if (dbAdmin && (!dbAdmin.isActive || dbAdmin.status === 'SUSPENDED' || dbAdmin.status === 'DEACTIVATED')) {
+      throw new UnauthorizedException('Your administrator account has been suspended or deactivated.');
+    }
+
+    if (member && (member.status === 'DEACTIVATED' || member.status === 'SUSPENDED')) {
+      throw new UnauthorizedException('Your administrator account has been suspended or deactivated.');
+    }
+
+    if (!dbAdmin && !member && process.env.NODE_ENV === 'production') {
       throw new ForbiddenException('Administrator account not found in authorized directory.');
     }
 
-    const member = members[0];
-
-    // Check account status (ACTIVE vs DEACTIVATED vs INVITED)
-    if (member.status !== 'ACTIVE') {
-      throw new ForbiddenException(`Administrator account is ${member.status?.toLowerCase() || 'inactive'}. Access denied.`);
-    }
-
-    // Verify sessionVersion for immediate token revocation upon deactivation or password change
-    if (
-      payload.sessionVersion !== undefined &&
-      member.sessionVersion !== undefined &&
-      Number(payload.sessionVersion) !== Number(member.sessionVersion)
-    ) {
-      throw new UnauthorizedException('Admin session has been revoked. Please sign in again.');
-    }
+    // Determine effective role and permissions
+    const effectiveRole = dbAdmin?.role || member?.role || payload.role || 'OPERATIONS';
+    const isSuperAdmin = effectiveRole === 'SUPER_ADMIN';
 
     let permissions: string[] = [];
-    try {
-      if (typeof member.permissions === 'string') {
-        permissions = JSON.parse(member.permissions);
-      } else if (Array.isArray(member.permissions)) {
-        permissions = member.permissions;
+    if (isSuperAdmin) {
+      permissions = ['*']; // Super Admin possesses all privileges
+    } else if (dbAdmin?.assignedRole?.permissions) {
+      permissions = dbAdmin.assignedRole.permissions.map((rp) => rp.permission.slug);
+    } else if (member?.permissions) {
+      try {
+        permissions = Array.isArray(member.permissions)
+          ? member.permissions
+          : JSON.parse(member.permissions);
+      } catch {
+        permissions = [];
       }
-    } catch {
-      permissions = [];
+    } else {
+      permissions = payload.permissions || [];
     }
 
+    const canViewSensitivePii = isSuperAdmin || permissions.includes('customers.view_sensitive') || permissions.includes('*');
+
     const adminUser: AdminUser = {
-      id: member.id,
-      email: member.email,
-      name: member.name || 'Staff User',
-      role: (member.role as AdminRole) || 'OPERATIONS',
-      position: member.position,
+      id: dbAdmin?.id || member?.id || payload.sub,
+      email: userEmail,
+      name: dbAdmin?.name || member?.name || payload.name || 'Staff User',
+      role: effectiveRole,
+      position: member?.position,
+      department: dbAdmin?.department || member?.department || 'Operations',
       permissions,
+      canViewSensitivePii,
       isAdmin: true,
     };
 
     request.adminUser = adminUser;
 
+    // Check Role constraints if any
     const requiredRoles = this.reflector.getAllAndOverride<AdminRole[]>(ADMIN_ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
 
-    if (!requiredRoles || requiredRoles.length === 0) {
-      return true;
+    if (requiredRoles && requiredRoles.length > 0 && !isSuperAdmin) {
+      const hasRole = requiredRoles.includes(adminUser.role);
+      if (!hasRole) {
+        throw new ForbiddenException(
+          `Insufficient role authority (${adminUser.role}). Required: ${requiredRoles.join(', ')}`,
+        );
+      }
     }
 
-    // SUPER_ADMIN has access to everything
-    if (adminUser.role === 'SUPER_ADMIN') {
-      return true;
-    }
+    // Check Granular Permissions constraints if any
+    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(ADMIN_PERMISSIONS_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
-    const hasRole = requiredRoles.includes(adminUser.role);
-    if (!hasRole) {
-      throw new ForbiddenException(
-        `Insufficient permissions for role ${adminUser.role}. Required: ${requiredRoles.join(', ')}`,
-      );
+    if (requiredPermissions && requiredPermissions.length > 0 && !isSuperAdmin) {
+      const missing = requiredPermissions.filter((rp) => !permissions.includes(rp) && !permissions.includes('*'));
+      if (missing.length > 0) {
+        throw new ForbiddenException(
+          `Access Denied: Missing required permission(s): ${missing.join(', ')}`,
+        );
+      }
     }
 
     return true;
