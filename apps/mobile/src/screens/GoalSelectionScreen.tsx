@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
+import { Alert, View, Text, Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
@@ -28,9 +28,11 @@ export const GoalSelectionScreen = () => {
   const [selectedGoal, setSelectedGoal] = useState<string | null>(null);
   const [customGoalName, setCustomGoalName] = useState('');
   
-  const [targetAmount, setTargetAmount] = useState('1000000');
-  const [timePeriod, setTimePeriod] = useState('5');
-  const [inflationRate, setInflationRate] = useState('6');
+  // Empty until the investor enters them: a target amount and horizon filled in for
+  // everyone would be a goal nobody chose (Cybrilla compliance point 11).
+  const [targetAmount, setTargetAmount] = useState('');
+  const [timePeriod, setTimePeriod] = useState('');
+  const [inflationRate, setInflationRate] = useState('');
   const [customAdjustments, setCustomAdjustments] = useState<{name: string, percentage: string}[]>([]);
 
   const calculateFutureValue = () => {
@@ -49,6 +51,10 @@ export const GoalSelectionScreen = () => {
   const updateAdjustment = (i: number, f: 'name' | 'percentage', v: string) => { const a = [...customAdjustments]; a[i][f] = v; setCustomAdjustments(a); };
 
   const handleContinue = () => {
+    if (!(Number(targetAmount) > 0) || !(Number(timePeriod) > 0) || inflationRate.trim() === '' || Number(inflationRate) < 0) {
+      Alert.alert('Complete your goal', 'Enter the target amount, the number of years, and the inflation rate to plan with.');
+      return;
+    }
     if (selectedGoal) {
       let finalGoal = selectedGoal;
       if (selectedGoal === 'custom' && customGoalName.trim()) {

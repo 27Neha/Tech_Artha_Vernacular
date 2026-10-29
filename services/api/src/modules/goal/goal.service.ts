@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { BucketsService } from '../buckets/buckets.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConsentService } from '../consent/consent.service';
@@ -39,6 +39,34 @@ export class GoalService {
     });
     await this.prisma.auditLog.create({ data: { userId, action: 'GOAL_PROPOSAL_CREATED', details: JSON.stringify({ goalId: goal.id, bucketId: bucket.id, riskProfile: profile.category }) } });
     return { data: goal, bucket, simulation, executionStatus: 'NOT_STARTED', disclosure: 'No investment order was created. Review and separate execution consent are required before any transaction.' };
+  }
+
+  /**
+   * Edits a goal's name, target, horizon or inflation. The monthly SIP is re-derived from
+   * the same simulation used when the goal was created, so the plan shown afterwards is
+   * for the goal as it now stands rather than the one first entered.
+   */
+  async update(userId: string, goalId: string, input: { name?: string; targetAmount?: number; timePeriod?: number; inflationRate?: number }) {
+    const goal = await this.prisma.goal.findFirst({ where: { id: goalId, userId } });
+    if (!goal) throw new NotFoundException('Goal not found.');
+    const next = {
+      name: input.name?.trim() || goal.name,
+      targetAmount: input.targetAmount ?? goal.targetAmount,
+      timePeriod: input.timePeriod != null ? Math.round(input.timePeriod) : goal.timePeriod,
+      inflationRate: input.inflationRate ?? goal.inflationRate,
+    };
+    if (!(next.targetAmount > 0)) throw new BadRequestException('Enter a target amount above zero.');
+    if (!(next.timePeriod > 0)) throw new BadRequestException('Enter a time horizon above zero.');
+    if (next.inflationRate < 0) throw new BadRequestException('Inflation cannot be negative.');
+
+    const simulation = this.simulate({ ...next, currentSavings: goal.currentSavings });
+    const base = simulation.scenarios.find((scenario) => scenario.label === 'Base illustration')!;
+    const updated = await this.prisma.goal.update({
+      where: { id: goal.id },
+      data: { ...next, goalType: next.name.toUpperCase().replace(/\s+/g, '_'), returnAssumption: base.annualRate, monthlySip: base.monthlyContribution },
+    });
+    await this.prisma.auditLog.create({ data: { userId, action: 'GOAL_UPDATED', details: JSON.stringify({ goalId: goal.id }) } });
+    return updated;
   }
 
   list(userId: string) {

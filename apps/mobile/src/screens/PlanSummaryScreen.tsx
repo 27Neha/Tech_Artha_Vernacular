@@ -16,7 +16,8 @@ export const PlanSummaryScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   
-  const [selectedDate, setSelectedDate] = useState<number>(10);
+  // The investor picks the SIP date; none is pre-selected.
+  const [selectedDate, setSelectedDate] = useState<number | null>(null);
   const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [simulation, setSimulation] = useState<any>(null);
@@ -52,6 +53,10 @@ export const PlanSummaryScreen = () => {
   const adjustedTarget = simulation ? simulation.adjustedTargetAmount : targetAmount;
 
   const handleConfirm = async () => {
+    if (selectedDate === null) {
+      Alert.alert('Choose a SIP date', 'Choose the day of the month your SIP instalment should be collected.');
+      return;
+    }
     if (!consent) {
       Alert.alert(t('plan.consentRequired', { defaultValue: 'Consent Required' }), t('plan.pleaseAccept', { defaultValue: 'Please accept the consent to proceed.' }));
       return;

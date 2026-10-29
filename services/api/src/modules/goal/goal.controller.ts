@@ -1,4 +1,4 @@
-﻿import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+﻿import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { AccessTokenGuard, CurrentUser } from '../../common/auth';
 import type { AuthenticatedUser } from '../../common/auth';
 import { GoalService } from './goal.service';
@@ -11,6 +11,15 @@ export class GoalController {
   @Get()
   list(@CurrentUser() user: AuthenticatedUser) {
     return this.goalService.list(user.id);
+  }
+
+  @Patch(':id')
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: { name?: string; targetAmount?: number; timePeriod?: number; inflationRate?: number },
+  ) {
+    return this.goalService.update(user.id, id, body);
   }
 
   @Post('simulate')

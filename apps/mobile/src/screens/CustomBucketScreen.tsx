@@ -3,7 +3,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet, Alert, TextInput, Modal,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authStore } from '../store/auth';
 import { Header } from '../components/Header';
 import { SearchIcon } from '../components/Icons';
 
@@ -116,11 +116,17 @@ export const CustomBucketScreen = () => {
     }
     setLoading(true);
     try {
-      const token = await AsyncStorage.getItem('access_token');
+      // The session token is in authStore; AsyncStorage never held it.
+      const token = authStore.accessToken;
       const res = await fetch(`${API_URL}/buckets/custom`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ name, funds: funds.map(f => ({ id: f.id, percentage: parseInt(f.percentage, 10) || 0 })) })
+        // Field names as CustomBucketDto declares them; the old { id, percentage } body
+        // failed validation on every save.
+        body: JSON.stringify({
+          name,
+          funds: funds.map(f => ({ schemeCode: Number(f.id), name: f.name, category: f.category, allocation: parseInt(f.percentage, 10) || 0 })),
+        })
       });
       if (res.ok) {
         Alert.alert('Success', 'Custom bucket saved successfully!');

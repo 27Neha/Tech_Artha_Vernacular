@@ -74,13 +74,38 @@ export const KycScreen = (props: KycScreenProps) => {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message ?? 'KYC could not be started.');
+
+      // Pre-verification is asynchronous: the first answer is usually IN_PROGRESS, and
+      // a 200 is not a pass. Poll briefly so the investor gets the real outcome, which
+      // includes whether their KYC is complete at the KRA - the check that decides
+      // whether orders will be accepted.
+      let outcome: { status?: string; message?: string | null } = result;
+      for (let attempt = 0; outcome.status === 'IN_PROGRESS' && attempt < 6; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        const poll = await fetch(`${apiUrl}/api/v1/kyc/status`, {
+          headers: { Authorization: `Bearer ${authStore.accessToken}` },
+        });
+        if (poll.ok) outcome = await poll.json();
+      }
+
       // KYC is persisted server-side, so the investor can stop here rather than being
       // held in the funnel until they have also assessed their risk profile.
-      Alert.alert('KYC Verified', result.message || 'Verification complete!', [
-        { text: 'Later', style: 'cancel', onPress: () => exitOnboarding(navigation) },
+      const next = [
+        { text: 'Later', style: 'cancel' as const, onPress: () => exitOnboarding(navigation) },
         { text: 'Continue', onPress: () => navigation.navigate('RiskAssessment') },
-      ]);
-    } catch (error) { 
+      ];
+      if (outcome.status === 'VERIFIED') {
+        Alert.alert('KYC verified', 'Your PAN and KYC are verified. You can invest once your profile is complete.', next);
+      } else if (outcome.status === 'FAILED') {
+        Alert.alert('KYC not verified', outcome.message ?? 'Your details could not be verified.');
+      } else {
+        Alert.alert(
+          'Verification in progress',
+          'We are still verifying your PAN and KYC. You can continue, and check the status again from your profile before investing.',
+          next,
+        );
+      }
+    } catch (error) {
       Alert.alert('KYC could not be started', error instanceof Error ? error.message : 'Please try again.'); 
     } finally { 
       setKycSubmitting(false); 
