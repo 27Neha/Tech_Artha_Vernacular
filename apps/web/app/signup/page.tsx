@@ -417,9 +417,13 @@ export default function SignupPage() {
                   <label className="label text-sm text-gray-700 font-semibold mb-2 block">{t('signup.emailAddress') || 'Email Address'}</label>
                   <input 
                     type="email"
-                      ref={emailInputRef}
+                    ref={emailInputRef}
                     value={email} 
-                    onChange={e => setEmail(e.target.value)} 
+                    onChange={e => {
+                      setEmail(e.target.value);
+                      setAccountExistsWarning(false);
+                      setValidationError('');
+                    }} 
                     placeholder={t('signup.emailPlaceholder') || 'name@example.com'} 
                     className="w-full p-4 border border-gray-200 rounded-xl focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none transition-colors" 
                   />
@@ -444,7 +448,7 @@ export default function SignupPage() {
                   </button>
 
                   <button 
-                    onClick={() => { setAuthChannel('SMS'); setValidationError(''); setTermsWarning(''); }} 
+                    onClick={() => { setAuthChannel('SMS'); setValidationError(''); setTermsWarning(''); setAccountExistsWarning(false); }} 
                     className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors mb-6 shadow-sm"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3C3985" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -466,7 +470,11 @@ export default function SignupPage() {
                         type="tel"
                         ref={mobileInputRef}
                         value={mobile} 
-                        onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} 
+                        onChange={e => {
+                          setMobile(e.target.value.replace(/\D/g, '').slice(0, 10));
+                          setAccountExistsWarning(false);
+                          setValidationError('');
+                        }} 
                         placeholder={t('signup.mobilePlaceholder') || 'Enter 10-digit mobile number'} 
                         className="w-full p-4 border border-gray-200 rounded-r-xl focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none transition-colors" 
                         maxLength={10}

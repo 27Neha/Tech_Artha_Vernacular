@@ -759,5 +759,8 @@
   "signup.termsPrefix": "I agree to the",
   "signup.termsOfService": "Terms & Conditions",
   "signup.and": "and",
-  "signup.privacyPolicy": "Privacy Policy"
+  "signup.privacyPolicy": "Privacy Policy",
+  "risk.learnHow": "Learn How",
+  "learn.riskScoreCalculation.title": "Learn How Your Risk Score Is Calculated",
+  "learn.riskScoreCalculation.desc": "Understand how your 12-question suitability responses and SEBI asset-allocation tiers are evaluated."
 }

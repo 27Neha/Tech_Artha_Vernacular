@@ -890,5 +890,8 @@
   "signup.termsOfService": "నిబంధనలు & షరతులు",
   "signup.and": "and",
   "signup.privacyPolicy": "గోప్యతా విధానం",
-  "signup.learnMore": "మరింత తెలుసుకోండి"
+  "signup.learnMore": "మరింత తెలుసుకోండి",
+  "risk.learnHow": "ఎలానో తెలుసుకోండి",
+  "learn.riskScoreCalculation.title": "మీ రిస్క్ స్కోర్ ఎలా లెక్కించబడుతుందో తెలుసుకోండి",
+  "learn.riskScoreCalculation.desc": "మీ 12 అనుకూలత ప్రశ్నల సమాధానాలు మరియు సెబీ అసెట్ కేటాయింపు స్థాయిలు ఎలా అంచనా వేయబడతాయో అర్థం చేసుకోండి."
 }

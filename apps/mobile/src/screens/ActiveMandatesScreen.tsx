@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Header } from '../components/Header';
 
 interface Mandate {
@@ -30,25 +31,13 @@ interface Mandate {
   activeSipsCount: number;
 }
 
+const STORAGE_KEY = 'techartha_active_mandates';
+
 export const ActiveMandatesScreen = () => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
 
-  const [mandates, setMandates] = useState<Mandate[]>([
-    {
-      id: 'mnd_1',
-      umrn: 'NACH00000000049182',
-      bankName: 'HDFC Bank',
-      accountNumber: '••••••••4829',
-      maxLimit: 100000,
-      type: 'e-Mandate',
-      status: 'ACTIVE',
-      createdDate: '12 Jan 2026',
-      expiryDate: '31 Dec 2055',
-      activeSipsCount: 2
-    }
-  ]);
-
+  const [mandates, setMandates] = useState<Mandate[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [bankName, setBankName] = useState('HDFC Bank');
   const [accountNumber, setAccountNumber] = useState('••••••••4829');
@@ -56,6 +45,33 @@ export const ActiveMandatesScreen = () => {
   const [mandateType, setMandateType] = useState<'e-Mandate' | 'NPCI NACH'>('e-Mandate');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+
+  useEffect(() => {
+    loadMandates();
+  }, []);
+
+  const loadMandates = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        setMandates(JSON.parse(stored));
+      } else {
+        setMandates([]);
+      }
+    } catch (e) {
+      console.warn('Failed to load mandates:', e);
+      setMandates([]);
+    }
+  };
+
+  const persistMandates = async (updated: Mandate[]) => {
+    setMandates(updated);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Failed to persist mandates:', e);
+    }
+  };
 
   const handleCancelMandate = (id: string, activeSips: number) => {
     if (activeSips > 0) {
@@ -68,7 +84,8 @@ export const ActiveMandatesScreen = () => {
             text: 'Cancel Mandate',
             style: 'destructive',
             onPress: () => {
-              setMandates(prev => prev.map(m => m.id === id ? { ...m, status: 'CANCELLED' } : m));
+              const updated = mandates.map(m => (m.id === id ? { ...m, status: 'CANCELLED' as const } : m));
+              persistMandates(updated);
               Alert.alert('Mandate Cancelled', 'The auto-debit authorization has been revoked with NPCI.');
             }
           }
@@ -84,7 +101,8 @@ export const ActiveMandatesScreen = () => {
             text: 'Yes, Cancel',
             style: 'destructive',
             onPress: () => {
-              setMandates(prev => prev.map(m => m.id === id ? { ...m, status: 'CANCELLED' } : m));
+              const updated = mandates.map(m => (m.id === id ? { ...m, status: 'CANCELLED' as const } : m));
+              persistMandates(updated);
               Alert.alert('Mandate Cancelled', 'The auto-debit authorization has been revoked with NPCI.');
             }
           }
@@ -115,7 +133,8 @@ export const ActiveMandatesScreen = () => {
         expiryDate: 'Until Cancelled',
         activeSipsCount: 0
       };
-      setMandates(prev => [newMnd, ...prev]);
+      const updated = [newMnd, ...mandates];
+      persistMandates(updated);
       setIsSubmitting(false);
       setModalVisible(false);
       Alert.alert('e-Mandate Created', 'Your auto-pay mandate has been registered with NPCI. You can now start automated SIPs without entering OTP every month.');

@@ -8,6 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import { BookIcon, WalletIcon, TrendingIcon, FileIcon } from '../components/Icons';
 
 const LEARN_CARDS = [
+  { icon: <TrendingIcon color="#3C3985" size={28} />, title: 'Learn How Your Risk Score Is Calculated', desc: 'Understand how your 12-question suitability responses and SEBI asset-allocation tiers are evaluated.', time: '4 min read', slug: 'risk-score-calculation' },
   { icon: <BookIcon color="#3C3985" size={28} />, title: 'What is a Mutual Fund?', desc: 'Learn how pooled investments work and why they are great for beginners.', time: '5 min read', slug: 'what-is-mutual-fund' },
   { icon: <WalletIcon color="#3C3985" size={28} />, title: 'SIP vs Lump Sum', desc: 'Which investment approach suits your financial situation better?', time: '4 min read', slug: 'sip-vs-lump-sum' },
   { icon: <TrendingIcon color="#3C3985" size={28} />, title: 'Understanding Risk', desc: 'Learn how to assess and manage investment risk for your goals.', time: '6 min read', slug: 'understanding-risk' },

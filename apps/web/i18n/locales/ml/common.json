@@ -759,5 +759,8 @@
   "signup.termsPrefix": "I agree to the",
   "signup.termsOfService": "നിബന്ധനകളും വ്യവസ്ഥകളും",
   "signup.and": "and",
-  "signup.privacyPolicy": "സ്വകാര്യതാ നയം"
+  "signup.privacyPolicy": "സ്വകാര്യതാ നയം",
+  "risk.learnHow": "എങ്ങനെയെന്ന് അറിയുക",
+  "learn.riskScoreCalculation.title": "നിങ്ങളുടെ റിസ്ക് സ്കോർ എങ്ങനെ കണക്കാക്കുന്നുവെന്ന് അറിയുക",
+  "learn.riskScoreCalculation.desc": "നിങ്ങളുടെ 12 അനുയോജ്യത ചോദ്യങ്ങളുടെ ഉത്തരങ്ങളും സെബി അസറ്റ് അലോക്കേഷൻ ശ്രേണികളും എങ്ങനെ വിലയിരുത്തപ്പെടുന്നുവെന്ന് മനസ്സിലാക്കുക."
 }

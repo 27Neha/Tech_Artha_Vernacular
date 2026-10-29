@@ -7,7 +7,11 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Allow TechArtha to transcribe your speech into text for vernacular chatbot queries.",
+        "NSMicrophoneUsageDescription": "Allow TechArtha to use your microphone for voice input."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +21,10 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.techartha.mobile",
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -26,7 +33,14 @@
       "expo-secure-store",
       "expo-status-bar",
       "@react-native-community/datetimepicker",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow TechArtha to use the microphone for voice input and vernacular financial queries.",
+          "speechRecognitionPermission": "Allow TechArtha to transcribe your spoken voice into text."
+        }
+      ]
     ],
     "scheme": "techartha",
     "sdkVersion": "57.0.0"

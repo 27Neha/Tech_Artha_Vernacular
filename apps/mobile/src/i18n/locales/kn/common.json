@@ -888,5 +888,8 @@
   "signup.termsOfService": "ನಿಯಮಗಳು ಮತ್ತು ಷರತ್ತುಗಳು",
   "signup.and": "and",
   "signup.privacyPolicy": "ಗೌಪ್ಯತಾ ನೀತಿ",
-  "signup.learnMore": "ಇನ್ನಷ್ಟು ತಿಳಿಯಿರಿ"
+  "signup.learnMore": "ಇನ್ನಷ್ಟು ತಿಳಿಯಿರಿ",
+  "risk.learnHow": "ಹೇಗೆಂದು ತಿಳಿಯಿರಿ",
+  "learn.riskScoreCalculation.title": "ನಿಮ್ಮ ಅಪಾಯದ ಸ್ಕೋರ್ ಅನ್ನು ಹೇಗೆ ಲೆಕ್ಕಹಾಕಲಾಗುತ್ತದೆ ಎಂದು ತಿಳಿಯಿರಿ",
+  "learn.riskScoreCalculation.desc": "ನಿಮ್ಮ 12 ಸೂಕ್ತತೆಯ ಪ್ರಶ್ನೆಗಳ ಉತ್ತರಗಳು ಮತ್ತು ಸೆಬಿ ಆಸ್ತಿ-ಹಂಚಿಕೆ ಶ್ರೇಣಿಗಳನ್ನು ಹೇಗೆ ಮೌಲ್ಯಮಾಪನ ಮಾಡಲಾಗುತ್ತದೆ ಎಂಬುದನ್ನು ಅರ್ಥಮಾಡಿಕೊಳ್ಳಿ."
 }

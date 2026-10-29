@@ -1,0 +1,63 @@
+{
+  "name": "admin",
+  "version": "1.0.0",
+  "description": "",
+  "main": "lib/index.js",
+  "files": ["lib"],
+  "scripts": {
+    "test": "npm run test:unit && npm run test:lint",
+    "test:unit": "jest",
+    "test:lint": "semistandard lib/**/*.js test/**/*.js *.js plugins/**/*.js",
+    "precommit": "npm test",
+    "dev:format": "prettier --write lib/**/*.js test/**/*.js *.js --single-quote --print-width 120",
+    "dev:toc": "./dev/updateToc.bash",
+    "dev:link": "./dev/setupLinks.bash",
+    "example:zeroConfig": "nodemon --ext js,html,css example/zeroConfig | pino",
+    "example:commonSetup": "nodemon --ext js,html,css example/commonSetup | pino"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/bripkens/admin.git"
+  },
+  "keywords": [
+    "admin",
+    "plugins",
+    "profiling",
+    "heap",
+    "cpu",
+    "healthcheck",
+    "http",
+    "ui",
+    "debugging"
+  ],
+  "author": {
+    "name": "Ben Ripkens",
+    "email": "bripkens@gmail.com",
+    "url": "http://github.com/bripkens"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/bripkens/admin/issues"
+  },
+  "dependencies": {
+    "ajv": "^4.11.3",
+    "bootstrap": "3",
+    "bootswatch": "^3.3.7",
+    "express": "^4.15.0",
+    "express-prettify": "^0.0.7",
+    "handlebars": "^4.0.6",
+    "hbs": "^4.0.1",
+    "lodash": "^4.17.4",
+    "pino": "^4.0.1",
+    "prismjs": "^1.6.0"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "doctoc": "^1.3.0",
+    "husky": "^0.13.2",
+    "jest": "^19.0.2",
+    "nodemon": "^1.11.0",
+    "prettier": "^0.21.0",
+    "semistandard": "^9.2.1"
+  }
+}

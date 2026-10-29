@@ -899,5 +899,8 @@
   "signup.termsOfService": "ନିୟମ ଓ ସର୍ତ୍ତାବଳୀ",
   "signup.and": "and",
   "signup.privacyPolicy": "ଗୋପନୀୟତା ନୀତି",
-  "signup.learnMore": "ଅଧିକ ଜାଣନ୍ତୁ"
+  "signup.learnMore": "ଅଧିକ ଜାଣନ୍ତୁ",
+  "risk.learnHow": "କିପରି ହୁଏ ଜାଣନ୍ତୁ",
+  "learn.riskScoreCalculation.title": "ଆପଣଙ୍କର ରିସ୍କ ସ୍କୋର କିପରି ଗଣନା କରାଯାଏ ଜାଣନ୍ତୁ",
+  "learn.riskScoreCalculation.desc": "ବୁଝନ୍ତୁ କିପରି ଆପଣଙ୍କର ୧୨ଟି ଉପଯୁକ୍ତତା ପ୍ରଶ୍ନର ଉତ୍ତର ଏବଂ ସେବି ସମ୍ପତ୍ତି ବଣ୍ଟନ ସ୍ତରଗୁଡ଼ିକ ମୂଲ୍ୟାଙ୍କନ କରାଯାଏ।"
 }

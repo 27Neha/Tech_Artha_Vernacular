@@ -757,5 +757,8 @@
   "signup.termsPrefix": "मैं",
   "signup.termsOfService": "नियम एवं शर्तों",
   "signup.and": "तथा",
-  "signup.privacyPolicy": "गोपनीयता नीति"
+  "signup.privacyPolicy": "गोपनीयता नीति",
+  "risk.learnHow": "गणना कैसे होती है",
+  "learn.riskScoreCalculation.title": "जानें कि आपका जोखिम स्कोर कैसे निकाला जाता है",
+  "learn.riskScoreCalculation.desc": "समझें कि आपके 12 उपयुक्तता प्रश्नों के उत्तर और सेबी (SEBI) संपत्ति-आवंटन स्तरों का मूल्यांकन कैसे किया जाता है।"
 }

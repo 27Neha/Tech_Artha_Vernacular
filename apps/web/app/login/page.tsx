@@ -8,6 +8,15 @@ import PrivacyPolicyModal from '../../components/PrivacyPolicyModal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
+const safeFetchJson = async (res: Response) => {
+  try {
+    const text = await res.text();
+    return text ? JSON.parse(text) : {};
+  } catch (e) {
+    return { message: 'Internal Server Error. Please try again later.' };
+  }
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const { t } = useTranslation();
@@ -28,9 +37,8 @@ export default function LoginPage() {
   const [validationError, setValidationError] = useState('');
   const [loading, setLoading] = useState(false);
   
-    const [accountNotExistsWarning, setAccountNotExistsWarning] = useState(false);
-  
-    
+  const [accountNotExistsWarning, setAccountNotExistsWarning] = useState(false);
+
   const handleContinue = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL' | 'PASSWORD') => {
     setValidationError('');
     setTermsWarning('');
@@ -68,31 +76,31 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
-      try {
-        const res = await fetch(`${API_URL}/auth/check`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(channel === 'EMAIL' || (identifierType === 'EMAIL') ? { email } : { mobile: phone })
-        });
-        const data = await res.json();
-        if (!data.exists) {
-          setAccountNotExistsWarning(true);
-          setLoading(false);
-          return;
-        }
-        
-        if (channel === 'PASSWORD') {
-          handleLogin();
-        } else {
-          setAuthChannel(channel);
-          await handleSendOtp(channel);
-        }
-      } catch (e) {
-        setError(t('common.error', { defaultValue: 'Something went wrong. Please try again.' }));
-      } finally {
+    try {
+      const res = await fetch(`${API_URL}/auth/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(channel === 'EMAIL' || (identifierType === 'EMAIL') ? { email } : { mobile: phone })
+      });
+      const data = await safeFetchJson(res);
+      if (res.ok && data && data.exists === false) {
+        setAccountNotExistsWarning(true);
         setLoading(false);
+        return;
       }
-    };
+      
+      if (channel === 'PASSWORD') {
+        handleLogin();
+      } else {
+        setAuthChannel(channel);
+        await handleSendOtp(channel);
+      }
+    } catch (e) {
+      setError(t('common.error', { defaultValue: 'Something went wrong. Please try again.' }));
+    } finally {
+      setLoading(false);
+    }
+  };
   
   const [error, setError] = useState('');
 
@@ -224,14 +232,18 @@ export default function LoginPage() {
               </label>
               
               {identifierType === 'EMAIL' ? (
-                <input 
-                  type="email"
-                      ref={emailInputRef}
-                  value={email} 
-                  onChange={e => setEmail(e.target.value)} 
-                  placeholder={t('signup.emailPlaceholder', { defaultValue: 'name@example.com' })} 
-                  className="w-full p-4 border border-gray-200 rounded-xl focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none transition-colors" 
-                />
+                  <input 
+                    type="email"
+                    ref={emailInputRef}
+                    value={email} 
+                    onChange={e => {
+                      setEmail(e.target.value);
+                      setAccountNotExistsWarning(false);
+                      setValidationError('');
+                    }} 
+                    placeholder={t('signup.emailPlaceholder', { defaultValue: 'name@example.com' })} 
+                    className="w-full p-4 border border-gray-200 rounded-xl focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none transition-colors" 
+                  />
               ) : (
                 <div className="flex w-full">
                   <div className="flex-shrink-0 flex items-center justify-center px-4 border border-gray-200 border-r-0 rounded-l-xl bg-gray-50 text-gray-600 font-semibold">
@@ -239,9 +251,13 @@ export default function LoginPage() {
                   </div>
                   <input 
                     type="tel"
-                      ref={mobileInputRef}
+                    ref={mobileInputRef}
                     value={phone} 
-                    onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} 
+                    onChange={e => {
+                      setPhone(e.target.value.replace(/\D/g, '').slice(0, 10));
+                      setAccountNotExistsWarning(false);
+                      setValidationError('');
+                    }} 
                     placeholder={t('signup.mobilePlaceholder', { defaultValue: 'Enter 10-digit mobile number' })} 
                     className="w-full p-4 border border-gray-200 rounded-r-xl focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none transition-colors" 
                     maxLength={10}

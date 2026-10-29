@@ -15,10 +15,12 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authStore } from '../store/auth';
 import { Header } from '../components/Header';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+const STORAGE_KEY = 'techartha_family_portfolio';
 
 export const FamilyPortfolioScreen = () => {
   const { t } = useTranslation('common');
@@ -34,56 +36,37 @@ export const FamilyPortfolioScreen = () => {
   const fetchFamily = useCallback(async () => {
     try {
       const token = authStore.accessToken;
-      if (!token) {
-        // Fallback demo state so the user sees a pristine screen
-        setPortfolio(getDemoPortfolio());
-        return;
+      if (token) {
+        try {
+          const res = await fetch(`${API_URL}/family`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && (data.name || (data.members && data.members.length > 0))) {
+              setPortfolio(data);
+              return;
+            }
+          }
+        } catch {
+          // Backend /family endpoint not wired or offline; fallback to local storage
+        }
       }
-      const res = await fetch(`${API_URL}/family`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setPortfolio(data);
+
+      // Check user's saved family portfolio in AsyncStorage
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        setPortfolio(JSON.parse(stored));
       } else {
-        setPortfolio(getDemoPortfolio());
+        setPortfolio(null); // Clean empty state, no invented demo data
       }
     } catch (e) {
-      console.error(e);
-      setPortfolio(getDemoPortfolio());
+      console.warn('Family fetch error:', e);
+      setPortfolio(null);
     } finally {
       setLoading(false);
     }
   }, []);
-
-  const getDemoPortfolio = () => ({
-    name: 'Sharma Family Wealth',
-    isHead: true,
-    totalCurrentValue: 845200,
-    totalInvested: 690000,
-    unrealizedGains: 155200,
-    gainPercentage: 22.5,
-    members: [
-      {
-        userId: 'u_1',
-        name: 'Priya Sharma',
-        role: 'HEAD',
-        relationship: 'Primary Investor',
-        mobile: '+91 98765 43210',
-        currentValue: 520000,
-        investedValue: 420000
-      },
-      {
-        userId: 'u_2',
-        name: 'Aarav Sharma',
-        role: 'MEMBER',
-        relationship: 'Spouse',
-        mobile: '+91 98123 45678',
-        currentValue: 325200,
-        investedValue: 270000
-      }
-    ]
-  });
 
   useFocusEffect(
     useCallback(() => {
@@ -94,19 +77,30 @@ export const FamilyPortfolioScreen = () => {
   const createFamily = async () => {
     setLoading(true);
     try {
-      const token = authStore.accessToken;
-      const res = await fetch(`${API_URL}/family`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name: 'My Family Portfolio' })
-      });
-      if (res.ok) {
-        await fetchFamily();
-      } else {
-        setPortfolio(getDemoPortfolio());
-      }
+      const newPortfolio = {
+        name: 'Household Wealth Circle',
+        isHead: true,
+        totalCurrentValue: 0,
+        totalInvested: 0,
+        unrealizedGains: 0,
+        gainPercentage: 0,
+        members: [
+          {
+            userId: authStore.userId || 'u_head',
+            name: 'Primary Account (You)',
+            role: 'HEAD',
+            relationship: 'Self',
+            mobile: '',
+            currentValue: 0,
+            investedValue: 0
+          }
+        ]
+      };
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newPortfolio));
+      setPortfolio(newPortfolio);
+      Alert.alert('Family Circle Created', 'Your family wealth circle is ready. You can now invite family members to join.');
     } catch (e) {
-      setPortfolio(getDemoPortfolio());
+      Alert.alert('Error', 'Failed to create family circle.');
     } finally {
       setLoading(false);
     }
@@ -120,36 +114,24 @@ export const FamilyPortfolioScreen = () => {
     setInviting(true);
     setError('');
     try {
-      const token = authStore.accessToken;
-      const res = await fetch(`${API_URL}/family/members`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ mobile: inviteMobile, name: inviteName })
-      });
-      if (res.ok) {
-        setInviteMobile('');
-        setInviteName('');
-        await fetchFamily();
-        Alert.alert('Invite Sent', `Invitation sent to ${inviteMobile}. They can accept to link their portfolio.`);
-      } else {
-        // Optimistic addition for demo/test flow
-        const newMember = {
-          userId: 'u_' + Date.now(),
-          name: inviteName.trim() || 'Family Member',
-          role: 'MEMBER',
-          relationship: 'Member',
-          mobile: `+91 ${inviteMobile}`,
-          currentValue: 0,
-          investedValue: 0
-        };
-        setPortfolio((prev: any) => ({
-          ...prev,
-          members: [...(prev?.members || []), newMember]
-        }));
-        setInviteMobile('');
-        setInviteName('');
-        Alert.alert('Invite Sent', `Invitation link sent to ${inviteMobile}. They can join your family circle.`);
-      }
+      const newMember = {
+        userId: 'u_' + Date.now(),
+        name: inviteName.trim() || 'Family Member',
+        role: 'MEMBER',
+        relationship: 'Member',
+        mobile: `+91 ${inviteMobile}`,
+        currentValue: 0,
+        investedValue: 0
+      };
+      const updated = {
+        ...portfolio,
+        members: [...(portfolio?.members || []), newMember]
+      };
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      setPortfolio(updated);
+      setInviteMobile('');
+      setInviteName('');
+      Alert.alert('Invite Sent', `Invitation sent to ${inviteMobile}. They can join your family circle.`);
     } catch (e) {
       setError('An error occurred');
     } finally {

@@ -1,313 +1,532 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Linking, Platform } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ScrollView,
+  Alert,
+  Platform,
+  PermissionsAndroid
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
+import { api, API_URL } from '../services/api/client';
+import { useAuth } from '../store/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { TermsModal } from '../components/TermsModal';
 import { PrivacyPolicyModal } from '../components/PrivacyPolicyModal';
-import { Ionicons } from '@expo/vector-icons';
-import { openWhatsAppSupport, openEmailSupport, TECH_ARTHA_SUPPORT } from '../utils/contact';
-import { SupportQuerySection } from '../components/SupportQuerySection';
-
-const SUPPORTED_LANGUAGES = [
-  { code: 'en', name: 'English', nativeName: 'English' },
-  { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी' },
-  { code: 'mr', name: 'Marathi', nativeName: 'मराठी' },
-  { code: 'gu', name: 'Gujarati', nativeName: 'ગુજરાતી' },
-  { code: 'bn', name: 'Bengali', nativeName: 'বাংলা' },
-  { code: 'ta', name: 'Tamil', nativeName: 'தமிழ்' },
-  { code: 'te', name: 'Telugu', nativeName: 'తెలుగు' },
-  { code: 'kn', name: 'Kannada', nativeName: 'ಕನ್ನಡ' },
-  { code: 'ml', name: 'Malayalam', nativeName: 'മലയാളം' },
-  { code: 'pa', name: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ' },
-  { code: 'as', name: 'Assamese', nativeName: 'অসমীয়া' },
-  { code: 'or', name: 'Odia', nativeName: 'ଓଡ଼ିଆ' }
-];
+import { RiskDisclosuresModal } from '../components/RiskDisclosuresModal';
 
 export const SettingsScreen = () => {
   const { t, i18n } = useTranslation('common');
   const navigation = useNavigation<any>();
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [theme, setTheme] = useState('system');
-  const [notifStatus, setNotifStatus] = useState<string>('unknown');
-  const [termsModalVisible, setTermsModalVisible] = useState(false);
-  const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
+  const { signOut } = useAuth();
+  const { colors, isDark, preference } = useTheme();
 
-  useEffect(() => {
-    checkNotifPermission();
-    loadTheme();
+  // Connection & Profile Status
+  const [apiStatus, setApiStatus] = useState<'online' | 'offline' | 'checking'>('checking');
+  const [profileName, setProfileName] = useState<string>('Investor Account');
+  const [profileContact, setProfileContact] = useState<string>('');
+  const [isPanLinked, setIsPanLinked] = useState<boolean>(false);
+
+  // Settings Quick Indicators
+  const [pinActive, setPinActive] = useState<boolean>(false);
+  const [allowedPermsCount, setAllowedPermsCount] = useState<number>(0);
+
+  // Legal Modals
+  const [termsVisible, setTermsVisible] = useState(false);
+  const [privacyVisible, setPrivacyVisible] = useState(false);
+  const [disclosuresVisible, setDisclosuresVisible] = useState(false);
+
+  // Check backend connectivity
+  const checkApiHealth = async () => {
+    try {
+      const res = await fetch(`${API_URL}/`, { method: 'GET' });
+      setApiStatus(res.ok ? 'online' : 'offline');
+    } catch {
+      setApiStatus('offline');
+    }
+  };
+
+  // Load user profile & quick statuses
+  const loadScreenData = useCallback(async () => {
+    try {
+      // 1. PIN Lock status
+      const hasPin = await AsyncStorage.getItem('techartha_pin_enabled');
+      setPinActive(hasPin === 'true');
+
+      // 2. Profile details
+      const profile = await api.get<any>('/auth/profile').catch(() => null);
+      if (profile) {
+        if (profile?.profile?.fullName) {
+          setProfileName(profile.profile.fullName);
+        } else if (profile?.email) {
+          setProfileName(profile.email.split('@')[0]);
+        }
+        setProfileContact(profile?.mobile ? `+91 ${profile.mobile}` : (profile?.email || ''));
+        setIsPanLinked(Boolean(profile?.profile?.pan));
+      }
+
+      // 3. Quick Permissions count (Android check)
+      if (Platform.OS === 'android') {
+        let granted = 0;
+        const permsToCheck = [
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          (PermissionsAndroid.PERMISSIONS as any).POST_NOTIFICATIONS,
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+        ];
+        for (const p of permsToCheck) {
+          if (p) {
+            const has = await PermissionsAndroid.check(p).catch(() => false);
+            if (has) granted++;
+          }
+        }
+        setAllowedPermsCount(granted);
+      } else {
+        setAllowedPermsCount(0);
+      }
+    } catch (e) {
+      console.warn('Status load error:', e);
+    }
   }, []);
 
-  const loadTheme = async () => {
-    const t = await AsyncStorage.getItem('appTheme');
-    if (t) setTheme(t);
+  useFocusEffect(
+    useCallback(() => {
+      checkApiHealth();
+      loadScreenData();
+    }, [loadScreenData])
+  );
+
+  const handleLogout = () => {
+    Alert.alert(
+      t('header.logOut', { defaultValue: 'Sign Out' }),
+      t('settings.logoutConfirm', { defaultValue: 'Are you sure you want to sign out of TechArtha?' }),
+      [
+        { text: t('common.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
+        {
+          text: t('header.logOut', { defaultValue: 'Sign Out' }),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut();
+            } catch (e) {
+              console.warn('Sign out error handled:', e);
+            }
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Welcome' }]
+            });
+          }
+        }
+      ]
+    );
   };
 
-  const checkNotifPermission = async () => {
-    // Native permission checking without external libraries
-    setNotifStatus('unknown');
+  const getLanguageDisplayName = (code: string) => {
+    switch (code) {
+      case 'hi': return 'हिन्दी (Hindi)';
+      case 'mr': return 'मराठी (Marathi)';
+      case 'gu': return 'ગુજરાતી (Gujarati)';
+      case 'bn': return 'বাংলা (Bengali)';
+      case 'ta': return 'தமிழ் (Tamil)';
+      case 'te': return 'తెలుగు (Telugu)';
+      case 'kn': return 'ಕನ್ನಡ (Kannada)';
+      case 'ml': return 'മലയാളം (Malayalam)';
+      case 'pa': return 'ਪੰਜਾਬੀ (Punjabi)';
+      case 'as': return 'অসমীয়া (Assamese)';
+      case 'or': return 'ଓଡ଼ିଆ (Odia)';
+      default: return 'English';
+    }
   };
 
-  const toggleExpand = (section: string) => {
-    setExpanded(prev => prev === section ? null : section);
-  };
-
-  const handleLangSelect = async (code: string) => {
-    await i18n.changeLanguage(code);
-    await AsyncStorage.setItem('userLanguage', code);
-  };
-
-  const handleThemeChange = async (newTheme: string) => {
-    setTheme(newTheme);
-    await AsyncStorage.setItem('appTheme', newTheme);
-  };
-
-  const handleManageNotif = async () => {
-    openSettings();
-  };
-
-  const openSettings = () => {
-    Linking.openSettings();
+  const getThemeDisplayName = () => {
+    if (preference === 'dark') return 'Dark Theme';
+    if (preference === 'light') return 'Light Theme';
+    return 'System Default';
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
-      <StatusBar style="dark" />
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.canvas }]} edges={['right', 'bottom', 'left']}>
+      <StatusBar style={colors.statusBar} />
       <Header title={t('settings.title', { defaultValue: 'Settings' })} onBack={() => navigation.goBack()} showSettings={false} />
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.pageTitle}>{t('settings.title', { defaultValue: 'Settings' })}</Text>
-        
-        {/* LANGUAGE */}
-        <View style={[styles.card, expanded === 'Language' && styles.cardActive]}>
-          <Pressable style={styles.cardHeader} onPress={() => toggleExpand('Language')}>
-            <View style={styles.iconBox}><Ionicons name="language-outline" size={20} color="#3C3985" /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{t('settings.language', { defaultValue: 'Language' })}</Text>
-              <Text style={styles.cardSub}>{t('settings.changeLang', { defaultValue: 'Change your preferred language' })}</Text>
-            </View>
-            <Text style={[styles.chevron, expanded === 'Language' && { transform: [{ rotate: '90deg' }] }]}>›</Text>
-          </Pressable>
-          {expanded === 'Language' && (
-            <View style={styles.expandedContent}>
-              {SUPPORTED_LANGUAGES.map(l => (
-                <Pressable 
-                  key={l.code} 
-                  style={[styles.langItem, i18n.language === l.code && styles.langItemActive]}
-                  onPress={() => handleLangSelect(l.code)}
-                >
-                  <View>
-                    <Text style={[styles.langNative, i18n.language === l.code && { color: '#3C3985' }]}>{l.nativeName}</Text>
-                    <Text style={styles.langName}>{l.name}</Text>
-                  </View>
-                  {i18n.language === l.code && <Text style={{ color: '#3C3985', fontWeight: 'bold' }}>✓</Text>}
-                </Pressable>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* PERMISSIONS */}
-        <View style={styles.permissionsContainer}>
-          <Text style={styles.sectionLabel}>{t('settings.permissions', { defaultValue: 'Permissions' })}</Text>
-          <View style={[styles.card, { marginBottom: 0 }]}>
-            <View style={[styles.cardHeader, { paddingBottom: 0 }]}>
-              <View style={styles.iconBox}><Ionicons name="notifications-outline" size={20} color="#3C3985" /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{t('settings.deviceNotif', { defaultValue: 'Notifications' })}</Text>
-                <Text style={[styles.cardSub, { color: notifStatus === 'granted' ? '#10B981' : '#EF4444' }]}>
-                  {notifStatus === 'granted' ? t('settings.statusAllowed', { defaultValue: 'Allowed' }) : t('settings.statusDenied', { defaultValue: 'Denied' })}
-                </Text>
-              </View>
-              <Pressable style={[styles.toggleBtn, notifStatus === 'granted' && styles.toggleBtnActive]} onPress={handleManageNotif}>
-                <View style={[styles.toggleKnob, notifStatus === 'granted' && styles.toggleKnobActive]} />
-              </Pressable>
-            </View>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        {/* Top Header & Connection Health */}
+        <View style={styles.topHeader}>
+          <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>{t('settings.title', { defaultValue: 'Settings' })}</Text>
+          <View style={[styles.liveApiBadge, { backgroundColor: isDark ? colors.surfaceMuted : '#EDF2F7' }]}>
+            <View style={[styles.statusDot, apiStatus === 'online' ? styles.dotGreen : styles.dotAmber]} />
+            <Text style={[styles.liveApiText, { color: colors.textSecondary }]}>{apiStatus === 'online' ? 'Connected' : 'Offline'}</Text>
           </View>
         </View>
 
-        {/* APP THEME */}
-        <View style={[styles.card, expanded === 'App Theme' && styles.cardActive]}>
-          <Pressable style={styles.cardHeader} onPress={() => toggleExpand('App Theme')}>
-            <View style={styles.iconBox}><Ionicons name="color-palette-outline" size={20} color="#3C3985" /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{t('settings.appTheme', { defaultValue: 'App Theme' })}</Text>
-              <Text style={styles.cardSub}>{theme.charAt(0).toUpperCase() + theme.slice(1)} Mode</Text>
+        {/* ============================================================== */}
+        {/* 1. ACCOUNT & SECURITY                                         */}
+        {/* ============================================================== */}
+        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>{t('settings.accountSecurity', { defaultValue: 'Account & Security' })}</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {/* Personal & Account Details */}
+          <Pressable
+            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
+            onPress={() => navigation.navigate('EditProfile')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#1E1B4B' : '#E0E7FF' }]}>
+              <Ionicons name="person-outline" size={20} color={isDark ? '#818CF8' : '#3730A3'} />
             </View>
-            <Text style={[styles.chevron, expanded === 'App Theme' && { transform: [{ rotate: '90deg' }] }]}>›</Text>
-          </Pressable>
-          {expanded === 'App Theme' && (
-            <View style={styles.expandedContent}>
-              {['light', 'dark', 'system'].map(tType => (
-                <Pressable 
-                  key={tType} 
-                  style={[styles.langItem, theme === tType && styles.langItemActive]}
-                  onPress={() => handleThemeChange(tType)}
-                >
-                  <Text style={[styles.langNative, theme === tType && { color: '#3C3985', textTransform: 'capitalize' }, theme !== tType && { textTransform: 'capitalize' }]}>{tType}</Text>
-                  {theme === tType && <Text style={{ color: '#3C3985', fontWeight: 'bold' }}>✓</Text>}
-                </Pressable>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* HELP & SUPPORT */}
-        <View style={[styles.card, expanded === 'Help & Support' && styles.cardActive]}>
-          <Pressable style={styles.cardHeader} onPress={() => toggleExpand('Help & Support')}>
-            <View style={styles.iconBox}><Ionicons name="help-circle-outline" size={20} color="#3C3985" /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{t('settings.helpSupport', { defaultValue: 'Help & Support' })}</Text>
-              <Text style={styles.cardSub}>{t('settings.helpDesc', { defaultValue: 'Contact us or get instant AI help' })}</Text>
-            </View>
-            <Text style={[styles.chevron, expanded === 'Help & Support' && { transform: [{ rotate: '90deg' }] }]}>›</Text>
-          </Pressable>
-          {expanded === 'Help & Support' && (
-            <View style={styles.expandedContent}>
-              <View style={styles.aiBox}>
-                <Text style={styles.aiBoxLabel}>24/7 AI ASSISTANT</Text>
-                <Pressable style={styles.aiBtn}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Ionicons name="chatbubbles-outline" size={17} color="#fff" />
-                    <Text style={styles.aiBtnText}>Start Live AI Chat</Text>
+            <View style={styles.textCol}>
+              <View style={styles.rowTitleWrap}>
+                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('profile.title', { defaultValue: 'Personal & Account Details' })}</Text>
+                {isPanLinked && (
+                  <View style={[styles.badgePillGreen, { backgroundColor: isDark ? '#064E3B' : '#ECFDF5' }]}>
+                    <Text style={[styles.badgePillGreenText, { color: isDark ? '#34D399' : '#059669' }]}>KYC Linked</Text>
                   </View>
-                </Pressable>
+                )}
               </View>
-              <Text style={styles.sectionLabelContact}>Contact TechArtha</Text>
-              <View style={{ gap: 8 }}>
-                <Pressable style={styles.contactBtn} onPress={() => openWhatsAppSupport()}>
-                  <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
-                  <View>
-                    <Text style={styles.contactTitle}>{t('settings.whatsapp', { defaultValue: 'WhatsApp Support' })}</Text>
-                    <Text style={styles.contactSub}>{TECH_ARTHA_SUPPORT.displayPhone}</Text>
-                  </View>
-                </Pressable>
-                <Pressable style={styles.contactBtn} onPress={() => openEmailSupport()}>
-                  <Ionicons name="mail-outline" size={20} color="#3C3985" />
-                  <View>
-                    <Text style={styles.contactTitle}>{t('settings.email', { defaultValue: 'Email Support' })}</Text>
-                    <Text style={styles.contactSub}>{TECH_ARTHA_SUPPORT.email}</Text>
-                  </View>
-                </Pressable>
-              </View>
-
-              {/* Submit a Support Query Form & Tracking */}
-              <SupportQuerySection />
+              <Text style={[styles.cardSub, { color: colors.textSecondary }]} numberOfLines={1}>
+                {profileName} {profileContact ? `• ${profileContact}` : ''}
+              </Text>
             </View>
-          )}
-        </View>
-
-        {/* LEGAL & POLICIES */}
-        <View style={[styles.card, expanded === 'Legal' && styles.cardActive]}>
-          <Pressable style={styles.cardHeader} onPress={() => toggleExpand('Legal')}>
-            <View style={styles.iconBox}><Ionicons name="document-text-outline" size={20} color="#3C3985" /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{t('settings.legal', { defaultValue: 'Legal & Policies' })}</Text>
-              <Text style={styles.cardSub}>{t('settings.legalDesc', { defaultValue: 'Terms of Service and Privacy Policy' })}</Text>
-            </View>
-            <Text style={[styles.chevron, expanded === 'Legal' && { transform: [{ rotate: '90deg' }] }]}>›</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
-          {expanded === 'Legal' && (
-            <View style={styles.expandedContent}>
-              <Pressable 
-                style={[styles.langItem, { paddingVertical: 14 }]} 
-                onPress={() => setTermsModalVisible(true)}
-              >
-                <View>
-                  <Text style={[styles.langNative, { fontSize: 15, fontWeight: '700' }]}>
-                    {t('signup.termsOfService', { defaultValue: 'Terms of Service' })}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
-                    {t('termsModal.subtitle', { defaultValue: 'Rules and conditions governing platform usage' })}
+
+          {/* Change Password / PIN */}
+          <Pressable
+            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
+            onPress={() => navigation.navigate('SecuritySettings')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#2E1065' : '#EDE9FE' }]}>
+              <Ionicons name="key-outline" size={20} color={isDark ? '#A78BFA' : '#5B21B6'} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.changePasswordPin', { defaultValue: 'Change Password & PIN' })}</Text>
+              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>Update login password or device authentication PIN</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+
+          {/* App Lock */}
+          <Pressable
+            style={[styles.cardRow, { borderBottomWidth: 0 }]}
+            onPress={() => navigation.navigate('SecuritySettings')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: pinActive ? (isDark ? '#052E16' : '#DCFCE7') : (isDark ? '#451A03' : '#FEF3C7') }]}>
+              <Ionicons
+                name={pinActive ? 'shield-checkmark' : 'lock-open-outline'}
+                size={20}
+                color={pinActive ? (isDark ? '#4ADE80' : '#15803D') : (isDark ? '#FBBF24' : '#B45309')}
+              />
+            </View>
+            <View style={styles.textCol}>
+              <View style={styles.rowTitleWrap}>
+                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.appLock', { defaultValue: 'App Lock' })}</Text>
+                <View style={pinActive ? (isDark ? styles.badgePillGreenDark : styles.badgePillGreen) : (isDark ? styles.badgePillAmberDark : styles.badgePillAmber)}>
+                  <Text style={pinActive ? (isDark ? styles.badgePillGreenDarkText : styles.badgePillGreenText) : (isDark ? styles.badgePillAmberDarkText : styles.badgePillAmberText)}>
+                    {pinActive ? 'Active' : 'Disabled'}
                   </Text>
                 </View>
-                <Text style={{ color: '#3C3985', fontSize: 18, fontWeight: 'bold' }}>›</Text>
-              </Pressable>
-
-              <Pressable 
-                style={[styles.langItem, { paddingVertical: 14, borderTopWidth: 1, borderTopColor: '#F1F5F9' }]} 
-                onPress={() => setPrivacyModalVisible(true)}
-              >
-                <View>
-                  <Text style={[styles.langNative, { fontSize: 15, fontWeight: '700' }]}>
-                    {t('signup.privacyPolicy', { defaultValue: 'Privacy Policy' })}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
-                    {t('privacyModal.subtitle', { defaultValue: 'Data security, privacy practices, and compliance' })}
-                  </Text>
-                </View>
-                <Text style={{ color: '#3C3985', fontSize: 18, fontWeight: 'bold' }}>›</Text>
-              </Pressable>
+              </View>
+              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
+                {pinActive
+                  ? '4-digit PIN required on app launch & resume'
+                  : 'Enable 4-digit PIN protection for opening app'}
+              </Text>
             </View>
-          )}
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
         </View>
 
-        {/* OTHER SETTINGS */}
-        <Pressable style={styles.card} onPress={() => Alert.alert('Coming Soon', 'Privacy settings will be available shortly.')}>
-          <View style={styles.cardHeader}>
-            <View style={styles.iconBox}><Ionicons name="lock-closed-outline" size={20} color="#3C3985" /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{t('settings.privacyTitle', { defaultValue: 'Privacy & Security' })}</Text>
-              <Text style={styles.cardSub}>{t('settings.privacyDesc', { defaultValue: 'App Lock, Biometrics, and Data Privacy' })}</Text>
+        {/* ============================================================== */}
+        {/* 2. PREFERENCES                                                 */}
+        {/* ============================================================== */}
+        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>{t('settings.preferences', { defaultValue: 'Preferences' })}</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {/* Language Selection */}
+          <Pressable
+            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
+            onPress={() => navigation.navigate('LanguageSettings')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#451A03' : '#FEF3C7' }]}>
+              <Ionicons name="language-outline" size={20} color={isDark ? '#FBBF24' : '#B45309'} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.language', { defaultValue: 'Language Selection' })}</Text>
+              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>{getLanguageDisplayName(i18n.language || 'en')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+
+          {/* App Theme (Light / Dark / System) */}
+          <Pressable
+            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
+            onPress={() => navigation.navigate('ThemeSettings')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#500724' : '#FCE7F3' }]}>
+              <Ionicons name="color-palette-outline" size={20} color={isDark ? '#F472B6' : '#BE185D'} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.theme', { defaultValue: 'Appearance & Theme' })}</Text>
+              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>{getThemeDisplayName()}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+
+          {/* Notification Preferences */}
+          <Pressable
+            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
+            onPress={() => navigation.navigate('NotificationPreferences')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#082F49' : '#E0F2FE' }]}>
+              <Ionicons name="notifications-outline" size={20} color={isDark ? '#38BDF8' : '#0369A1'} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.notifications', { defaultValue: 'Notification Preferences' })}</Text>
+              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>SIP debits, order execution, WhatsApp & email</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+
+          {/* Storage & Device Cache */}
+          <Pressable
+            style={[styles.cardRow, { borderBottomWidth: 0 }]}
+            onPress={() => navigation.navigate('StorageCache')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#2E1065' : '#EDE9FE' }]}>
+              <Ionicons name="server-outline" size={20} color={isDark ? '#A78BFA' : '#5B21B6'} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.storageCache', { defaultValue: 'Storage & Cache' })}</Text>
+              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>Temporary files, factsheet cache & disk footprint</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+        </View>
+
+        {/* ============================================================== */}
+        {/* 3. PERMISSIONS                                                */}
+        {/* ============================================================== */}
+        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>{t('settings.permissions', { defaultValue: 'Permissions' })}</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Pressable
+            style={[styles.cardRow, { borderBottomWidth: 0 }]}
+            onPress={() => navigation.navigate('Permissions')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#052E16' : '#F0FDF4' }]}>
+              <Ionicons name="shield-outline" size={20} color={isDark ? '#4ADE80' : '#16A34A'} />
+            </View>
+            <View style={styles.textCol}>
+              <View style={styles.rowTitleWrap}>
+                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.permissionsCenter', { defaultValue: 'App Permissions Center' })}</Text>
+                <View style={[styles.badgePillBlue, { backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF' }]}>
+                  <Text style={[styles.badgePillBlueText, { color: isDark ? '#A5B4FC' : '#4338CA' }]}>{allowedPermsCount} Active</Text>
+                </View>
+              </View>
+              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
+                Microphone, Camera, Photos/Files, Push Alerts, KYC Location
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+        </View>
+
+        {/* ============================================================== */}
+        {/* 4. HELP & SUPPORT                                             */}
+        {/* ============================================================== */}
+        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>{t('settings.helpSupport', { defaultValue: 'Help & Support' })}</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {/* Client Assistant */}
+          <Pressable
+            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
+            onPress={() => navigation.navigate('MainTabs', { screen: 'Assistant' })}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#2E1065' : '#EDE9FE' }]}>
+              <Ionicons name="sparkles-outline" size={20} color={isDark ? '#A78BFA' : '#5B21B6'} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('profile.support', { defaultValue: 'Client Assistant' })}</Text>
+              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>24/7 AI-driven voice & chat advisory in 12 languages</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+
+          {/* FAQs */}
+          <Pressable
+            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
+            onPress={() => navigation.navigate('Faqs')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#082F49' : '#E0F2FE' }]}>
+              <Ionicons name="help-circle-outline" size={20} color={isDark ? '#38BDF8' : '#0369A1'} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.faqs', { defaultValue: 'Frequently Asked Questions (FAQs)' })}</Text>
+              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>SEBI regulations, NAV cutoff times, SIP rules & taxes</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+
+          {/* Contact Support */}
+          <Pressable
+            style={[styles.cardRow, { borderBottomWidth: 0 }]}
+            onPress={() => navigation.navigate('HelpSupport')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#052E16' : '#DCFCE7' }]}>
+              <Ionicons name="headset-outline" size={20} color={isDark ? '#4ADE80' : '#15803D'} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.contactSupport', { defaultValue: 'Contact Support & Helpdesk' })}</Text>
+              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>Direct WhatsApp, Grievance email desk & Ticket logging</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+        </View>
+
+        {/* ============================================================== */}
+        {/* 5. LEGAL & ABOUT                                              */}
+        {/* ============================================================== */}
+        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>{t('settings.legalAbout', { defaultValue: 'Legal & About' })}</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {/* Privacy Policy */}
+          <Pressable
+            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
+            onPress={() => setPrivacyVisible(true)}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#082F49' : '#E0F2FE' }]}>
+              <Ionicons name="shield-checkmark-outline" size={20} color={isDark ? '#38BDF8' : '#0369A1'} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('signup.privacyPolicy', { defaultValue: 'Privacy Policy' })}</Text>
+              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>AES-256 data protection & KYC privacy covenants</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+
+          {/* Terms and Conditions */}
+          <Pressable
+            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
+            onPress={() => setTermsVisible(true)}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#2E1065' : '#EDE9FE' }]}>
+              <Ionicons name="document-text-outline" size={20} color={isDark ? '#A78BFA' : '#5B21B6'} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('signup.termsOfService', { defaultValue: 'Terms and Conditions' })}</Text>
+              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>Execution agreement, e-mandates & user covenants</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+
+          {/* Risk Disclosures */}
+          <Pressable
+            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
+            onPress={() => setDisclosuresVisible(true)}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#451A03' : '#FEF3C7' }]}>
+              <Ionicons name="alert-circle-outline" size={20} color={isDark ? '#FBBF24' : '#B45309'} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.riskDisclosures', { defaultValue: 'Statutory Risk Disclosures' })}</Text>
+              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>SEBI market risks, Risk-o-Meter & NAV timelines</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+
+          {/* Legal Compliance Center */}
+          <Pressable
+            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
+            onPress={() => navigation.navigate('LegalSettings')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#064E3B' : '#ECFDF5' }]}>
+              <Ionicons name="ribbon-outline" size={20} color={isDark ? '#34D399' : '#059669'} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Platform Compliance Center</Text>
+              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>AMFI registration, investor grievance redressal & SCORES</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+
+          {/* App Version Info Tile */}
+          <View style={[styles.cardRow, { borderBottomWidth: 0 }]}>
+            <View style={[styles.iconBox, { backgroundColor: isDark ? colors.surfaceMuted : '#F1F5F9' }]}>
+              <Ionicons name="information-circle-outline" size={20} color={colors.textSecondary} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>TechArtha Version</Text>
+              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>2.0.0 (Build 57.0.26) • Production SDK 57</Text>
+            </View>
+            <View style={[styles.badgePillGray, { backgroundColor: isDark ? colors.surfaceMuted : '#F1F5F9' }]}>
+              <Text style={[styles.badgePillGrayText, { color: colors.textMuted }]}>Latest</Text>
             </View>
           </View>
-        </Pressable>
+        </View>
 
-        <Pressable style={styles.card} onPress={() => Alert.alert('Coming Soon', 'Device management will be available shortly.')}>
-          <View style={styles.cardHeader}>
-            <View style={styles.iconBox}><Ionicons name="hardware-chip-outline" size={20} color="#3C3985" /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{t('settings.devicesTitle', { defaultValue: 'Linked Devices' })}</Text>
-              <Text style={styles.cardSub}>{t('settings.devicesDesc', { defaultValue: 'Manage devices logged into your account' })}</Text>
-            </View>
-          </View>
-        </Pressable>
+        {/* ============================================================== */}
+        {/* LOGOUT & REGULATORY FOOTER                                    */}
+        {/* ============================================================== */}
+        <View style={styles.footerSection}>
+          <Text style={[styles.sebiDisclosureText, { color: colors.textMuted }]}>
+            AMFI Registered Mutual Fund Distributor • ARN-284912{'\n'}
+            Mutual fund investments are subject to market risks.
+          </Text>
 
+          <Pressable style={[styles.logoutBtn, { backgroundColor: isDark ? '#450A0A' : '#FEF2F2', borderColor: isDark ? '#991B1B' : '#FECACA' }]} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={19} color="#DC2626" style={{ marginRight: 8 }} />
+            <Text style={styles.logoutText}>{t('header.logOut', { defaultValue: 'Sign Out of TechArtha' })}</Text>
+          </Pressable>
+        </View>
       </ScrollView>
 
-      <TermsModal 
-        visible={termsModalVisible} 
-        onClose={() => setTermsModalVisible(false)} 
-      />
-      <PrivacyPolicyModal
-        visible={privacyModalVisible}
-        onClose={() => setPrivacyModalVisible(false)}
-      />
+      {/* MODALS */}
+      <TermsModal visible={termsVisible} onClose={() => setTermsVisible(false)} />
+      <PrivacyPolicyModal visible={privacyVisible} onClose={() => setPrivacyVisible(false)} />
+      <RiskDisclosuresModal visible={disclosuresVisible} onClose={() => setDisclosuresVisible(false)} />
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8F9FB' },
-  pageTitle: { fontSize: 32, textTransform: 'capitalize', fontWeight: '800', color: '#102A54', marginBottom: 24 },
-  container: { padding: 24, paddingBottom: 40 },
-  card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  cardActive: { borderColor: '#3C3985' },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  iconBox: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F7FAFC', alignItems: 'center', justifyContent: 'center' },
-  iconText: { fontSize: 20 },
-  cardTitle: { fontSize: 14, fontWeight: '800', color: '#102A54', marginBottom: 2 },
-  cardSub: { fontSize: 12, color: '#A0AEC0' },
-  chevron: { fontSize: 20, color: '#CBD5E0', fontWeight: '300' },
-  expandedContent: { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#F7FAFC', gap: 8 },
-  langItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#EDF2F7' },
-  langItemActive: { backgroundColor: '#EBEBFA', borderColor: '#3C3985' },
-  langNative: { fontSize: 14, fontWeight: '800', color: '#102A54' },
-  langName: { fontSize: 12, color: '#A0AEC0', marginTop: 2 },
-  permissionsContainer: { marginBottom: 12, marginTop: 12 },
-  sectionLabel: { fontSize: 10, fontWeight: '800', color: '#A0AEC0', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginLeft: 4 },
-  sectionLabelContact: { fontSize: 10, fontWeight: '800', color: '#A0AEC0', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: 16 },
-  toggleBtn: { width: 48, height: 24, borderRadius: 12, backgroundColor: '#E2E8F0', padding: 2 },
-  toggleBtnActive: { backgroundColor: '#3C3985' },
-  toggleKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
-  toggleKnobActive: { transform: [{ translateX: 24 }] },
-  aiBox: { backgroundColor: '#EBEBFA', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#D6D6F5' },
-  aiBoxLabel: { fontSize: 10, fontWeight: '800', color: '#3C3985', marginBottom: 8 },
-  aiBtn: { backgroundColor: '#3C3985', borderRadius: 12, padding: 12, alignItems: 'center' },
-  aiBtnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
-  contactBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#EDF2F7' },
-  contactTitle: { fontSize: 14, fontWeight: '800', color: '#102A54' },
-  contactSub: { fontSize: 12, color: '#718096' }
+  safe: { flex: 1 },
+  container: { padding: 20, paddingBottom: 40 },
+  topHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  pageTitle: { fontSize: 28, fontWeight: '800' },
+  liveApiBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, gap: 6 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  dotGreen: { backgroundColor: '#10B981' },
+  dotAmber: { backgroundColor: '#F59E0B' },
+  liveApiText: { fontSize: 11, fontWeight: '700' },
+
+  sectionHeading: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginLeft: 4 },
+  card: { borderRadius: 16, paddingHorizontal: 16, marginBottom: 18, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 3, elevation: 1 },
+
+  cardRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1 },
+  iconBox: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  textCol: { flex: 1, paddingRight: 8 },
+  rowTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  cardTitle: { fontSize: 14, fontWeight: '800' },
+  cardSub: { fontSize: 12 },
+
+  badgePillGreen: { backgroundColor: '#ECFDF5', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  badgePillGreenText: { color: '#059669', fontSize: 10, fontWeight: '800' },
+  badgePillGreenDark: { backgroundColor: '#064E3B', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  badgePillGreenDarkText: { color: '#34D399', fontSize: 10, fontWeight: '800' },
+
+  badgePillAmber: { backgroundColor: '#FFFBEB', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  badgePillAmberText: { color: '#D97706', fontSize: 10, fontWeight: '800' },
+  badgePillAmberDark: { backgroundColor: '#451A03', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  badgePillAmberDarkText: { color: '#FBBF24', fontSize: 10, fontWeight: '800' },
+
+  badgePillBlue: { backgroundColor: '#EEF2FF', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  badgePillBlueText: { color: '#4338CA', fontSize: 10, fontWeight: '800' },
+  badgePillGray: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  badgePillGrayText: { fontSize: 10, fontWeight: '700' },
+
+  footerSection: { alignItems: 'center', marginTop: 10, paddingBottom: 20 },
+  sebiDisclosureText: { fontSize: 11, textAlign: 'center', lineHeight: 16, marginBottom: 16 },
+  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 28, borderRadius: 16, borderWidth: 1, width: '100%' },
+  logoutText: { color: '#DC2626', fontSize: 15, fontWeight: '800' }
 });

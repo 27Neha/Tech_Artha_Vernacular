@@ -888,5 +888,8 @@
   "signup.termsOfService": "નિયમો અને શરતો",
   "signup.and": "and",
   "signup.privacyPolicy": "ગોપનીયતા નીતિ",
-  "signup.learnMore": "વધુ જાણો"
+  "signup.learnMore": "વધુ જાણો",
+  "risk.learnHow": "કેવી રીતે ગણાય છે જાણો",
+  "learn.riskScoreCalculation.title": "જાણો તમારો જોખમ સ્કોર કેવી રીતે ગણવામાં આવે છે",
+  "learn.riskScoreCalculation.desc": "સમજો કે તમારા ૧૨ યોગ્યતા પ્રશ્નોના જવાબો અને સેબી એસેટ-એલોકેશન સ્તરોનું મૂલ્યાંકન કેવી રીતે થાય છે."
 }

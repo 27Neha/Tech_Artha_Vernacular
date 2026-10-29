@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -231,33 +231,68 @@ export class AuthService {
     await this.prisma.otpVerification.update({ where: { id: record.id }, data: { status: 'VERIFIED', verifiedAt: new Date() } });
   }
 
-  async signupStart(mobile: string, channel: 'SMS' | 'WHATSAPP' | 'EMAIL' = 'SMS') {
-    const normalizedMobile = this.normalizeMobile(mobile);
+  async checkUserExists(identifier: { mobile?: string; email?: string }): Promise<{ exists: boolean }> {
+    if (identifier.email) {
+      const normalizedEmail = this.normalizeEmail(identifier.email);
+      const user = await this.prisma.user.findFirst({ where: { email: normalizedEmail } });
+      return { exists: Boolean(user) };
+    }
+    if (identifier.mobile) {
+      const normalizedMobile = this.normalizeMobile(identifier.mobile);
+      const user = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile } });
+      return { exists: Boolean(user) };
+    }
+    return { exists: false };
+  }
+
+  async signupStart(identifier: string, channel: 'SMS' | 'WHATSAPP' | 'EMAIL' = 'SMS') {
+    if (channel === 'EMAIL' || identifier.includes('@')) {
+      const normalizedEmail = this.normalizeEmail(identifier);
+      const existing = await this.prisma.user.findFirst({ where: { email: normalizedEmail } });
+      if (existing) throw new HttpException('User already exists.', HttpStatus.CONFLICT);
+      return this.sendEmailOtp('signup', normalizedEmail);
+    }
+
+    const normalizedMobile = this.normalizeMobile(identifier);
     const existing = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile } });
     if (existing) throw new HttpException('User already exists.', HttpStatus.CONFLICT);
     
-    return this.sendOtp(mobile, channel);
+    return this.sendOtp(identifier, channel);
   }
 
-  async loginStart(mobile: string, channel: 'SMS' | 'WHATSAPP' | 'EMAIL' = 'SMS') {
-    const normalizedMobile = this.normalizeMobile(mobile);
+  async loginStart(identifier: string, channel: 'SMS' | 'WHATSAPP' | 'EMAIL' = 'SMS') {
+    if (channel === 'EMAIL' || identifier.includes('@')) {
+      const normalizedEmail = this.normalizeEmail(identifier);
+      const existing = await this.prisma.user.findFirst({ where: { email: normalizedEmail } });
+      if (!existing) throw new HttpException('User not found.', HttpStatus.NOT_FOUND);
+      return this.sendEmailOtp(existing.id, normalizedEmail);
+    }
+
+    const normalizedMobile = this.normalizeMobile(identifier);
     const existing = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile } });
     if (!existing) throw new HttpException('User not found.', HttpStatus.NOT_FOUND);
     
-    return this.sendOtp(mobile, channel);
+    return this.sendOtp(identifier, channel);
   }
 
-  async dualFlowVerifyOtp(mobile: string, otp: string, type: 'login' | 'signup', password?: string) {
-    const normalizedMobile = this.normalizeMobile(mobile);
-    await this.validateOtp(normalizedMobile, otp);
+  async dualFlowVerifyOtp(identifier: string, otp: string, type: 'login' | 'signup', password?: string) {
+    const isEmail = identifier.includes('@');
+    const normalized = isEmail ? this.normalizeEmail(identifier) : this.normalizeMobile(identifier);
+    await this.validateOtp(normalized, otp);
     
     if (type === 'signup') {
       const hashedPassword = password ? this.hash(password) : undefined;
-      const user = await this.prisma.user.upsert({ 
-        where: { mobile: normalizedMobile }, 
-        update: { passwordHash: hashedPassword }, 
-        create: { mobile: normalizedMobile, passwordHash: hashedPassword } 
-      });
+      const user = isEmail
+        ? await this.prisma.user.upsert({
+            where: { email: normalized },
+            update: { passwordHash: hashedPassword },
+            create: { email: normalized, passwordHash: hashedPassword },
+          })
+        : await this.prisma.user.upsert({ 
+            where: { mobile: normalized }, 
+            update: { passwordHash: hashedPassword }, 
+            create: { mobile: normalized, passwordHash: hashedPassword } 
+          });
       const progress = await this.prisma.onboardingProgress.upsert({
         where: { userId: user.id },
         update: { lastCompletedStep: 'SIGNUP', step: 'SIGNUP' },
@@ -266,7 +301,9 @@ export class AuthService {
       const sessionData = await this.createSession(user);
       return { ...sessionData, lastCompletedStep: progress.lastCompletedStep };
     } else {
-      const user = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile }, include: { onboardingProgress: true } });
+      const user = isEmail
+        ? await this.prisma.user.findFirst({ where: { email: normalized }, include: { onboardingProgress: true } })
+        : await this.prisma.user.findUnique({ where: { mobile: normalized }, include: { onboardingProgress: true } });
       if (!user) throw new HttpException('User not found.', HttpStatus.NOT_FOUND);
       const sessionData = await this.createSession(user);
       return { ...sessionData, lastCompletedStep: user.onboardingProgress?.lastCompletedStep || null };
@@ -293,11 +330,14 @@ export class AuthService {
     return this.createSession(user, deviceId);
   }
 
-  async loginPassword(mobile: string, password?: string, deviceId?: string) {
-    const normalizedMobile = this.normalizeMobile(mobile);
+  async loginPassword(identifier: string, password?: string, deviceId?: string) {
+    const isEmail = identifier.includes('@');
+    const normalized = isEmail ? this.normalizeEmail(identifier) : this.normalizeMobile(identifier);
     if (!password) throw new BadRequestException('Password is required.');
     
-    const user = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile } });
+    const user = isEmail
+      ? await this.prisma.user.findFirst({ where: { email: normalized } })
+      : await this.prisma.user.findUnique({ where: { mobile: normalized } });
     if (!user) throw new UnauthorizedException('Invalid credentials.');
     if (!user.passwordHash) throw new UnauthorizedException('Account has no password set. Login via OTP.');
     
@@ -413,6 +453,41 @@ export class AuthService {
       });
     }
     return { success: true, investorType };
+  }
+
+  async changePassword(userId: string, currentPassword?: string, newPassword?: string) {
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException('New password must be at least 8 characters long.');
+    }
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found.');
+
+    if (user.passwordHash) {
+      if (!currentPassword) {
+        throw new BadRequestException('Current password is required to change password.');
+      }
+      const expected = Buffer.from(user.passwordHash, 'hex');
+      const actual = Buffer.from(this.hash(currentPassword), 'hex');
+      if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+        throw new BadRequestException('Current password is incorrect.');
+      }
+    }
+
+    const hashedPassword = this.hash(newPassword);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: hashedPassword },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'PASSWORD_CHANGED',
+        details: JSON.stringify({ hasPreviousPassword: Boolean(user.passwordHash), timestamp: new Date() }),
+      },
+    });
+
+    return { success: true, message: 'Password updated successfully.' };
   }
 
 }

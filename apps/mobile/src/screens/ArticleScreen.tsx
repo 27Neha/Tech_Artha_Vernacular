@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Header } from '../components/Header';
@@ -8,6 +8,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { BookIcon, WalletIcon, TrendingIcon, FileIcon } from '../components/Icons';
 
 export const ARTICLES = [
+  { slug: 'risk-score-calculation', title: 'Learn How Your Risk Score Is Calculated', desc: 'Understand how your 12-question suitability responses and SEBI asset-allocation tiers are evaluated.', time: '4 min read', tag: 'Suitability' },
   { slug: 'what-is-mutual-fund', title: 'What is a Mutual Fund?', desc: 'Learn how pooled investments work and why they are great for beginners.', time: '5 min read', tag: 'Beginner' },
   { slug: 'sip-vs-lump-sum', title: 'SIP vs Lump Sum', desc: 'Which investment approach suits your financial situation better?', time: '4 min read', tag: 'Beginner' },
   { slug: 'understanding-risk', title: 'Understanding Risk', desc: 'Learn how to assess and manage investment risk for your goals.', time: '6 min read', tag: 'Intermediate' },
@@ -17,6 +18,36 @@ export const ARTICLES = [
 ];
 
 export const ARTICLE_CONTENT: Record<string, string> = {
+  'risk-score-calculation': `Your Risk Score is an objective evaluation of your investment capacity, risk tolerance, and time horizon designed in accordance with SEBI investor suitability standards.
+
+**1. The 12-Question Framework**
+During onboarding, you respond to 12 targeted suitability questions. Each question measures a critical pillar of your financial profile:
+• **Time Horizon & Goal Timeline**: How many years before you need the funds.
+• **Loss Tolerance & Market Drawdowns**: How you react psychologically to short-term market declines.
+• **Income & Net Worth Stability**: Your cash flow resilience and safety buffer.
+• **Market Knowledge & Attitude**: Your experience with financial volatility and equity cycles.
+
+**2. Point Scoring & Calculation Engine**
+Each question is answered on a standardized 1 to 5 scale:
+• **1 Point**: Ultra-conservative, capital preservation focus, or low tolerance for declines.
+• **5 Points**: Aggressive wealth creation, maximum resilience, or long-term growth mindset.
+
+Your total score is calculated as the direct sum of points across all questions:
+• **Total Score Range**: 12 to 60 points.
+• **Normalized Score Ratio**: Score divided by 60 (or answered questions × 5).
+
+**3. SEBI Risk Tier Mapping**
+Your calculated ratio determines your investor profile tier and recommended asset split:
+• **Conservative (< 35% ratio, Score ≤ 20)**: Focuses on capital preservation. Recommended split: 20% Equity / 80% Debt.
+• **Moderately Low (35% – 50% ratio, Score 21–30)**: Prioritizes stability with modest growth. Recommended split: 35% Equity / 65% Debt.
+• **Moderate (50% – 70% ratio, Score 31–42)**: Balanced wealth accumulation with measured risk. Recommended split: 55% Equity / 45% Debt.
+• **Moderately High (70% – 85% ratio, Score 43–51)**: Long-term capital growth comfortable with equity volatility. Recommended split: 70% Equity / 30% Debt.
+• **Aggressive (≥ 85% ratio, Score 52–60)**: Maximizes wealth creation over 7+ year horizons. Recommended split: 85% Equity / 15% Debt.
+
+**4. The Role of Informational Nudges**
+TechArtha uses your score to provide contextual **Nudges** throughout the platform. For example, if you choose a high-volatility fund that exceeds your profile, a gentle nudge alerts you so you can align with your long-term goals.
+
+*Important Note:* Your Risk Profile is an informational suitability assessment and does not constitute personalized financial advice or guaranteed investment performance.`,
   'what-is-mutual-fund': `A Mutual Fund is a trust that collects money from a number of investors who share a common investment objective. 
 
 **How it works**
@@ -103,6 +134,22 @@ export const ArticleScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const slug = route.params?.slug;
+  const isFromLearnHow = Boolean(route.params?.highlight);
+
+  const [highlightAnim] = React.useState(new Animated.Value(isFromLearnHow ? 1 : 0));
+
+  React.useEffect(() => {
+    if (isFromLearnHow) {
+      const timer = setTimeout(() => {
+        Animated.timing(highlightAnim, {
+          toValue: 0,
+          duration: 1200,
+          useNativeDriver: false,
+        }).start();
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [isFromLearnHow, highlightAnim]);
 
   const article = ARTICLES.find(a => a.slug === slug);
   const content = t(`learn.${slug.replace(/-([a-z])/g, (g: any) => g[1].toUpperCase())}.content`, { defaultValue: ARTICLE_CONTENT[slug] });
@@ -117,6 +164,29 @@ export const ArticleScreen = () => {
       </SafeAreaView>
     );
   }
+
+  const animatedGlowStyle = isFromLearnHow ? {
+    shadowColor: '#3C3985',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: highlightAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 0.45],
+    }),
+    shadowRadius: highlightAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 16],
+    }),
+    elevation: highlightAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 8],
+    }),
+    borderWidth: 2,
+    borderColor: highlightAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: ['rgba(60, 57, 133, 0)', 'rgba(60, 57, 133, 0.7)'],
+    }),
+    borderRadius: 24,
+  } : null;
 
   return (
     <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
@@ -136,13 +206,13 @@ export const ArticleScreen = () => {
           </View>
         </View>
 
-        <View style={styles.contentArea}>
-          {content.split('\\n\\n').map((paragraph, idx) => (
+        <Animated.View style={[styles.contentArea, animatedGlowStyle]}>
+          {content.split('\n\n').map((paragraph, idx) => (
             <Text key={idx} style={styles.paragraph}>
               {renderMarkdown(paragraph)}
             </Text>
           ))}
-        </View>
+        </Animated.View>
 
       </ScrollView>
     </SafeAreaView>
@@ -161,7 +231,7 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', alignItems: 'center' },
   metaText: { color: '#3C3985', fontWeight: '700', fontSize: 14 },
   metaDot: { color: '#3C3985', marginHorizontal: 8, fontWeight: '700' },
-  contentArea: { padding: 24, paddingBottom: 60 },
+  contentArea: { padding: 24, paddingBottom: 60, marginHorizontal: 12 },
   paragraph: { fontSize: 16, lineHeight: 26, color: '#4A5568', marginBottom: 24 },
   bold: { fontWeight: '800', color: '#102A54' },
   italic: { fontStyle: 'italic', color: '#718096' }

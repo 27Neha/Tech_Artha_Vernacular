@@ -25,6 +25,8 @@ import { CrmModule } from './modules/crm/crm.module';
 import { SupportModule } from './modules/support/support.module';
 import { MtalkzModule } from './modules/mtalkz/mtalkz.module';
 import { ZohoModule } from './modules/zoho/zoho.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { ReminderModule } from './modules/reminder/reminder.module';
 
 @Module({
   imports: [
@@ -52,6 +54,8 @@ import { ZohoModule } from './modules/zoho/zoho.module';
     SupportModule,
     MtalkzModule,
     ZohoModule,
+    AdminModule,
+    ReminderModule,
   ],
   controllers: [AppController],
   providers: [AppService],

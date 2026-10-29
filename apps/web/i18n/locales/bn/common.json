@@ -759,5 +759,8 @@
   "signup.termsPrefix": "আমি",
   "signup.termsOfService": "পরিষেবার শর্তাবলী",
   "signup.and": "এবং",
-  "signup.privacyPolicy": "গোপনীয়তা নীতি"
+  "signup.privacyPolicy": "গোপনীয়তা নীতি",
+  "risk.learnHow": "গণনা জানুন",
+  "learn.riskScoreCalculation.title": "জানুন কীভাবে আপনার ঝুঁকি স্কোর গণনা করা হয়",
+  "learn.riskScoreCalculation.desc": "বুঝুন কীভাবে আপনার ১২টি উপযুক্ততার প্রশ্নের উত্তর এবং সেবি সম্পদ-বরাদ্দ স্তর মূল্যায়ন করা হয়।"
 }

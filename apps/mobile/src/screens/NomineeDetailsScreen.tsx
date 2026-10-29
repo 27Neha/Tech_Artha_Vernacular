@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Header } from '../components/Header';
 
 interface Nominee {
@@ -39,21 +40,41 @@ const RELATIONSHIPS = [
   'Other'
 ];
 
+const STORAGE_KEY = 'techartha_nominees';
+
 export const NomineeDetailsScreen = () => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
 
-  const [nominees, setNominees] = useState<Nominee[]>([
-    {
-      id: 'nom_1',
-      fullName: 'Aarav Sharma',
-      relationship: 'Spouse',
-      dateOfBirth: '15/08/1992',
-      sharePercentage: 100,
-      panOrAadhaar: '•••• •••• 9812',
-      isMinor: false
+  const [nominees, setNominees] = useState<Nominee[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadNominees();
+  }, []);
+
+  const loadNominees = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) setNominees(parsed);
+      }
+    } catch (e) {
+      console.warn('Failed to load nominees', e);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  const saveNominees = async (newNominees: Nominee[]) => {
+    setNominees(newNominees);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newNominees));
+    } catch (e) {
+      console.warn('Failed to save nominees', e);
+    }
+  };
 
   const [modalVisible, setModalVisible] = useState(false);
   const [fullName, setFullName] = useState('');
@@ -90,11 +111,10 @@ export const NomineeDetailsScreen = () => {
 
     if (!selectedNominee) return;
 
-    setNominees(prev =>
-      prev.map(n =>
-        n.id === selectedNominee.id ? { ...n, sharePercentage: parsed } : n
-      )
+    const updated = nominees.map(n =>
+      n.id === selectedNominee.id ? { ...n, sharePercentage: parsed } : n
     );
+    saveNominees(updated);
     setEditAllocModalVisible(false);
     setSelectedNominee(null);
     Alert.alert('Share Allocation Updated', `Updated ${selectedNominee.fullName}'s share allocation to ${parsed}%.`);
@@ -132,7 +152,8 @@ export const NomineeDetailsScreen = () => {
         isMinor,
         guardianName: isMinor ? guardianName.trim() : undefined
       };
-      setNominees(prev => [...prev, newNom]);
+      const updated = [...nominees, newNom];
+      saveNominees(updated);
       setIsSubmitting(false);
       setModalVisible(false);
       setFullName('');
@@ -154,7 +175,10 @@ export const NomineeDetailsScreen = () => {
         {
           text: 'Remove',
           style: 'destructive',
-          onPress: () => setNominees(prev => prev.filter(n => n.id !== id))
+          onPress: () => {
+            const updated = nominees.filter(n => n.id !== id);
+            saveNominees(updated);
+          }
         }
       ]
     );

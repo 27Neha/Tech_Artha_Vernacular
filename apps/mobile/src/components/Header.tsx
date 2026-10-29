@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../context/ThemeContext';
 
 interface HeaderProps {
   title: string;
@@ -35,6 +36,7 @@ export const Header = ({ title, back, onBack, showSettings = true }: HeaderProps
   const { i18n } = useTranslation();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
   const [modalVisible, setModalVisible] = useState(false);
   
   const currentLangCode = i18n.language || 'en';
@@ -53,7 +55,6 @@ export const Header = ({ title, back, onBack, showSettings = true }: HeaderProps
   return (
     <View style={[styles.header, { paddingTop: Math.max(insets.top, 16), height: 62 + Math.max(insets.top, 16), backgroundColor: 'transparent', borderBottomWidth: 0 }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        
         <Image source={require('../../assets/logo.png')} style={{ height: 28, width: 120 }} resizeMode="contain" />
       </View>
       
@@ -68,16 +69,16 @@ export const Header = ({ title, back, onBack, showSettings = true }: HeaderProps
             paddingHorizontal: 10,
             paddingVertical: 6,
             borderRadius: 8, 
-            backgroundColor: '#F0EFFB', 
+            backgroundColor: isDark ? colors.surfaceMuted : '#F0EFFB', 
             borderWidth: 1, 
-            borderColor: '#E2E8F0',
+            borderColor: colors.border,
             flexDirection: 'row',
             alignItems: 'center',
             gap: 4
           }}
         >
-          <Text style={[styles.language, { color: '#3C3985', fontWeight: '700' }]}>{currentLangObj.label}</Text>
-          <Ionicons name="chevron-down" size={14} color="#3C3985" />
+          <Text style={[styles.language, { color: isDark ? colors.textPrimary : '#3C3985', fontWeight: '700' }]}>{currentLangObj.label}</Text>
+          <Ionicons name="chevron-down" size={14} color={isDark ? colors.textPrimary : '#3C3985'} />
         </Pressable>
 
         {/* Settings button on the right of language selection */}
@@ -88,14 +89,14 @@ export const Header = ({ title, back, onBack, showSettings = true }: HeaderProps
             style={{ 
               padding: 6,
               borderRadius: 8, 
-              backgroundColor: '#F0EFFB', 
+              backgroundColor: isDark ? colors.surfaceMuted : '#F0EFFB', 
               borderWidth: 1, 
-              borderColor: '#E2E8F0',
+              borderColor: colors.border,
               alignItems: 'center',
               justifyContent: 'center'
             }}
           >
-            <Ionicons name="settings-outline" size={19} color="#3C3985" />
+            <Ionicons name="settings-outline" size={19} color={isDark ? colors.textPrimary : '#3C3985'} />
           </Pressable>
         ) : null}
       </View>
@@ -107,23 +108,27 @@ export const Header = ({ title, back, onBack, showSettings = true }: HeaderProps
         onRequestClose={() => setModalVisible(false)}
       >
         <Pressable style={localStyles.overlay} onPress={() => setModalVisible(false)}>
-          <View style={localStyles.modalContent}>
-            <Text style={localStyles.modalTitle}>Select Language</Text>
+          <View style={[localStyles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
+            <Text style={[localStyles.modalTitle, { color: colors.textPrimary }]}>Select Language</Text>
             <ScrollView style={localStyles.scrollView}>
               {LANGUAGES.map((lang) => {
                 const isSelected = currentLangCode === lang.code;
                 return (
                   <Pressable 
                     key={lang.code}
-                    style={[localStyles.langRow, isSelected && localStyles.langRowSelected]}
+                    style={[
+                      localStyles.langRow,
+                      { backgroundColor: isDark ? colors.surfaceMuted : '#F8F9FB' },
+                      isSelected && [localStyles.langRowSelected, { backgroundColor: isDark ? colors.primarySurface : '#EBEBFA', borderColor: colors.primary }]
+                    ]}
                     onPress={() => handleLanguageSelect(lang.code)}
                   >
                     <View style={localStyles.radioContainer}>
-                      <View style={[localStyles.radio, isSelected && localStyles.radioSelected]} />
+                      <View style={[localStyles.radio, { borderColor: colors.border }, isSelected && [localStyles.radioSelected, { borderColor: colors.primary, backgroundColor: colors.primary }]]} />
                     </View>
                     <View style={localStyles.langTextContainer}>
-                      <Text style={[localStyles.nativeText, isSelected && localStyles.textSelected]}>{lang.native}</Text>
-                      <Text style={[localStyles.labelText, isSelected && localStyles.textSelected]}>{lang.label}</Text>
+                      <Text style={[localStyles.nativeText, { color: colors.textPrimary }, isSelected && { color: colors.primary }]}>{lang.native}</Text>
+                      <Text style={[localStyles.labelText, { color: colors.textMuted }, isSelected && { color: colors.primary }]}>{lang.label}</Text>
                     </View>
                   </Pressable>
                 );

@@ -2,6 +2,7 @@
 import { useRouter } from 'next/navigation';
 
 const ARTICLES = [
+  { slug: 'risk-score-calculation', icon: '🎯', title: 'Learn How Your Risk Score Is Calculated', desc: 'Understand how your 12-question suitability responses and SEBI asset-allocation tiers are evaluated.', time: '4 min', tag: 'Suitability' },
   { slug: 'what-is-mutual-fund', icon: '📈', title: 'What is a Mutual Fund?', desc: 'Learn how pooled investments work.', time: '5 min', tag: 'Beginner' },
   { slug: 'sip-vs-lump-sum', icon: '💡', title: 'SIP vs Lump Sum', desc: 'Which approach suits you better?', time: '4 min', tag: 'Beginner' },
   { slug: 'understanding-risk', icon: '🛡️', title: 'Understanding Risk', desc: 'Assess and manage investment risk.', time: '6 min', tag: 'Intermediate' },
@@ -11,6 +12,7 @@ const ARTICLES = [
 ];
 
 const TAG_COLORS: Record<string, string> = {
+  Suitability: 'bg-indigo-100 text-indigo-700',
   Beginner: 'bg-green-100 text-green-700',
   Intermediate: 'bg-blue-100 text-blue-700',
   Tax: 'bg-orange-100 text-orange-700',

@@ -9,7 +9,7 @@ datasource db {
 
 model User {
   id                 String                @id @default(uuid())
-  mobile             String                @unique
+  mobile             String?               @unique
   // Written only after a verified email OTP, so a non-null value IS the verification
   // flag - there is no separate boolean that can drift out of sync with it.
   email              String?               @unique
@@ -44,6 +44,7 @@ model User {
   supportTickets     SupportTicket[]
   profile            UserProfile?
   minorProfileResult MinorInvestorProfileResult?
+  signupReminder     SignupReminder?
 }
 
 model UserProfile {
@@ -87,7 +88,7 @@ model Session {
 
 model OtpVerification {
   id         String    @id @default(uuid())
-  mobile     String
+  mobile     String?
   otpHash    String
   expiresAt  DateTime
   attempts   Int       @default(0)
@@ -539,4 +540,29 @@ model MinorInvestorProfileResult {
   calculatedAt        DateTime @default(now())
   
   user                User     @relation(fields: [userId], references: [id])
+}
+
+model SignupReminder {
+  id             String    @id @default(uuid())
+  userId         String    @unique
+  mobile         String
+  status         String    @default("PENDING") // PENDING, PROCESSING, SENT, FAILED, SKIPPED, CANCELLED, OPTED_OUT
+  channel        String    @default("WHATSAPP")
+  templateName   String    @default("techartha_incomplete_signup_reminder")
+  messageId      String?
+  attemptCount   Int       @default(0)
+  maxAttempts    Int       @default(3)
+  lastAttemptAt  DateTime?
+  sentAt         DateTime?
+  failedAt       DateTime?
+  failureReason  String?
+  resumeStep     String?   @default("PROFILE")
+  resumeToken    String?   @unique
+  metadata       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([mobile])
 }

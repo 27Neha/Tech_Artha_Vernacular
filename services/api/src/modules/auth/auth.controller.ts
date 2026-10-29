@@ -20,21 +20,30 @@ export class AuthController {
     return this.authService.verifyOtp(body.mobile ?? '', body.otp ?? '', body.deviceId);
   }
 
+  @Post('check')
+  @HttpCode(200)
+  async check(@Body() body: { mobile?: string; email?: string }) {
+    return this.authService.checkUserExists(body);
+  }
+
   @Post('signup/start')
-  async signupStart(@Body() body: { mobile: string; channel?: 'SMS' | 'WHATSAPP' | 'EMAIL' }) {
-    return this.authService.signupStart(body.mobile, body.channel);
+  async signupStart(@Body() body: { mobile?: string; email?: string; channel?: 'SMS' | 'WHATSAPP' | 'EMAIL' }) {
+    const identifier = body.channel === 'EMAIL' || body.email ? (body.email ?? '') : (body.mobile ?? '');
+    return this.authService.signupStart(identifier, body.channel);
   }
 
   @Post('login/start')
-  async loginStart(@Body() body: { mobile: string; channel?: 'SMS' | 'WHATSAPP' | 'EMAIL' }) {
-    return this.authService.loginStart(body.mobile, body.channel);
+  async loginStart(@Body() body: { mobile?: string; email?: string; channel?: 'SMS' | 'WHATSAPP' | 'EMAIL' }) {
+    const identifier = body.channel === 'EMAIL' || body.email ? (body.email ?? '') : (body.mobile ?? '');
+    return this.authService.loginStart(identifier, body.channel);
   }
 
   @Post('otp/verify')
   async dualFlowVerifyOtp(
-    @Body() body: { mobile: string; otp: string; type: 'login' | 'signup'; password?: string },
+    @Body() body: { mobile?: string; email?: string; otp: string; type: 'login' | 'signup'; password?: string },
   ) {
-    return this.authService.dualFlowVerifyOtp(body.mobile, body.otp, body.type, body.password);
+    const identifier = body.email || body.mobile || '';
+    return this.authService.dualFlowVerifyOtp(identifier, body.otp, body.type, body.password);
   }
 
   @Post('signup')
@@ -48,8 +57,9 @@ export class AuthController {
   }
 
   @Post('login-password')
-  async loginPassword(@Body() body: { mobile?: string; password?: string; deviceId?: string }) {
-    return this.authService.loginPassword(body.mobile ?? '', body.password ?? '', body.deviceId);
+  async loginPassword(@Body() body: { mobile?: string; email?: string; password?: string; deviceId?: string }) {
+    const identifier = body.email || body.mobile || '';
+    return this.authService.loginPassword(identifier, body.password ?? '', body.deviceId);
   }
 
   @Post('refresh')
@@ -110,6 +120,15 @@ export class AuthController {
     @Body() body: { fullName?: string; dateOfBirth?: string; pan?: string; clientType?: string; referralCode?: string }
   ) {
     return this.authService.updateProfile(user.id, body);
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Post('change-password')
+  async changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { currentPassword?: string; newPassword: string }
+  ) {
+    return this.authService.changePassword(user.id, body.currentPassword, body.newPassword);
   }
 
 }

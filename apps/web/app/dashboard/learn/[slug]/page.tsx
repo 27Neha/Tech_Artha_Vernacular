@@ -1,6 +1,9 @@
 'use client';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState, useRef } from 'react';
+
 const ARTICLES = [
+  { slug: 'risk-score-calculation', icon: '🎯', title: 'Learn How Your Risk Score Is Calculated', desc: 'Understand how your 12-question suitability responses and SEBI asset-allocation tiers are evaluated.', time: '4 min', tag: 'Suitability' },
   { slug: 'what-is-mutual-fund', icon: '📈', title: 'What is a Mutual Fund?', desc: 'Learn how pooled investments work.', time: '5 min', tag: 'Beginner' },
   { slug: 'sip-vs-lump-sum', icon: '💡', title: 'SIP vs Lump Sum', desc: 'Which approach suits you better?', time: '4 min', tag: 'Beginner' },
   { slug: 'understanding-risk', icon: '🛡️', title: 'Understanding Risk', desc: 'Assess and manage investment risk.', time: '6 min', tag: 'Intermediate' },
@@ -12,6 +15,38 @@ const ARTICLES = [
 // Professional educational content tailored for Indian mutual fund investors.
 // Inspired by leading investment apps (Zerodha Varsity, Groww, ET Money).
 const ARTICLE_CONTENT: Record<string, string> = {
+  'risk-score-calculation': `
+Your Risk Score is an objective evaluation of your investment capacity, risk tolerance, and time horizon designed in accordance with SEBI investor suitability standards.
+
+**1. The 12-Question Framework**
+During onboarding, you respond to 12 targeted suitability questions. Each question measures a critical pillar of your financial profile:
+• **Time Horizon & Goal Timeline**: How many years before you need the funds.
+• **Loss Tolerance & Market Drawdowns**: How you react psychologically to short-term market declines.
+• **Income & Net Worth Stability**: Your cash flow resilience and safety buffer.
+• **Market Knowledge & Attitude**: Your experience with financial volatility and equity cycles.
+
+**2. Point Scoring & Calculation Engine**
+Each question is answered on a standardized 1 to 5 scale:
+• **1 Point**: Ultra-conservative, capital preservation focus, or low tolerance for declines.
+• **5 Points**: Aggressive wealth creation, maximum resilience, or long-term growth mindset.
+
+Your total score is calculated as the direct sum of points across all questions:
+• **Total Score Range**: 12 to 60 points.
+• **Normalized Score Ratio**: Score divided by 60 (or answered questions × 5).
+
+**3. SEBI Risk Tier Mapping**
+Your calculated ratio determines your investor profile tier and recommended asset split:
+• **Conservative (< 35% ratio, Score ≤ 20)**: Focuses on capital preservation. Recommended split: 20% Equity / 80% Debt.
+• **Moderately Low (35% – 50% ratio, Score 21–30)**: Prioritizes stability with modest growth. Recommended split: 35% Equity / 65% Debt.
+• **Moderate (50% – 70% ratio, Score 31–42)**: Balanced wealth accumulation with measured risk. Recommended split: 55% Equity / 45% Debt.
+• **Moderately High (70% – 85% ratio, Score 43–51)**: Long-term capital growth comfortable with equity volatility. Recommended split: 70% Equity / 30% Debt.
+• **Aggressive (≥ 85% ratio, Score 52–60)**: Maximizes wealth creation over 7+ year horizons. Recommended split: 85% Equity / 15% Debt.
+
+**4. The Role of Informational Nudges**
+TechArtha uses your score to provide contextual **Nudges** throughout the platform. For example, if you choose a high-volatility fund that exceeds your profile, a gentle nudge alerts you so you can align with your long-term goals.
+
+*Important Note:* Your Risk Profile is an informational suitability assessment and does not constitute personalized financial advice or guaranteed investment performance.
+  `,
   'what-is-mutual-fund': `
 A Mutual Fund is a trust that collects money from a number of investors who share a common investment objective. 
 
@@ -91,8 +126,25 @@ Under recent tax laws in India, gains from international funds are classified as
 export default function ArticlePage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const contentSectionRef = useRef<HTMLDivElement>(null);
   
   const slug = params.slug as string;
+  const isHighlightRequested = searchParams.get('highlight') === 'true';
+  const [isHighlighted, setIsHighlighted] = useState(isHighlightRequested);
+
+  useEffect(() => {
+    if (isHighlightRequested) {
+      if (contentSectionRef.current) {
+        contentSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      const timer = setTimeout(() => {
+        setIsHighlighted(false);
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [isHighlightRequested]);
+
   const article = ARTICLES.find(a => a.slug === slug);
   const content = ARTICLE_CONTENT[slug];
 
@@ -136,10 +188,19 @@ export default function ArticlePage() {
         </div>
       </div>
 
-      {/* Content Area */}
+      {/* Content Area with dynamic glow/shadow highlight */}
       <div className="p-6 md:p-8 max-w-none pb-32">
-        <div className="prose prose-purple">
-          {formattedContent}
+        <div 
+          ref={contentSectionRef}
+          className={`p-6 md:p-8 rounded-3xl transition-all duration-1000 ${
+            isHighlighted
+              ? 'ring-2 ring-[#3C3985] shadow-[0_0_30px_rgba(60,57,133,0.35)] bg-white'
+              : 'ring-0 ring-transparent shadow-none bg-transparent'
+          }`}
+        >
+          <div className="prose prose-purple max-w-none">
+            {formattedContent}
+          </div>
         </div>
         
         {/* Footer Action */}

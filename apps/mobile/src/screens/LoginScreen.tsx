@@ -6,7 +6,7 @@ import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
 import { authStore } from '../store/auth';
 import { useAuth } from '../store/AuthContext';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { OtpVerification } from '../components/OtpVerification';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +24,7 @@ interface LoginScreenProps {
 export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, setPhone: setParentPhone }: LoginScreenProps) => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const { signIn } = useAuth();
   
   const [phone, setPhone] = useState(initialPhone || '');
@@ -160,7 +161,8 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
           user: { id: data.user.id, mobile: data.user.mobile || phone || '' }
         });
       }
-      navigation.navigate('MainTabs');
+      const destination = route.params?.returnTo || 'MainTabs';
+      navigation.navigate(destination);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -190,7 +192,8 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
           user: { id: data.user.id, mobile: data.user.mobile || phone || '' }
         });
       }
-      navigation.navigate('MainTabs');
+      const destination = route.params?.returnTo || 'MainTabs';
+      navigation.navigate(destination);
     } catch (e: any) {
       setError(e.message);
     } finally {

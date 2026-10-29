@@ -770,5 +770,8 @@
   "signup.termsPrefix": "I agree to the",
   "signup.termsOfService": "ਨਿਯਮ ਅਤੇ ਸ਼ਰਤਾਂ",
   "signup.and": "and",
-  "signup.privacyPolicy": "ਗੋਪਨੀਯਤਾ ਨੀਤੀ"
+  "signup.privacyPolicy": "ਗੋਪਨੀਯਤਾ ਨੀਤੀ",
+  "risk.learnHow": "ਕਿਵੇਂ ਹੁੰਦਾ ਹੈ ਸਿੱਖੋ",
+  "learn.riskScoreCalculation.title": "ਜਾਣੋ ਤੁਹਾਡਾ ਜੋਖਮ ਸਕੋਰ ਕਿਵੇਂ ਗਿਣਿਆ ਜਾਂਦਾ ਹੈ",
+  "learn.riskScoreCalculation.desc": "ਸਮਝੋ ਕਿ ਤੁਹਾਡੇ 12 ਅਨੁਕੂਲਤਾ ਸਵਾਲਾਂ ਦੇ ਜਵਾਬ ਅਤੇ ਸੇਬੀ ਸੰਪੱਤੀ ਵੰਡ ਪੱਧਰ ਕਿਵੇਂ ਮੁਲਾਂਕਣ ਕੀਤੇ ਜਾਂਦੇ ਹਨ।"
 }

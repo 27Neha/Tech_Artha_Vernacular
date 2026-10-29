@@ -26,7 +26,8 @@
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
     "react-native-web": "^0.21.0",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "expo-speech-recognition": "~57.1.1"
   },
   "devDependencies": {
     "@types/jest": "29.5.14",

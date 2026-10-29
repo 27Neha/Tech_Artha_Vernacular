@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -27,21 +27,16 @@ interface BankAccount {
   status: 'VERIFIED' | 'PENDING';
 }
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const STORAGE_KEY = 'techartha_bank_accounts';
+
 export const BankAccountsScreen = () => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
 
-  const [accounts, setAccounts] = useState<BankAccount[]>([
-    {
-      id: 'acc_1',
-      bankName: 'HDFC Bank',
-      accountNumber: '••••••••4829',
-      ifscCode: 'HDFC0001234',
-      accountType: 'Savings',
-      isPrimary: true,
-      status: 'VERIFIED'
-    }
-  ]);
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [bankName, setBankName] = useState('');
@@ -52,14 +47,61 @@ export const BankAccountsScreen = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
+  useEffect(() => {
+    loadAccounts();
+  }, []);
+
+  const loadAccounts = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) setAccounts(parsed);
+      }
+    } catch (e) {
+      console.warn('Failed to load bank accounts', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveAccounts = async (newAccounts: BankAccount[]) => {
+    setAccounts(newAccounts);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newAccounts));
+    } catch (e) {
+      console.warn('Failed to save bank accounts', e);
+    }
+  };
+
   const handleSetPrimary = (id: string) => {
-    setAccounts(prev =>
-      prev.map(acc => ({
-        ...acc,
-        isPrimary: acc.id === id
-      }))
-    );
+    const updated = accounts.map(acc => ({
+      ...acc,
+      isPrimary: acc.id === id
+    }));
+    saveAccounts(updated);
     Alert.alert('Primary Account Updated', 'This account will be used as default for SIPs & redemptions.');
+  };
+
+  const handleDeleteAccount = (id: string) => {
+    Alert.alert(
+      'Remove Bank Account',
+      'Are you sure you want to unlink this bank account?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            const filtered = accounts.filter(acc => acc.id !== id);
+            if (filtered.length > 0 && !filtered.some(a => a.isPrimary)) {
+              filtered[0].isPrimary = true;
+            }
+            saveAccounts(filtered);
+          }
+        }
+      ]
+    );
   };
 
   const handleAddAccount = () => {
@@ -93,7 +135,8 @@ export const BankAccountsScreen = () => {
         isPrimary: accounts.length === 0,
         status: 'VERIFIED'
       };
-      setAccounts(prev => [...prev, newAcc]);
+      const updated = [...accounts, newAcc];
+      saveAccounts(updated);
       setIsSubmitting(false);
       setModalVisible(false);
       setBankName('');
@@ -192,14 +235,26 @@ export const BankAccountsScreen = () => {
                   </View>
                 </View>
 
-                {!acc.isPrimary && (
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                  {!acc.isPrimary && (
+                    <Pressable
+                      style={[styles.setPrimaryBtn, { flex: 1, marginTop: 0 }]}
+                      onPress={() => handleSetPrimary(acc.id)}
+                    >
+                      <Text style={styles.setPrimaryText}>Set as Primary</Text>
+                    </Pressable>
+                  )}
                   <Pressable
-                    style={styles.setPrimaryBtn}
-                    onPress={() => handleSetPrimary(acc.id)}
+                    style={[
+                      styles.setPrimaryBtn,
+                      { borderColor: '#FEB2B2', backgroundColor: '#FFF5F5', marginTop: 0 },
+                      acc.isPrimary && { flex: 1 }
+                    ]}
+                    onPress={() => handleDeleteAccount(acc.id)}
                   >
-                    <Text style={styles.setPrimaryText}>Set as Primary Bank</Text>
+                    <Text style={[styles.setPrimaryText, { color: '#C53030' }]}>Unlink</Text>
                   </Pressable>
-                )}
+                </View>
               </View>
             ))}
           </View>

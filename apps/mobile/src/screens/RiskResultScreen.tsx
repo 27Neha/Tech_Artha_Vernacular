@@ -65,7 +65,17 @@ export const RiskResultScreen = () => {
 
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
-              <Text style={styles.statLabel}>Calculated Score</Text>
+              <View style={styles.statLabelRow}>
+                <Text style={styles.statLabel}>Calculated Score</Text>
+                <Pressable
+                  style={({ pressed }) => [styles.learnHowBtn, pressed && styles.learnHowBtnPressed]}
+                  onPress={() => navigation.navigate('Article', { slug: 'risk-score-calculation', highlight: true })}
+                  accessibilityRole="button"
+                  accessibilityLabel="Learn how your risk score is calculated"
+                >
+                  <Text style={styles.learnHowText}>{t('risk.learnHow', { defaultValue: 'Learn How' })}</Text>
+                </Pressable>
+              </View>
               <Text style={styles.statValue}>{score} / 60</Text>
             </View>
             <View style={styles.statBox}>
@@ -157,12 +167,35 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#EDF2F7',
   },
+  statLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 4,
+    flexWrap: 'wrap',
+  },
   statLabel: {
     fontSize: 10,
     fontWeight: '700',
     color: '#A0AEC0',
     textTransform: 'uppercase',
-    marginBottom: 4,
+  },
+  learnHowBtn: {
+    backgroundColor: '#EBEBFA',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D4D2F5',
+  },
+  learnHowBtnPressed: {
+    backgroundColor: '#DDD9F5',
+  },
+  learnHowText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#3C3985',
   },
   statValue: {
     fontSize: 15,

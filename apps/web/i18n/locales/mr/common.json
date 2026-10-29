@@ -757,5 +757,8 @@
   "signup.termsPrefix": "I agree to the",
   "signup.termsOfService": "अटी व शर्ती",
   "signup.and": "and",
-  "signup.privacyPolicy": "गोपनीयता धोरण"
+  "signup.privacyPolicy": "गोपनीयता धोरण",
+  "risk.learnHow": "कसे मोजले जाते ते शिका",
+  "learn.riskScoreCalculation.title": "तुमचा जोखीम स्कोअर कसा मोजला जातो ते जाणून घ्या",
+  "learn.riskScoreCalculation.desc": "तुमच्या १२ योग्यता प्रश्नांची उत्तरे आणि सेबी मालमत्ता वाटप स्तर कसे मोजले जातात ते समजून घ्या."
 }

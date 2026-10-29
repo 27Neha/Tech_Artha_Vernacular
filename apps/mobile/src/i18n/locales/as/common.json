@@ -900,5 +900,8 @@
   "signup.termsOfService": "নিয়ম আৰু চৰ্তসমূহ",
   "signup.and": "and",
   "signup.privacyPolicy": "গোপনীয়তা নীতি",
-  "signup.learnMore": "অধিক জানক"
+  "signup.learnMore": "অধিক জানক",
+  "risk.learnHow": "কেনেকৈ হয় জানক",
+  "learn.riskScoreCalculation.title": "আপোনাৰ বিপদ স্ক'ৰ কেনেদৰে গণনা কৰা হয় জানক",
+  "learn.riskScoreCalculation.desc": "বুজি লওক কেনেদৰে আপোনাৰ ১২টা উপযুক্ততা প্ৰশ্নৰ উত্তৰ আৰু ছেবি সম্পত্তি আৱণ্টন স্তৰ মূল্যায়ন কৰা হয়।"
 }

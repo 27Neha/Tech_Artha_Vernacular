@@ -1,6 +1,8 @@
 'use client';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
+import '@/i18n/i18n';
 
 const RISK_CATEGORIES = [
   { key: 'CONSERVATIVE', label: 'Conservative', color: '#10B981', shortLabel: 'Cons.' },
@@ -11,6 +13,7 @@ const RISK_CATEGORIES = [
 ];
 
 function ResultContent() {
+  const { t } = useTranslation('common');
   const router = useRouter();
   const searchParams = useSearchParams();
   const scoreParam = searchParams.get('score');
@@ -175,9 +178,19 @@ function ResultContent() {
 
           <div className="w-full grid grid-cols-2 gap-3 pt-4 border-t border-gray-100">
             <div className="bg-[#F8F9FB] p-3 rounded-xl text-center">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                Your Score
-              </span>
+              <div className="flex items-center justify-center gap-1.5 mb-1">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                  Your Score
+                </span>
+                <button
+                  type="button"
+                  onClick={() => router.push('/dashboard/learn/risk-score-calculation?highlight=true')}
+                  className="inline-flex items-center text-[10px] font-bold text-[#3C3985] bg-[#EBEBFA] hover:bg-[#DDD9F5] border border-[#D4D2F5] px-1.5 py-0.5 rounded-md transition-colors cursor-pointer"
+                  title="Learn how your risk score is calculated"
+                >
+                  {t('risk.learnHow', 'Learn How')}
+                </button>
+              </div>
               <span className="text-base font-extrabold text-[#102A54]">{score} / 60</span>
             </div>
             <div className="bg-[#F8F9FB] p-3 rounded-xl text-center">

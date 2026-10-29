@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import './src/i18n/i18n';
-import { ActivityIndicator } from 'react-native';
-import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import { ActivityIndicator, View, Text, Linking } from 'react-native';
+import { NavigationContainer, createNavigationContainerRef, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { HomeIcon, TrendingIcon, WalletIcon, BookIcon, UserIcon, HeadsetIcon } from './src/components/Icons';
-import { View, Text } from 'react-native';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -38,11 +38,21 @@ import { EditProfileScreen } from './src/screens/EditProfileScreen';
 import { BankAccountsScreen } from './src/screens/BankAccountsScreen';
 import { NomineeDetailsScreen } from './src/screens/NomineeDetailsScreen';
 import { ActiveMandatesScreen } from './src/screens/ActiveMandatesScreen';
+import { PermissionsScreen } from './src/screens/PermissionsScreen';
+import { NotificationPreferencesScreen } from './src/screens/NotificationPreferencesScreen';
+import { SecuritySettingsScreen } from './src/screens/SecuritySettingsScreen';
+import { LanguageSettingsScreen } from './src/screens/LanguageSettingsScreen';
+import { ThemeSettingsScreen } from './src/screens/ThemeSettingsScreen';
+import { StorageCacheScreen } from './src/screens/StorageCacheScreen';
+import { HelpSupportScreen } from './src/screens/HelpSupportScreen';
+import { FaqScreen } from './src/screens/FaqScreen';
+import { LegalScreen } from './src/screens/LegalScreen';
 import { MinorGuardianScreen } from './src/screens/minor/MinorGuardianScreen';
 import { MinorVerifyScreen } from './src/screens/minor/MinorVerifyScreen';
 import { MinorConsentScreen } from './src/screens/minor/MinorConsentScreen';
 import { MinorReviewScreen } from './src/screens/minor/MinorReviewScreen';
 import { AuthProvider, useAuth } from './src/store/AuthContext';
+import { AppLockGate } from './src/components/AppLockGate';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -51,30 +61,49 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export const navigationRef = createNavigationContainerRef();
 
+const linking = {
+  prefixes: ['techartha://', 'https://techartha.com', 'https://app.techartha.com'],
+  config: {
+    screens: {
+      Language: 'language',
+      Welcome: 'welcome',
+      Signup: 'signup',
+      Login: 'login',
+      KYC: 'kyc',
+      EditProfile: 'profile/edit',
+      RiskAssessment: 'risk',
+      RiskProfileResult: 'risk/result',
+      GoalSelection: 'goals',
+      MainTabs: 'dashboard',
+    },
+  },
+};
+
 function MainTabs({ route }: any) {
   const { name } = route?.params || {};
+  const { colors } = useTheme();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: '#3C3985',
-        tabBarInactiveTintColor: '#A0AEC0',
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textPlaceholder,
         tabBarShowLabel: false,
         tabBarStyle: {
           height: 85,
           paddingHorizontal: 16,
           paddingTop: 12,
           paddingBottom: 24,
-          backgroundColor: '#ffffff',
+          backgroundColor: colors.surface,
           borderTopWidth: 1,
-          borderTopColor: '#E2E8F0',
+          borderTopColor: colors.border,
           elevation: 10,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -4 },
           shadowOpacity: 0.05,
           shadowRadius: 10
         },
-        tabBarIcon: ({ focused, color }) => {
+        tabBarIcon: ({ focused }) => {
           let IconComponent;
           let label = route.name;
           if (route.name === 'Home') IconComponent = HomeIcon;
@@ -86,12 +115,12 @@ function MainTabs({ route }: any) {
 
           return (
             <View style={{ alignItems: 'center', justifyContent: 'center', width: 64 }}>
-              <IconComponent color={focused ? '#3C3985' : '#A0AEC0'} size={24} />
+              <IconComponent color={focused ? colors.primary : colors.textPlaceholder} size={24} />
               <Text style={{ 
                 marginTop: 4, 
                 fontSize: 11, 
                 fontWeight: focused ? '800' : '600', 
-                color: focused ? '#3C3985' : '#A0AEC0' 
+                color: focused ? colors.primary : colors.textPlaceholder 
               }}>
                 {label}
               </Text>
@@ -122,6 +151,55 @@ function RootNavigator() {
       navigationRef.reset({ index: 0, routes: [{ name: 'Language' as never }] });
     }
     previousStatus.current = status;
+  }, [status]);
+
+  // Handle WhatsApp resume deep links (e.g. techartha://resume?target=EditProfile&ref=...)
+  useEffect(() => {
+    const handleDeepLink = (event: { url: string }) => {
+      try {
+        const url = event?.url;
+        if (!url || typeof url !== 'string' || !url.includes('resume')) return;
+
+        // Safe parameter extraction avoiding dependency on WHATWG URL constructor
+        const getParam = (src: string, key: string) => {
+          const match = src.match(new RegExp('[?&]' + key + '=([^&#]*)'));
+          return match ? decodeURIComponent(match[1]) : null;
+        };
+
+        const target = getParam(url, 'target') || 'EditProfile';
+        const refToken = getParam(url, 'ref');
+
+        const doNavigate = () => {
+          if (navigationRef.isReady()) {
+            if (status === 'authenticated') {
+              (navigationRef as any).navigate(target);
+            } else {
+              // Forward through Login screen first so credentials remain secure
+              (navigationRef as any).navigate('Login', { returnTo: target, resumeRef: refToken });
+            }
+          }
+        };
+
+        if (navigationRef.isReady()) {
+          doNavigate();
+        } else {
+          // If navigation container is still mounting, defer briefly
+          const timer = setTimeout(doNavigate, 600);
+          return () => clearTimeout(timer);
+        }
+      } catch (err) {
+        // Gracefully ignore malformed links
+      }
+    };
+
+    const sub = Linking.addEventListener('url', handleDeepLink);
+    Linking.getInitialURL().then((initialUrl) => {
+      if (initialUrl && initialUrl.includes('resume')) {
+        handleDeepLink({ url: initialUrl });
+      }
+    }).catch(() => {});
+
+    return () => sub.remove();
   }, [status]);
 
   // Nothing renders until the keychain has been read, so initialRouteName is decided once
@@ -178,6 +256,16 @@ function RootNavigator() {
       <Stack.Screen name="BankAccounts" component={BankAccountsScreen} />
       <Stack.Screen name="NomineeDetails" component={NomineeDetailsScreen} />
       <Stack.Screen name="ActiveMandates" component={ActiveMandatesScreen} />
+      <Stack.Screen name="PhonePermissions" component={PermissionsScreen} />
+      <Stack.Screen name="Permissions" component={PermissionsScreen} />
+      <Stack.Screen name="NotificationPreferences" component={NotificationPreferencesScreen} />
+      <Stack.Screen name="SecuritySettings" component={SecuritySettingsScreen} />
+      <Stack.Screen name="LanguageSettings" component={LanguageSettingsScreen} />
+      <Stack.Screen name="ThemeSettings" component={ThemeSettingsScreen} />
+      <Stack.Screen name="StorageCache" component={StorageCacheScreen} />
+      <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
+      <Stack.Screen name="Faqs" component={FaqScreen} />
+      <Stack.Screen name="LegalSettings" component={LegalScreen} />
       <Stack.Screen name="MinorGuardian" component={MinorGuardianScreen} />
       <Stack.Screen name="MinorVerify" component={MinorVerifyScreen} />
       <Stack.Screen name="MinorConsent" component={MinorConsentScreen} />
@@ -186,14 +274,38 @@ function RootNavigator() {
   );
 }
 
+function ThemedApp() {
+  const { isDark, colors } = useTheme();
+
+  const navTheme = {
+    ...(isDark ? DarkTheme : DefaultTheme),
+    colors: {
+      ...(isDark ? DarkTheme.colors : DefaultTheme.colors),
+      background: colors.canvas,
+      card: colors.surface,
+      text: colors.textPrimary,
+      border: colors.border,
+      primary: colors.primary,
+    },
+  };
+
+  return (
+    <NavigationContainer ref={navigationRef} theme={navTheme}>
+      <RootNavigator />
+    </NavigationContainer>
+  );
+}
+
 export default function App() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <NavigationContainer ref={navigationRef}>
-          <RootNavigator />
-        </NavigationContainer>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppLockGate>
+            <ThemedApp />
+          </AppLockGate>
+        </AuthProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
