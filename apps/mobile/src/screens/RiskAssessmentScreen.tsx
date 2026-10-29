@@ -4,7 +4,6 @@ import {
   Text,
   Pressable,
   ScrollView,
-  type ScrollViewInstance,
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
@@ -47,7 +46,7 @@ export const RiskAssessmentScreen = () => {
   const [history, setHistory] = useState<{ questionIndex: number; selectedScore: number; selectedLabel: string }[]>([]);
   const [isBotTyping, setIsBotTyping] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const scrollViewRef = useRef<ScrollViewInstance>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     let active = true;

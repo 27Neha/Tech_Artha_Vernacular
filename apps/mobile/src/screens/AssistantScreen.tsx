@@ -5,7 +5,6 @@ import {
   TextInput,
   Pressable,
   ScrollView,
-  type ScrollViewInstance,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -60,7 +59,7 @@ export const AssistantScreen = () => {
   const { i18n } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([GREETING]);
   const [input, setInput] = useState('');
-  const scrollRef = useRef<ScrollViewInstance>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   // Risk Assessment History state
   const [showHistoryModal, setShowHistoryModal] = useState(false);
