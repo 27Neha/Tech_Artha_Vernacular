@@ -30,6 +30,7 @@ import { RedemptionModule } from './modules/redemption/redemption.module';
 import { TwoFactorModule } from './modules/twofactor/twofactor.module';
 import { MandatesModule } from './modules/mandates/mandates.module';
 import { HoldingsModule } from './modules/holdings/holdings.module';
+import { PostbackModule } from './modules/postback/postback.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { HoldingsModule } from './modules/holdings/holdings.module';
     TwoFactorModule,
     MandatesModule,
     HoldingsModule,
+    PostbackModule,
     KycModule,
     FundsModule,
     AuthModule,

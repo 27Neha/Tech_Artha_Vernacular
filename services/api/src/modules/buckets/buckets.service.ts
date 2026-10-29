@@ -4,6 +4,7 @@ import { RecommendationEngine } from '../recommendations/recommendation.engine';
 import { FundsService } from '../funds/funds.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CybrillaService } from '../cybrilla/cybrilla.service';
+import { paymentPostbackUrl } from '../postback/postback-urls';
 import { resolveBankAccountOldId } from '../cybrilla/account-ids';
 import { TwoFactorService } from '../twofactor/twofactor.service';
 import { NomineeService } from '../nominee/nominee.service';
@@ -500,9 +501,9 @@ export class BucketsService {
       return await this.cybrilla.createPayment({
         amcOrderIds: [amcOrderId],
         bankAccountId,
-        // Where the gateway returns the investor after paying. The app registers this
-        // scheme (see app.json), so the deep link reopens it on the order screen.
-        paymentPostbackUrl: process.env.PAYMENT_POSTBACK_URL || 'techartha://payment-complete',
+        // Where the gateway returns the investor after paying: our postback page when
+        // deployed, which hands them back to the app (see postback-urls.ts).
+        paymentPostbackUrl: paymentPostbackUrl(),
       });
     } catch (e) {
       this.logger.warn(`Order ${orderResult?.id} confirmed but payment could not be started.`);

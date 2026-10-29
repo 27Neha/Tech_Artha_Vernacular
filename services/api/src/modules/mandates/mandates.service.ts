@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { PrismaService } from '../../prisma/prisma.service';
 import { CybrillaService } from '../cybrilla/cybrilla.service';
 import { resolveBankAccountOldId } from '../cybrilla/account-ids';
+import { mandatePostbackUrl } from '../postback/postback-urls';
 
 export const MANDATE_TYPES = ['UPI', 'E_MANDATE'] as const;
 export type MandateType = (typeof MANDATE_TYPES)[number];
@@ -27,7 +28,7 @@ export class MandatesService {
   ) {}
 
   private postbackUrl() {
-    return process.env.MANDATE_POSTBACK_URL || 'techartha://mandate-complete';
+    return mandatePostbackUrl();
   }
 
   private async accountFor(userId: string) {
