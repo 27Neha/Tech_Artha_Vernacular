@@ -122,7 +122,7 @@ export const FundsScreen = ({ apiUrl = API_URL }: FundsScreenProps) => {
           <Pressable 
             key={f.schemeCode || i} 
             style={styles.card} 
-            onPress={() => navigation.navigate('FundDetails', { schemeCode: f.schemeCode })}
+            onPress={() => navigation.navigate('FundDetail', { schemeCode: f.schemeCode })}
           >
             <View style={styles.cardMain}>
               <View style={styles.cardLeft}>

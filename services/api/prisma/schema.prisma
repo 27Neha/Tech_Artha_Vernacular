@@ -13,26 +13,31 @@ model User {
   mobile            String?        @unique
   // Written only after a verified email OTP, so a non-null value IS the verification
   // flag - there is no separate boolean that can drift out of sync with it.
-  email             String?        @unique
-  preferredLanguage String         @default("en")
-  passwordHash      String?
-  referralCode      String?
-  clientType        String?
-  isActive          Boolean        @default(true)
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  auditLogs         AuditLog[]
-  customBuckets     CustomBucket[]
-
-  consents          Consent[]
-  devices           Device[]
-  expenses          Expense[]
-  FpInvestorProfile FpInvestorProfile?
-  FpMandate         FpMandate[]
-  FpPayment         FpPayment[]
-  goals             Goal[]
-  guardian          Guardian?
-  guardianConsents  GuardianConsent[]
+  email              String?               @unique
+  /// Self-declaration of whose email and mobile these are (Cybrilla's `belongs_to`:
+  /// self, spouse, dependent_children, ...). Chosen by the investor, never defaulted,
+  /// and sent with the contact details when the investment account is created.
+  emailBelongsTo     String?
+  mobileBelongsTo    String?
+  preferredLanguage  String                @default("en")
+  passwordHash       String?
+  referralCode       String?
+  clientType         String?
+  isActive           Boolean               @default(true)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  auditLogs          AuditLog[]
+  customBuckets      CustomBucket[]
+  consents           Consent[]
+  devices            Device[]
+  expenses           Expense[]
+  FpInvestorProfile  FpInvestorProfile?
+  FpPayment          FpPayment[]
+  goals              Goal[]
+  guardian           Guardian?
+  nominees           Nominee[]
+  txnChallenges      TransactionChallenge[]
+  guardianConsents   GuardianConsent[]
   kycApplication     KYCApplication?
   kycRecords         KycRecord[]
   learningProgress   LearningProgress[]
@@ -401,6 +406,11 @@ model KYCApplication {
   workflowId            String?
   status                String             @default("NOT_STARTED")
   panStatus             String             @default("PENDING")
+  /// Pre-verification `readiness`: whether the investor's KYC is complete at the KRA.
+  /// The gateway fails every order while this is not VERIFIED, whatever panStatus says.
+  readinessStatus       String             @default("PENDING")
+  /// Cybrilla's readiness failure code, e.g. kyc_incomplete or kyc_underprocess.
+  readinessCode         String?
   documentStatus        String             @default("PENDING")
   faceLivenessStatus    String             @default("PENDING")
   faceMatchStatus       String             @default("PENDING")
@@ -455,6 +465,10 @@ model FpInvestorProfile {
   occupation     String
   incomeSlab     String
   sourceOfWealth String
+  /// Politically exposed person declaration: pep_exposed, pep_related or not_applicable.
+  pepDetails     String?
+  /// City of birth, as declared by the investor.
+  placeOfBirth   String?
   status         String                  @default("CREATED")
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
@@ -462,25 +476,144 @@ model FpInvestorProfile {
   mfAccounts     FpMfInvestmentAccount[]
 }
 
+// Second-factor authorisation for a financial transaction - Cybrilla compliance
+// points 5 to 7 (purchase, redemption and SIP).
+//
+// The OTP is bound to ONE transaction by payloadHash, a hash of the exact amount,
+// scheme and folio being authorised. Verifying the code is therefore not enough: the
+// request executed must hash to the same value, so a code obtained for a 500 rupee
+// purchase cannot authorise a 50,000 rupee one, and a redemption code cannot be
+// replayed against a different folio.
+//
+// Deliberately NOT reusing OtpVerification. That table is keyed by mobile number and
+// serves login, so a code sent for signing in would otherwise be accepted as
+// authorisation to move money - exactly what a second factor exists to prevent.
+model TransactionChallenge {
+  id          String    @id @default(uuid())
+  userId      String
+  /// PURCHASE | REDEMPTION | SIP - the operation this code authorises, and nothing else.
+  action      String
+  /// HMAC of the canonical transaction parameters. See TwoFactorService.fingerprint.
+  payloadHash String
+  otpHash     String
+  /// A human-readable summary shown in the OTP message, so the investor can see what
+  /// they are approving rather than authorising an opaque code.
+  summary     String
+  channel     String    @default("WHATSAPP")
+  attempts    Int       @default(0)
+  expiresAt   DateTime
+  /// PENDING | CONSUMED | EXPIRED | SUPERSEDED. A consumed challenge is never reusable.
+  status      String    @default("PENDING")
+  consumedAt  DateTime?
+  /// The consent statement the investor accepted when entering the code, and when.
+  /// Required for the code to be accepted, so every authorised transaction has one.
+  consentText String?
+  consentedAt DateTime?
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, action, status])
+}
+
+// A nomination: who receives the units if the investor dies.
+//
+// Held here rather than only at the gateway because Cybrilla exposes no nominee
+// resource - nominees are folio_defaults.nominee1..3 on an MF investment account, and
+// every object shape that field accepts returns a 500 on the UAT tenant. So nominations
+// are collected and stored by us, and pushed once that shape is confirmed; fpSyncStatus
+// records how far each one has got, so nothing is silently assumed to be registered
+// with the AMC.
+//
+// Capped at 3 per user in the service layer, because folio_defaults has exactly three
+// nominee slots. Allocations must total 100%, which is also enforced in the service -
+// a partial nomination is not a valid instruction.
+model Nominee {
+  id                   String   @id @default(uuid())
+  userId               String
+  fullName             String
+  relationship         String
+  dateOfBirth          DateTime
+  allocationPercentage Int
+  /// PAN or Aadhaar. Optional: SEBI requires identification, the AMC accepts either.
+  identityProofType    String?
+  identityProofNumber  String?
+  /// Required when the nominee is a minor on the date the nomination is recorded.
+  guardianName         String?
+  guardianRelationship String?
+  /// PENDING until registered on the investment account, then SYNCED; FAILED with
+  /// fpSyncError when the gateway refused it.
+  fpSyncStatus         String   @default("PENDING")
+  /// The nominee's Cybrilla related_party id, referenced from folio_defaults.nomineeN.
+  fpNomineeRef         String?
+  /// Why the last attempt to register the nomination with the gateway failed.
+  fpSyncError          String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
 model FpMfInvestmentAccount {
   id                String            @id @default(uuid())
   fpAccountId       String            @unique
   investorProfileId String
   bankAccountId     String?
+  /// The bank account's numeric `old_id`. The payment endpoint takes this, not the
+  /// bac_... id, so payment cannot be started without it.
+  bankAccountOldId  Int?
+  /// The investment account's numeric `old_id`, which the holdings report requires.
+  fpAccountOldId    Int?
   holdingPattern    String            @default("single")
   status            String            @default("ACTIVE")
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   investorProfile   FpInvestorProfile @relation(fields: [investorProfileId], references: [id])
   orders            FpPurchaseOrder[]
+  redemptions       FpRedemptionOrder[]
   plans             FpPurchasePlan[]
+  mandates          FpMandate[]
+}
+
+// An auto-debit mandate (UPI Autopay or e-NACH) - what a SIP collects its instalments
+// through. Cybrilla's purchase plan flow requires an APPROVED one as the plan's
+// payment_source before the plan can be confirmed.
+model FpMandate {
+  id               String                @id @default(uuid())
+  accountId        String
+  /// The gateway's numeric mandate id (POST /api/pg/mandates).
+  fpMandateId      Int                   @unique
+  /// E_MANDATE (e-NACH) or UPI (UPI Autopay), as the investor chose.
+  mandateType      String
+  /// The most that can be debited per instalment, as the investor set it.
+  mandateLimit     Float
+  /// The gateway's mandate_status: CREATED, SUBMITTED, APPROVED, REJECTED, CANCELLED...
+  status           String                @default("CREATED")
+  umrn             String?
+  /// Where the investor authorises the mandate with their bank.
+  authorizationUrl String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  account          FpMfInvestmentAccount @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
 }
 
 model FpPurchaseOrder {
   id             String                @id @default(uuid())
   fpOrderId      String?               @unique
+  /// The gateway's numeric `old_id`. POST /api/pg/payments/netbanking takes this in
+  /// amc_order_ids, NOT the mfp_... string id, so payment cannot be started without it.
+  fpOldId        Int?
+  /// Where the investor completes payment. Until this is opened and paid, the order is
+  /// confirmed but unfunded, so no units are allotted and no folio is created.
+  paymentTokenUrl String?
+  paymentId       Int?
   accountId      String
   schemeIsin     String
+  /// The scheme's name when ordered. Single-fund orders have no bucket to look it up
+  /// from, and the investor should see a fund name rather than an ISIN.
+  fundName       String?
   amount         Float
   status         String                @default("PENDING")
   folioNumber    String?
@@ -492,12 +625,47 @@ model FpPurchaseOrder {
   account        FpMfInvestmentAccount @relation(fields: [accountId], references: [id])
 }
 
+// A redemption: units sold back out of a folio.
+//
+// Kept locally for the same reason as FpPurchaseOrder - the gateway is the system of
+// record for the trade, but an investor needs to see that their withdrawal was placed
+// even while the AMC is still processing it, and a failed request must leave a trace
+// rather than vanishing.
+//
+// Either amount or units is set, never both: the gateway takes one or the other and has
+// no all-units flag, so a full exit is sent as the folio's unit balance.
+model FpRedemptionOrder {
+  id            String                @id @default(uuid())
+  fpRedemptionId String?              @unique
+  accountId     String
+  schemeIsin    String
+  folioNumber   String
+  amount        Float?
+  units         Float?
+  status        String                @default("PENDING")
+  /// Set when the investor asked to exit the whole holding, which is sent as a unit count.
+  isFullExit    Boolean               @default(false)
+  failureReason String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  account       FpMfInvestmentAccount @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+}
+
 model FpPurchasePlan {
   id             String                @id @default(uuid())
   fpPlanId       String?               @unique
+  /// The first instalment's own purchase order, raised when the plan is created with
+  /// generate_first_installment_now. A mandate collects only the later instalments.
+  firstOrderId   String?
+  paymentTokenUrl String?
+  paymentId       Int?
   accountId      String
-  bucketId       String
+  /// Null for a SIP in a single fund chosen directly rather than through a bucket.
+  bucketId       String?
   schemeIsin     String
+  fundName       String?
   amount         Float
   frequency      String                @default("MONTHLY")
   installmentDay Int
@@ -518,19 +686,6 @@ model CustomBucket {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
-}
-
-model FpMandate {
-  id            String   @id @default(uuid())
-  fpMandateId   String?  @unique
-  userId        String
-  type          String   @default("UPI_AUTOPAY")
-  status        String   @default("CREATED")
-  maxAmount     Float
-  bankAccountId String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  user          User     @relation(fields: [userId], references: [id])
 }
 
 model FpPayment {
@@ -554,7 +709,6 @@ model FpPayment {
 
   @@index([userId])
 }
-
 model GuardianConsent {
   id                 String    @id @default(uuid())
   minorUserId        String

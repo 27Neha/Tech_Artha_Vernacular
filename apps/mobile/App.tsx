@@ -31,6 +31,7 @@ import { CustomBucketScreen } from './src/screens/CustomBucketScreen';
 import { PlanSummaryScreen } from './src/screens/PlanSummaryScreen';
 import { PlanScreen } from './src/screens/PlanScreen';
 import { InvestScreen } from './src/screens/InvestScreen';
+import { RedeemScreen } from './src/screens/RedeemScreen';
 import { FundDetailScreen } from './src/screens/FundDetailScreen';
 import { EditProfileScreen } from './src/screens/EditProfileScreen';
 import { FamilyPortfolioScreen } from './src/screens/FamilyPortfolioScreen';
@@ -178,6 +179,7 @@ function RootNavigator() {
         {(props) => <FundsScreen {...props} apiUrl={API_URL} />}
       </Stack.Screen>
       <Stack.Screen name="Invest" component={InvestScreen} />
+      <Stack.Screen name="Redeem" component={RedeemScreen} />
       <Stack.Screen name="FundDetail" component={FundDetailScreen} />
       <Stack.Screen name="FundDetails" component={FundDetailScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />

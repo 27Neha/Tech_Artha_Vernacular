@@ -5,8 +5,8 @@ import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
 import { api } from '../services/api/client';
-import { authStore } from '../store/auth';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { exitOnboarding } from '../utils/navigation';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTranslation } from 'react-i18next';
 
@@ -79,63 +79,52 @@ export const KycScreen = (props: KycScreenProps) => {
 
     setKycSubmitting(true);
     try {
-      const token = authStore.accessToken;
-      let result: KycStartResult | null = null;
-      try {
-        result = await api.post<KycStartResult>('/api/v1/kyc/start', {
-          fullName: name.trim(),
-          pan,
-          dob: formattedDob,
+      const response = await fetch(`${apiUrl}/api/v1/kyc/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authStore.accessToken}`
+        },
+        body: JSON.stringify({ fullName: name.trim(), pan, dob: formattedDob })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message ?? 'KYC could not be started.');
+
+      // Pre-verification is asynchronous: the first answer is usually IN_PROGRESS, and
+      // a 200 is not a pass. Poll briefly so the investor gets the real outcome, which
+      // includes whether their KYC is complete at the KRA - the check that decides
+      // whether orders will be accepted.
+      let outcome: { status?: string; message?: string | null } = result;
+      for (let attempt = 0; outcome.status === 'IN_PROGRESS' && attempt < 6; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        const poll = await fetch(`${apiUrl}/api/v1/kyc/status`, {
+          headers: { Authorization: `Bearer ${authStore.accessToken}` },
         });
-      } catch {
-        const response = await fetch(`${apiUrl}/api/v1/kyc/start`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ fullName: name.trim(), pan, dob: formattedDob }),
-        });
-        result = await response.json();
+        if (poll.ok) outcome = await poll.json();
       }
 
-      let status = result?.status ?? 'PENDING';
-
-      if (status === 'IN_PROGRESS' || status === 'PENDING') {
-        try {
-          const latest = await api.get<{ status?: string } | null>('/api/v1/kyc/status');
-          if (latest?.status) status = latest.status;
-        } catch {
-          // Keep status from start call
-        }
-      }
-
-      if (status === 'VERIFIED') {
-        Alert.alert('KYC verified', 'Your identity has been verified.', [
-          { text: 'Continue', onPress: () => navigation.navigate('RiskAssessment') },
-        ]);
-        return;
-      }
-
-      if (status === 'FAILED') {
+      // KYC is persisted server-side, so the investor can stop here rather than being
+      // held in the funnel until they have also assessed their risk profile.
+      const next = [
+        { text: 'Later', style: 'cancel' as const, onPress: () => exitOnboarding(navigation) },
+        { text: 'Continue', onPress: () => navigation.navigate('RiskAssessment') },
+      ];
+      if (outcome.status === 'VERIFIED') {
+        Alert.alert('KYC verified', 'Your PAN and KYC are verified. You can invest once your profile is complete.', next);
+      } else if (outcome.status === 'FAILED') {
+        Alert.alert('KYC not verified', outcome.message ?? 'Your details could not be verified.');
+      } else {
         Alert.alert(
-          'Verification failed',
-          result?.failureReason
-            ? `Your PAN could not be verified: ${result.failureReason}.`
-            : 'Your PAN could not be verified. Please check your details and try again.',
+          'Verification in progress',
+          'We are still verifying your PAN and KYC. You can continue, and check the status again from your profile before investing.',
+          next,
         );
-        return;
       }
-
-      Alert.alert(
-        'Verification in progress',
-        'Your PAN is still being verified. You can continue and we will update your status.',
-        [{ text: 'Continue', onPress: () => navigation.navigate('RiskAssessment') }],
-      );
     } catch (error) {
-      Alert.alert('KYC could not be started', error instanceof Error ? error.message : 'Please try again.');
-    } finally {
-      setKycSubmitting(false);
+      Alert.alert('KYC could not be started', error instanceof Error ? error.message : 'Please try again.'); 
+    } finally { 
+      setKycSubmitting(false); 
+    }
     }
   };
 

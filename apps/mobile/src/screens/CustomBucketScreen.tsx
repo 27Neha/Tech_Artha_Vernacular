@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import { authStore } from '../store/auth';
 import { Header } from '../components/Header';
 import { SearchIcon } from '../components/Icons';
 import { api } from '../services/api/client';

@@ -14,6 +14,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { formatDobInput } from '../utils/date';
 import { api } from '../services/api/client';
+import { BELONGS_TO_OPTIONS, ChoiceChips } from '../components/ChoiceChips';
 
 /**
  * GET + PUT /auth/profile.
@@ -30,6 +31,8 @@ type Profile = {
   mobile?: string;
   /** Present only once an emailed OTP has been verified. */
   email?: string | null;
+  emailBelongsTo?: string | null;
+  mobileBelongsTo?: string | null;
   profile?: { fullName?: string | null; pan?: string | null; dateOfBirth?: string | null } | null;
 };
 
@@ -53,6 +56,11 @@ export const EditProfileScreen = () => {
   const [emailBusy, setEmailBusy] = useState(false);
   const isEmailVerified = !!verifiedEmail && verifiedEmail === email.trim().toLowerCase();
 
+  // Self-declarations (Cybrilla compliance points 1 and 3). Null until the investor
+  // answers - never assumed to be "self" - and required before investing.
+  const [emailBelongsTo, setEmailBelongsTo] = useState<string | null>(null);
+  const [mobileBelongsTo, setMobileBelongsTo] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     api
@@ -65,6 +73,8 @@ export const EditProfileScreen = () => {
         setVerifiedEmail(data?.email ?? null);
         setEmail(data?.email ?? '');
         setDateOfBirth((data?.profile?.dateOfBirth ?? '').slice(0, 10));
+        setEmailBelongsTo(data?.emailBelongsTo ?? null);
+        setMobileBelongsTo(data?.mobileBelongsTo ?? null);
       })
       .catch((e) => Alert.alert('Could not load your profile', e instanceof Error ? e.message : 'Please try again.'))
       .finally(() => !cancelled && setLoading(false));
@@ -125,6 +135,12 @@ export const EditProfileScreen = () => {
         fullName: fullName.trim(),
         ...(dateOfBirth ? { dateOfBirth } : {}),
       });
+      if (emailBelongsTo || mobileBelongsTo) {
+        await api.put('/auth/declarations', {
+          ...(emailBelongsTo ? { emailBelongsTo } : {}),
+          ...(mobileBelongsTo ? { mobileBelongsTo } : {}),
+        });
+      }
       Alert.alert('Profile updated', 'Your details have been saved.', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
@@ -171,6 +187,8 @@ export const EditProfileScreen = () => {
           <Text style={styles.readonlyText}>{mobile || '—'}</Text>
         </View>
         <Text style={styles.hint}>Your mobile number identifies your account and cannot be changed here.</Text>
+        <Text style={styles.label}>Whose mobile number is this?</Text>
+        <ChoiceChips options={BELONGS_TO_OPTIONS} value={mobileBelongsTo} onChange={setMobileBelongsTo} />
 
         <Text style={styles.label}>Email address</Text>
         {isEmailVerified ? (
@@ -241,6 +259,12 @@ export const EditProfileScreen = () => {
           {isEmailVerified
             ? 'Statements and order confirmations are sent to this address. Enter a new address below to change it.'
             : 'We need a verified email address to send your account statements and order confirmations.'}
+        </Text>
+        <Text style={styles.label}>Whose email address is this?</Text>
+        <ChoiceChips options={BELONGS_TO_OPTIONS} value={emailBelongsTo} onChange={setEmailBelongsTo} />
+        <Text style={styles.hint}>
+          Required by the fund house before you invest. If the email or mobile belongs to a family member, choose
+          who they are to you.
         </Text>
 
         <Text style={styles.label}>PAN</Text>

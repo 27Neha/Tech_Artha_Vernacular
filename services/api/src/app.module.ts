@@ -26,9 +26,21 @@ import { SupportModule } from './modules/support/support.module';
 import { MtalkzModule } from './modules/mtalkz/mtalkz.module';
 import { ZohoModule } from './modules/zoho/zoho.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { NomineeModule } from './modules/nominee/nominee.module';
+import { RedemptionModule } from './modules/redemption/redemption.module';
+import { TwoFactorModule } from './modules/twofactor/twofactor.module';
+import { MandatesModule } from './modules/mandates/mandates.module';
+import { HoldingsModule } from './modules/holdings/holdings.module';
+import { PostbackModule } from './modules/postback/postback.module';
 
 @Module({
   imports: [
+    NomineeModule,
+    RedemptionModule,
+    TwoFactorModule,
+    MandatesModule,
+    HoldingsModule,
+    PostbackModule,
     KycModule,
     FundsModule,
     AuthModule,

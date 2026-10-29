@@ -33,47 +33,41 @@ export const HomeScreen = ({ name }: { name?: string }) => {
       const token = authStore.accessToken;
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
-      const [goalsRes, portRes, profileRes, sipsRes, bucketsRes] = await Promise.all([
-        fetch(`${API_URL}/goals`, { headers }).then(r => r.ok ? r.json() : []).catch(() => []),
-        api.get<any>('/portfolio').catch(async () => {
-          const res = await fetch(`${API_URL}/portfolio`, { headers });
-          return res.ok ? await res.json() : null;
-        }),
-        api.get<any>('/auth/profile').catch(async () => {
-          const res = await fetch(`${API_URL}/users/profile`, { headers });
-          return res.ok ? await res.json() : null;
-        }),
-        api.get<any>('/buckets/investments').catch(async () => {
-          const res = await fetch(`${API_URL}/sips`, { headers });
-          return res.ok ? await res.json() : null;
-        }),
-        api.get<any>('/buckets').catch(() => null),
+      const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+
+      // Every request here is a route the API serves.
+      const [goalsRes, portRes, profileRes, investmentsRes, bucketsRes] = await Promise.all([
+        fetch(`${API_URL}/goals`, { headers }),
+        fetch(`${API_URL}/portfolio`, { headers }),
+        fetch(`${API_URL}/auth/profile`, { headers }),
+        fetch(`${API_URL}/buckets/investments`, { headers }),
+        fetch(`${API_URL}/buckets`, { headers }),
       ]);
 
-      if (Array.isArray(goalsRes)) setGoals(goalsRes);
-      if (portRes?.data) setPortfolio(portRes.data);
-      else if (portRes) setPortfolio(portRes);
-
-      if (sipsRes?.plans) setSipPlans(sipsRes.plans);
-      else if (Array.isArray(sipsRes)) setSipPlans(sipsRes);
-
-      if (profileRes?.profile?.fullName) setProfileName(profileRes.profile.fullName);
-      if (profileRes?.riskProfile?.category) {
-        const cat = profileRes.riskProfile.category;
-        setProfile(cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase());
-      } else if (profileRes?.riskProfile) {
-        setProfile(profileRes.riskProfile);
+      if (goalsRes.ok) setGoals(await goalsRes.json());
+      if (portRes.ok) {
+        const portData = await portRes.json();
+        setPortfolio(portData?.data ?? portData);
       }
-
-      const recBucket = bucketsRes?.buckets?.find((b: any) => b.recommended);
-      if (recBucket?.funds) {
-        setRecommendedFunds(recBucket.funds.slice(0, 3));
-      } else {
-        const fundsRes = await fetch(`${API_URL}/funds?riskProfile=${profile}`);
-        if (fundsRes.ok) {
-          const fundsData = await fundsRes.json();
-          if (Array.isArray(fundsData)) setRecommendedFunds(fundsData.slice(0, 3));
-        }
+      if (investmentsRes.ok) {
+        const inv = await investmentsRes.json();
+        setSipPlans([
+          ...(inv.plans ?? []).map((p: any) => ({ ...p, kind: 'plan' })),
+          ...(inv.orders ?? []).map((o: any) => ({ ...o, kind: 'order' })),
+        ]);
+      }
+      if (profileRes.ok) {
+        const profileData = await profileRes.json();
+        if (profileData?.profile?.fullName) setProfileName(profileData.profile.fullName);
+        const category: string | undefined = profileData.riskProfile?.category;
+        setProfile(category ? category.charAt(0) + category.slice(1).toLowerCase().replace(/_/g, ' ') : 'Not assessed');
+      }
+      if (bucketsRes.ok) {
+        // Reference funds from the bucket suited to the investor's profile.
+        const { buckets } = await bucketsRes.json();
+        const suited = (buckets ?? []).find((b: any) => b.recommended) ?? buckets?.[0];
+        setRecommendedFunds((suited?.recommendedFunds ?? suited?.funds ?? []).slice(0, 3));
+      }
       }
     } catch (e) {
       console.log('Error fetching dashboard data', e);
@@ -118,9 +112,25 @@ export const HomeScreen = ({ name }: { name?: string }) => {
             <ActivityIndicator size="small" color="#FFFFFF" style={{ marginVertical: 14 }} />
           ) : (
             <View style={{ marginVertical: 4 }}>
-              <Text style={styles.balance}>₹{(portfolio?.currentValue ?? 0).toLocaleString('en-IN')}</Text>
+              {/* From GET /portfolio (Cybrilla's holdings report); a dash when unknown, never a 0 we did not read. */}
+              <Text style={styles.balance}>
+                {portfolio?.totals?.current != null
+                  ? `₹${Math.round(portfolio.totals.current).toLocaleString('en-IN')}`
+                  : portfolio?.currentValue != null
+                  ? `₹${Math.round(portfolio.currentValue).toLocaleString('en-IN')}`
+                  : portfolio?.status === 'NO_ACCOUNT'
+                  ? '₹0'
+                  : '—'}
+              </Text>
               <Text style={styles.balanceSub}>
-                {t('port.totalInvested', { defaultValue: 'Total Invested:' })} ₹{(portfolio?.totalInvested ?? 0).toLocaleString('en-IN')}
+                {t('port.totalInvested', { defaultValue: 'Total Invested:' })}{' '}
+                {portfolio?.totals?.invested != null
+                  ? `₹${Math.round(portfolio.totals.invested).toLocaleString('en-IN')}`
+                  : portfolio?.totalInvested != null
+                  ? `₹${Math.round(portfolio.totalInvested).toLocaleString('en-IN')}`
+                  : portfolio?.status === 'NO_ACCOUNT'
+                  ? '₹0'
+                  : '—'}
               </Text>
             </View>
           )}
@@ -258,13 +268,9 @@ export const HomeScreen = ({ name }: { name?: string }) => {
           </View>
         </View>
 
-        <View style={{ gap: 10 }}>
+        <View style={{ gap: 12 }}>
           {recommendedFunds.map((fund, idx) => (
-            <Pressable
-              key={fund.schemeCode || idx}
-              style={styles.fundCard}
-              onPress={() => navigation.navigate('Funds')}
-            >
+            <Pressable key={fund.schemeCode || idx} style={[styles.card, { flexDirection: 'row', alignItems: 'center' }]} onPress={() => navigation.navigate('FundDetail', { schemeCode: fund.schemeCode })}>
               <View style={{ flex: 1, paddingRight: 8 }}>
                 <Text style={styles.fundCardTitle} numberOfLines={1}>{fund.name || fund.schemeName}</Text>
                 <View style={styles.fundBadge}>
@@ -285,9 +291,9 @@ export const HomeScreen = ({ name }: { name?: string }) => {
 
         {/* Safety Assurances */}
         <View style={styles.safetyBanner}>
-          <Text style={styles.safetyTitle}>🛡️ {t('dash.bankSecurity', { defaultValue: 'Bank-grade Security' })}</Text>
+          <Text style={styles.safetyTitle}>🛡️ {t('dash.whereMoneyGoes', { defaultValue: 'Where your money goes' })}</Text>
           <Text style={styles.safetyDesc}>
-            {t('dash.bankSecurityDesc', { defaultValue: 'Your money is routed directly via SEBI-regulated AMCs and clearing corporations.' })}
+            {t('dash.moneyGoesDesc', { defaultValue: 'Orders are placed with the fund house through our transaction partner, Cybrilla. You pay from your own bank account, and units are allotted in your name by the fund house.' })}
           </Text>
         </View>
 

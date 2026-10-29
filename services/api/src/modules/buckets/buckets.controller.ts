@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Ip, Post, Param, Body, UseGuards } from '@nestjs/common';
 import { AccessTokenGuard, CurrentUser } from '../../common/auth';
 import type { AuthenticatedUser } from '../../common/auth';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -18,20 +18,29 @@ export class BucketsController {
     return { investorProfile: profile?.category ?? 'ASSESSMENT_REQUIRED', buckets: profile ? await this.buckets.listForProfile(profile.category) : [] };
   }
 
+  /**
+   * What the invest form needs first: whether this order will open the investment
+   * account (and so must collect the investor's details), and anything blocking it.
+   */
+  @Get('account-status')
+  accountStatus(@CurrentUser() user: AuthenticatedUser) {
+    return this.buckets.accountStatus(user.id);
+  }
+
   @Get('investments')
   async listInvestments(@CurrentUser() user: AuthenticatedUser) {
     return this.buckets.listInvestments(user.id);
   }
 
   @Post(':id/invest')
-  async invest(@CurrentUser() user: AuthenticatedUser, @Param('id') bucketId: string, @Body() dto: InvestInBucketDto) {
-    return this.buckets.invest(user.id, bucketId, dto);
+  async invest(@CurrentUser() user: AuthenticatedUser, @Param('id') bucketId: string, @Body() dto: InvestInBucketDto, @Ip() ip: string) {
+    return this.buckets.invest(user.id, bucketId, dto, ip);
   }
 
   /** Registers a recurring SIP. Separate from :id/invest, which is one-time. */
   @Post(':id/sip')
-  async startSip(@CurrentUser() user: AuthenticatedUser, @Param('id') bucketId: string, @Body() dto: StartSipDto) {
-    return this.buckets.startSip(user.id, bucketId, dto);
+  async startSip(@CurrentUser() user: AuthenticatedUser, @Param('id') bucketId: string, @Body() dto: StartSipDto, @Ip() ip: string) {
+    return this.buckets.startSip(user.id, bucketId, dto, ip);
   }
 
   @Get('custom')
