@@ -177,6 +177,7 @@ export interface SupportMessageItem {
   senderEmail?: string | null;
   content: string;
   channel: string;
+  deliveryStatus?: string | null;
   createdAt: string;
 }
 
