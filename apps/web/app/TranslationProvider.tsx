@@ -195,7 +195,7 @@ export function TranslationProvider({ children }: { children: ReactNode }) {
 
   return (
     <>
-      {/* @ts-expect-error React 19 typing mismatch */}
+      {/* @ts-ignore React typing compatibility */}
       <I18nextProvider i18n={i18n}>
       <TranslationContext.Provider value={{ lang, setLang: changeLang, t, translateText }}>
       {children}

@@ -1,63 +1,26 @@
 {
   "name": "admin",
   "version": "1.0.0",
-  "description": "",
-  "main": "lib/index.js",
-  "files": ["lib"],
+  "private": true,
   "scripts": {
-    "test": "npm run test:unit && npm run test:lint",
-    "test:unit": "jest",
-    "test:lint": "semistandard lib/**/*.js test/**/*.js *.js plugins/**/*.js",
-    "precommit": "npm test",
-    "dev:format": "prettier --write lib/**/*.js test/**/*.js *.js --single-quote --print-width 120",
-    "dev:toc": "./dev/updateToc.bash",
-    "dev:link": "./dev/setupLinks.bash",
-    "example:zeroConfig": "nodemon --ext js,html,css example/zeroConfig | pino",
-    "example:commonSetup": "nodemon --ext js,html,css example/commonSetup | pino"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git://github.com/bripkens/admin.git"
-  },
-  "keywords": [
-    "admin",
-    "plugins",
-    "profiling",
-    "heap",
-    "cpu",
-    "healthcheck",
-    "http",
-    "ui",
-    "debugging"
-  ],
-  "author": {
-    "name": "Ben Ripkens",
-    "email": "bripkens@gmail.com",
-    "url": "http://github.com/bripkens"
-  },
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/bripkens/admin/issues"
+    "dev": "next dev -p 3002",
+    "build": "next build",
+    "start": "next start -p 3002",
+    "lint": "next lint"
   },
   "dependencies": {
-    "ajv": "^4.11.3",
-    "bootstrap": "3",
-    "bootswatch": "^3.3.7",
-    "express": "^4.15.0",
-    "express-prettify": "^0.0.7",
-    "handlebars": "^4.0.6",
-    "hbs": "^4.0.1",
-    "lodash": "^4.17.4",
-    "pino": "^4.0.1",
-    "prismjs": "^1.6.0"
+    "lucide-react": "^0.460.0",
+    "next": "^14.2.35",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "chai": "^3.5.0",
-    "doctoc": "^1.3.0",
-    "husky": "^0.13.2",
-    "jest": "^19.0.2",
-    "nodemon": "^1.11.0",
-    "prettier": "^0.21.0",
-    "semistandard": "^9.2.1"
+    "@types/node": "^20",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "autoprefixer": "^10.6.1",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
   }
 }
