@@ -410,13 +410,18 @@ export const InvestScreen = () => {
           ...auth,
         });
 
-        // The server's message says what happens next (pay the first instalment, the
-        // rest through the mandate); it is used rather than a cheerier one.
-        Alert.alert(
-          'SIP registered',
-          sip?.message ?? 'Your SIP has been registered.',
-          paymentActions(sip?.paymentUrl),
-        );
+        // Hand off directly to TechArtha's dedicated checkout & payment page
+        navigation.navigate('Payment', {
+          orderId: sip?.planId || `SIP-${Date.now().toString().slice(-6)}`,
+          amount: Number(amount),
+          schemeName: targetName,
+          paymentUrl: sip?.paymentUrl,
+          mode: 'sip',
+          planId: sip?.planId,
+          bankAccountNumber,
+          bankAccountHolderName,
+          ifscCode,
+        });
         return;
       }
 
@@ -427,12 +432,17 @@ export const InvestScreen = () => {
         ...auth,
       });
 
-      Alert.alert(
-        'Order placed',
-        // The server's own message states this is one-time rather than a SIP; prefer it.
-        `${result?.message ?? 'Your order has been placed.'}\n\nStatus: ${result?.statusLabel ?? result?.status ?? 'Order in progress'}`,
-        paymentActions(result?.paymentUrl),
-      );
+      // Hand off directly to TechArtha's dedicated checkout & payment page
+      navigation.navigate('Payment', {
+        orderId: result?.orderId || `ORD-${Date.now().toString().slice(-6)}`,
+        amount: Number(amount),
+        schemeName: targetName,
+        paymentUrl: result?.paymentUrl,
+        mode: 'lumpsum',
+        bankAccountNumber,
+        bankAccountHolderName,
+        ifscCode,
+      });
     } catch (error) {
       // BucketsService rejects before reaching Cybrilla when KYC or the risk profile is
       // incomplete; those messages are actionable, so they are shown as-is.

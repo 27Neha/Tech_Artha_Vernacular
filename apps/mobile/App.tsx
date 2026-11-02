@@ -39,6 +39,14 @@ import { EditProfileScreen } from './src/screens/EditProfileScreen';
 import { BankAccountsScreen } from './src/screens/BankAccountsScreen';
 import { NomineeDetailsScreen } from './src/screens/NomineeDetailsScreen';
 import { ActiveMandatesScreen } from './src/screens/ActiveMandatesScreen';
+import { MandateScreen } from './src/screens/MandateScreen';
+import { MandateSuccessScreen } from './src/screens/MandateSuccessScreen';
+import { PaymentScreen } from './src/screens/PaymentScreen';
+import { PaymentSuccessScreen } from './src/screens/PaymentSuccessScreen';
+import { TwoFactorSettingsScreen } from './src/screens/TwoFactorSettingsScreen';
+import { PrivacyPolicyScreen } from './src/screens/PrivacyPolicyScreen';
+import { TermsScreen } from './src/screens/TermsScreen';
+import { RiskDisclosuresScreen } from './src/screens/RiskDisclosuresScreen';
 import { PermissionsScreen } from './src/screens/PermissionsScreen';
 import { NotificationPreferencesScreen } from './src/screens/NotificationPreferencesScreen';
 import { SecuritySettingsScreen } from './src/screens/SecuritySettingsScreen';
@@ -76,6 +84,15 @@ const linking = {
       RiskProfileResult: 'risk/result',
       GoalSelection: 'goals',
       MainTabs: 'dashboard',
+      Mandates: 'mandates',
+      ActiveMandates: 'mandates/active',
+      MandateSuccess: 'mandate-complete',
+      Payment: 'payment',
+      PaymentSuccess: 'payment-complete',
+      TwoFactorSettings: 'settings/2fa',
+      PrivacyPolicy: 'privacy',
+      Terms: 'terms',
+      RiskDisclosures: 'risk-disclosures',
     },
   },
 };
@@ -159,7 +176,9 @@ function RootNavigator() {
     const handleDeepLink = (event: { url: string }) => {
       try {
         const url = event?.url;
-        if (!url || typeof url !== 'string' || !url.includes('resume')) return;
+        if (!url || typeof url !== 'string') return;
+        const isKnownLink = url.includes('resume') || url.includes('mandate-complete') || url.includes('payment-complete');
+        if (!isKnownLink) return;
 
         // Safe parameter extraction avoiding dependency on WHATWG URL constructor
         const getParam = (src: string, key: string) => {
@@ -167,7 +186,12 @@ function RootNavigator() {
           return match ? decodeURIComponent(match[1]) : null;
         };
 
-        const target = getParam(url, 'target') || 'EditProfile';
+        let target = getParam(url, 'target');
+        if (!target) {
+          if (url.includes('mandate-complete')) target = 'MandateSuccess';
+          else if (url.includes('payment-complete')) target = 'PaymentSuccess';
+          else target = 'EditProfile';
+        }
         const refToken = getParam(url, 'ref');
 
         const doNavigate = () => {
@@ -195,7 +219,7 @@ function RootNavigator() {
 
     const sub = Linking.addEventListener('url', handleDeepLink);
     Linking.getInitialURL().then((initialUrl) => {
-      if (initialUrl && initialUrl.includes('resume')) {
+      if (initialUrl && (initialUrl.includes('resume') || initialUrl.includes('mandate-complete') || initialUrl.includes('payment-complete'))) {
         handleDeepLink({ url: initialUrl });
       }
     }).catch(() => {});
@@ -258,6 +282,14 @@ function RootNavigator() {
       <Stack.Screen name="BankAccounts" component={BankAccountsScreen} />
       <Stack.Screen name="NomineeDetails" component={NomineeDetailsScreen} />
       <Stack.Screen name="ActiveMandates" component={ActiveMandatesScreen} />
+      <Stack.Screen name="Mandates" component={MandateScreen} />
+      <Stack.Screen name="MandateSuccess" component={MandateSuccessScreen} />
+      <Stack.Screen name="Payment" component={PaymentScreen} />
+      <Stack.Screen name="PaymentSuccess" component={PaymentSuccessScreen} />
+      <Stack.Screen name="TwoFactorSettings" component={TwoFactorSettingsScreen} />
+      <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+      <Stack.Screen name="Terms" component={TermsScreen} />
+      <Stack.Screen name="RiskDisclosures" component={RiskDisclosuresScreen} />
       <Stack.Screen name="PhonePermissions" component={PermissionsScreen} />
       <Stack.Screen name="Permissions" component={PermissionsScreen} />
       <Stack.Screen name="NotificationPreferences" component={NotificationPreferencesScreen} />

@@ -7,7 +7,7 @@ import {
   ScrollView,
   Alert,
   Platform,
-  PermissionsAndroid
+  PermissionsAndroid,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -19,9 +19,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { api, API_URL } from '../services/api/client';
 import { useAuth } from '../store/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { TermsModal } from '../components/TermsModal';
-import { PrivacyPolicyModal } from '../components/PrivacyPolicyModal';
-import { RiskDisclosuresModal } from '../components/RiskDisclosuresModal';
 
 export const SettingsScreen = () => {
   const { t, i18n } = useTranslation('common');
@@ -34,15 +31,11 @@ export const SettingsScreen = () => {
   const [profileName, setProfileName] = useState<string>('Investor Account');
   const [profileContact, setProfileContact] = useState<string>('');
   const [isPanLinked, setIsPanLinked] = useState<boolean>(false);
+  const [isKycDone, setIsKycDone] = useState<boolean>(false);
 
   // Settings Quick Indicators
   const [pinActive, setPinActive] = useState<boolean>(false);
   const [allowedPermsCount, setAllowedPermsCount] = useState<number>(0);
-
-  // Legal Modals
-  const [termsVisible, setTermsVisible] = useState(false);
-  const [privacyVisible, setPrivacyVisible] = useState(false);
-  const [disclosuresVisible, setDisclosuresVisible] = useState(false);
 
   // Check backend connectivity
   const checkApiHealth = async () => {
@@ -71,6 +64,7 @@ export const SettingsScreen = () => {
         }
         setProfileContact(profile?.mobile ? `+91 ${profile.mobile}` : (profile?.email || ''));
         setIsPanLinked(Boolean(profile?.profile?.pan));
+        setIsKycDone(Boolean(profile?.profile?.kycStatus === 'VERIFIED' || profile?.profile?.pan));
       }
 
       // 3. Quick Permissions count (Android check)
@@ -80,7 +74,7 @@ export const SettingsScreen = () => {
           PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
           PermissionsAndroid.PERMISSIONS.CAMERA,
           (PermissionsAndroid.PERMISSIONS as any).POST_NOTIFICATIONS,
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
         ];
         for (const p of permsToCheck) {
           if (p) {
@@ -90,10 +84,10 @@ export const SettingsScreen = () => {
         }
         setAllowedPermsCount(granted);
       } else {
-        setAllowedPermsCount(0);
+        setAllowedPermsCount(3);
       }
     } catch (e) {
-      console.warn('Status load error:', e);
+      console.warn('Settings status load error:', e);
     }
   }, []);
 
@@ -121,10 +115,10 @@ export const SettingsScreen = () => {
             }
             navigation.reset({
               index: 0,
-              routes: [{ name: 'Welcome' }]
+              routes: [{ name: 'Welcome' }],
             });
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -147,33 +141,56 @@ export const SettingsScreen = () => {
   };
 
   const getThemeDisplayName = () => {
-    if (preference === 'dark') return 'Dark Theme';
-    if (preference === 'light') return 'Light Theme';
+    if (preference === 'dark') return 'Dark Mode';
+    if (preference === 'light') return 'Light Mode';
     return 'System Default';
   };
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.canvas }]} edges={['right', 'bottom', 'left']}>
       <StatusBar style={colors.statusBar} />
-      <Header title={t('settings.title', { defaultValue: 'Settings' })} onBack={() => navigation.goBack()} showSettings={false} />
+      <Header title="Settings" onBack={() => navigation.goBack()} showSettings={false} />
+
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Top Header & Connection Health */}
-        <View style={styles.topHeader}>
-          <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>{t('settings.title', { defaultValue: 'Settings' })}</Text>
-          <View style={[styles.liveApiBadge, { backgroundColor: isDark ? colors.surfaceMuted : '#EDF2F7' }]}>
-            <View style={[styles.statusDot, apiStatus === 'online' ? styles.dotGreen : styles.dotAmber]} />
-            <Text style={[styles.liveApiText, { color: colors.textSecondary }]}>{apiStatus === 'online' ? 'Connected' : 'Offline'}</Text>
+        {/* Profile Card Header */}
+        <View style={[styles.profileHeaderCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.profileAvatarBox}>
+            <Text style={styles.avatarInitials}>
+              {profileName.trim().slice(0, 2).toUpperCase()}
+            </Text>
           </View>
+          <View style={styles.profileInfoBox}>
+            <View style={styles.profileNameRow}>
+              <Text style={[styles.profileNameText, { color: colors.textPrimary }]} numberOfLines={1}>
+                {profileName}
+              </Text>
+              {isKycDone && (
+                <View style={styles.verifiedKycBadge}>
+                  <Ionicons name="checkmark-circle" size={12} color="#059669" />
+                  <Text style={styles.verifiedKycText}>KYC</Text>
+                </View>
+              )}
+            </View>
+            <Text style={[styles.profileContactText, { color: colors.textSecondary }]} numberOfLines={1}>
+              {profileContact || 'Investor Account'}
+            </Text>
+          </View>
+          <Pressable
+            style={[styles.editProfileBtn, { backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF' }]}
+            onPress={() => navigation.navigate('EditProfile')}
+          >
+            <Text style={styles.editProfileBtnText}>Edit</Text>
+          </Pressable>
         </View>
 
         {/* ============================================================== */}
-        {/* 1. ACCOUNT & SECURITY                                         */}
+        {/* 1. ACCOUNT & INVESTMENT SETTINGS                               */}
         {/* ============================================================== */}
-        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>{t('settings.accountSecurity', { defaultValue: 'Account & Security' })}</Text>
+        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>Account & Investment Profile</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          {/* Personal & Account Details */}
+          {/* Personal Profile */}
           <Pressable
-            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
+            style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
             onPress={() => navigation.navigate('EditProfile')}
           >
             <View style={[styles.iconBox, { backgroundColor: isDark ? '#1E1B4B' : '#E0E7FF' }]}>
@@ -181,38 +198,72 @@ export const SettingsScreen = () => {
             </View>
             <View style={styles.textCol}>
               <View style={styles.rowTitleWrap}>
-                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('profile.title', { defaultValue: 'Personal & Account Details' })}</Text>
+                <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Personal & KYC Profile</Text>
                 {isPanLinked && (
-                  <View style={[styles.badgePillGreen, { backgroundColor: isDark ? '#064E3B' : '#ECFDF5' }]}>
-                    <Text style={[styles.badgePillGreenText, { color: isDark ? '#34D399' : '#059669' }]}>KYC Linked</Text>
+                  <View style={[styles.tagGreen, { backgroundColor: isDark ? '#064E3B' : '#ECFDF5' }]}>
+                    <Text style={[styles.tagGreenText, { color: isDark ? '#34D399' : '#059669' }]}>PAN Linked</Text>
                   </View>
                 )}
               </View>
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]} numberOfLines={1}>
-                {profileName} {profileContact ? `• ${profileContact}` : ''}
-              </Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>PAN, verified email, address & tax status</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
 
-          {/* Change Password / PIN */}
+          {/* Linked Bank Accounts */}
           <Pressable
-            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
-            onPress={() => navigation.navigate('SecuritySettings')}
+            style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
+            onPress={() => navigation.navigate('BankAccounts')}
           >
-            <View style={[styles.iconBox, { backgroundColor: isDark ? '#2E1065' : '#EDE9FE' }]}>
-              <Ionicons name="key-outline" size={20} color={isDark ? '#A78BFA' : '#5B21B6'} />
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#064E3B' : '#ECFDF5' }]}>
+              <Ionicons name="card-outline" size={20} color={isDark ? '#34D399' : '#059669'} />
             </View>
             <View style={styles.textCol}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.changePasswordPin', { defaultValue: 'Change Password & PIN' })}</Text>
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>Update login password or device authentication PIN</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Linked Bank Accounts</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>Primary verified bank for payouts & redemption credits</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
 
-          {/* App Lock */}
+          {/* Nominee Declarations */}
           <Pressable
-            style={[styles.cardRow, { borderBottomWidth: 0 }]}
+            style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
+            onPress={() => navigation.navigate('NomineeDetails')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#451A03' : '#FEF3C7' }]}>
+              <Ionicons name="people-outline" size={20} color={isDark ? '#FBBF24' : '#B45309'} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Nominee Details</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>SEBI mandatory portfolio nomination declaration</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+
+          {/* Auto-Debit Mandates */}
+          <Pressable
+            style={[styles.row, { borderBottomWidth: 0 }]}
+            onPress={() => navigation.navigate('ActiveMandates')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#2E1065' : '#EDE9FE' }]}>
+              <Ionicons name="repeat-outline" size={20} color={isDark ? '#A78BFA' : '#5B21B6'} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Auto-Debit Mandates</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>Manage UPI Autopay & e-NACH mandates for SIPs</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+        </View>
+
+        {/* ============================================================== */}
+        {/* 2. SECURITY & LOGIN                                            */}
+        {/* ============================================================== */}
+        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>Security & Login</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {/* App Lock & PIN */}
+          <Pressable
+            style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
             onPress={() => navigation.navigate('SecuritySettings')}
           >
             <View style={[styles.iconBox, { backgroundColor: pinActive ? (isDark ? '#052E16' : '#DCFCE7') : (isDark ? '#451A03' : '#FEF3C7') }]}>
@@ -224,17 +275,37 @@ export const SettingsScreen = () => {
             </View>
             <View style={styles.textCol}>
               <View style={styles.rowTitleWrap}>
-                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.appLock', { defaultValue: 'App Lock' })}</Text>
-                <View style={pinActive ? (isDark ? styles.badgePillGreenDark : styles.badgePillGreen) : (isDark ? styles.badgePillAmberDark : styles.badgePillAmber)}>
-                  <Text style={pinActive ? (isDark ? styles.badgePillGreenDarkText : styles.badgePillGreenText) : (isDark ? styles.badgePillAmberDarkText : styles.badgePillAmberText)}>
+                <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Device PIN & App Lock</Text>
+                <View style={[styles.tagPill, pinActive ? styles.tagGreen : styles.tagAmber]}>
+                  <Text style={[styles.tagPillText, pinActive ? styles.tagGreenText : styles.tagAmberText]}>
                     {pinActive ? 'Active' : 'Disabled'}
                   </Text>
                 </View>
               </View>
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
-                {pinActive
-                  ? '4-digit PIN required on app launch & resume'
-                  : 'Enable 4-digit PIN protection for opening app'}
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>
+                {pinActive ? '4-digit PIN required on app open & resume' : 'Enable 4-digit PIN protection'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+
+          {/* Two-Factor Authentication */}
+          <Pressable
+            style={[styles.row, { borderBottomWidth: 0 }]}
+            onPress={() => navigation.navigate('TwoFactorSettings')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#082F49' : '#E0F2FE' }]}>
+              <Ionicons name="key-outline" size={20} color={isDark ? '#38BDF8' : '#0369A1'} />
+            </View>
+            <View style={styles.textCol}>
+              <View style={styles.rowTitleWrap}>
+                <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Two-Factor Authentication (2FA)</Text>
+                <View style={[styles.tagPill, styles.tagGreen]}>
+                  <Text style={[styles.tagPillText, styles.tagGreenText]}>Enforced</Text>
+                </View>
+              </View>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>
+                Mandatory WhatsApp, SMS & Email OTP verification
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
@@ -242,78 +313,86 @@ export const SettingsScreen = () => {
         </View>
 
         {/* ============================================================== */}
-        {/* 2. PREFERENCES                                                 */}
+        {/* 3. APP PREFERENCES & APPEARANCE                                */}
         {/* ============================================================== */}
-        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>{t('settings.preferences', { defaultValue: 'Preferences' })}</Text>
+        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>Language & Appearance</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           {/* Language Selection */}
           <Pressable
-            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
+            style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
             onPress={() => navigation.navigate('LanguageSettings')}
           >
             <View style={[styles.iconBox, { backgroundColor: isDark ? '#451A03' : '#FEF3C7' }]}>
               <Ionicons name="language-outline" size={20} color={isDark ? '#FBBF24' : '#B45309'} />
             </View>
             <View style={styles.textCol}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.language', { defaultValue: 'Language Selection' })}</Text>
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>{getLanguageDisplayName(i18n.language || 'en')}</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Language Selection</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>
+                {getLanguageDisplayName(i18n.language || 'en')}
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
 
-          {/* App Theme (Light / Dark / System) */}
+          {/* Theme & Display */}
           <Pressable
-            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
+            style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
             onPress={() => navigation.navigate('ThemeSettings')}
           >
             <View style={[styles.iconBox, { backgroundColor: isDark ? '#500724' : '#FCE7F3' }]}>
               <Ionicons name="color-palette-outline" size={20} color={isDark ? '#F472B6' : '#BE185D'} />
             </View>
             <View style={styles.textCol}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.theme', { defaultValue: 'Appearance & Theme' })}</Text>
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>{getThemeDisplayName()}</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Display Theme</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>{getThemeDisplayName()}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
 
-          {/* Notification Preferences */}
+          {/* Storage & Cache */}
           <Pressable
-            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
-            onPress={() => navigation.navigate('NotificationPreferences')}
-          >
-            <View style={[styles.iconBox, { backgroundColor: isDark ? '#082F49' : '#E0F2FE' }]}>
-              <Ionicons name="notifications-outline" size={20} color={isDark ? '#38BDF8' : '#0369A1'} />
-            </View>
-            <View style={styles.textCol}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.notifications', { defaultValue: 'Notification Preferences' })}</Text>
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>SIP debits, order execution, WhatsApp & email</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
-          </Pressable>
-
-          {/* Storage & Device Cache */}
-          <Pressable
-            style={[styles.cardRow, { borderBottomWidth: 0 }]}
+            style={[styles.row, { borderBottomWidth: 0 }]}
             onPress={() => navigation.navigate('StorageCache')}
           >
             <View style={[styles.iconBox, { backgroundColor: isDark ? '#2E1065' : '#EDE9FE' }]}>
               <Ionicons name="server-outline" size={20} color={isDark ? '#A78BFA' : '#5B21B6'} />
             </View>
             <View style={styles.textCol}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.storageCache', { defaultValue: 'Storage & Cache' })}</Text>
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>Temporary files, factsheet cache & disk footprint</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Storage & Cache</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>Clear temporary factsheets & document cache</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
         </View>
 
         {/* ============================================================== */}
-        {/* 3. PERMISSIONS                                                */}
+        {/* 4. NOTIFICATIONS                                              */}
         {/* ============================================================== */}
-        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>{t('settings.permissions', { defaultValue: 'Permissions' })}</Text>
+        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>Notifications</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Pressable
-            style={[styles.cardRow, { borderBottomWidth: 0 }]}
+            style={[styles.row, { borderBottomWidth: 0 }]}
+            onPress={() => navigation.navigate('NotificationPreferences')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#082F49' : '#E0F2FE' }]}>
+              <Ionicons name="notifications-outline" size={20} color={isDark ? '#38BDF8' : '#0369A1'} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Notification Preferences</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>SIP debit alerts, order confirmations & WhatsApp updates</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+        </View>
+
+        {/* ============================================================== */}
+        {/* 5. PRIVACY & PERMISSIONS                                      */}
+        {/* ============================================================== */}
+        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>Privacy & Permissions</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {/* App Permissions */}
+          <Pressable
+            style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
             onPress={() => navigation.navigate('Permissions')}
           >
             <View style={[styles.iconBox, { backgroundColor: isDark ? '#052E16' : '#F0FDF4' }]}>
@@ -321,212 +400,318 @@ export const SettingsScreen = () => {
             </View>
             <View style={styles.textCol}>
               <View style={styles.rowTitleWrap}>
-                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.permissionsCenter', { defaultValue: 'App Permissions Center' })}</Text>
-                <View style={[styles.badgePillBlue, { backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF' }]}>
-                  <Text style={[styles.badgePillBlueText, { color: isDark ? '#A5B4FC' : '#4338CA' }]}>{allowedPermsCount} Active</Text>
+                <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>App Permissions Center</Text>
+                <View style={[styles.tagPill, styles.tagBlue]}>
+                  <Text style={[styles.tagPillText, styles.tagBlueText]}>{allowedPermsCount} Active</Text>
                 </View>
               </View>
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
-                Microphone, Camera, Photos/Files, Push Alerts, KYC Location
-              </Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>Microphone, Camera, Files, KYC Location</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+
+          {/* Privacy Policy */}
+          <Pressable
+            style={[styles.row, { borderBottomWidth: 0 }]}
+            onPress={() => navigation.navigate('PrivacyPolicy')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#082F49' : '#E0F2FE' }]}>
+              <Ionicons name="shield-checkmark-outline" size={20} color={isDark ? '#38BDF8' : '#0369A1'} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Privacy Policy</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>AES-256 data protection & KYC privacy covenants</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
         </View>
 
         {/* ============================================================== */}
-        {/* 4. HELP & SUPPORT                                             */}
+        {/* 6. HELP & SUPPORT                                             */}
         {/* ============================================================== */}
-        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>{t('settings.helpSupport', { defaultValue: 'Help & Support' })}</Text>
+        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>Help & Support</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          {/* Client Assistant */}
-          <Pressable
-            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
-            onPress={() => navigation.navigate('MainTabs', { screen: 'Assistant' })}
-          >
-            <View style={[styles.iconBox, { backgroundColor: isDark ? '#2E1065' : '#EDE9FE' }]}>
-              <Ionicons name="sparkles-outline" size={20} color={isDark ? '#A78BFA' : '#5B21B6'} />
-            </View>
-            <View style={styles.textCol}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('profile.support', { defaultValue: 'Client Assistant' })}</Text>
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>24/7 AI-driven voice & chat advisory in 12 languages</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
-          </Pressable>
-
           {/* FAQs */}
           <Pressable
-            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
+            style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
             onPress={() => navigation.navigate('Faqs')}
           >
             <View style={[styles.iconBox, { backgroundColor: isDark ? '#082F49' : '#E0F2FE' }]}>
               <Ionicons name="help-circle-outline" size={20} color={isDark ? '#38BDF8' : '#0369A1'} />
             </View>
             <View style={styles.textCol}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.faqs', { defaultValue: 'Frequently Asked Questions (FAQs)' })}</Text>
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>SEBI regulations, NAV cutoff times, SIP rules & taxes</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Frequently Asked Questions (FAQs)</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>SIP cutoffs, NAV timing, taxes & mandate rules</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
 
           {/* Contact Support */}
           <Pressable
-            style={[styles.cardRow, { borderBottomWidth: 0 }]}
+            style={[styles.row, { borderBottomWidth: 0 }]}
             onPress={() => navigation.navigate('HelpSupport')}
           >
             <View style={[styles.iconBox, { backgroundColor: isDark ? '#052E16' : '#DCFCE7' }]}>
               <Ionicons name="headset-outline" size={20} color={isDark ? '#4ADE80' : '#15803D'} />
             </View>
             <View style={styles.textCol}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.contactSupport', { defaultValue: 'Contact Support & Helpdesk' })}</Text>
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>Direct WhatsApp, Grievance email desk & Ticket logging</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Contact Support & Helpdesk</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>Direct WhatsApp, Grievance email & Ticket support</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
         </View>
 
         {/* ============================================================== */}
-        {/* 5. LEGAL & ABOUT                                              */}
+        {/* 7. LEGAL & REGULATORY INFORMATION                             */}
         {/* ============================================================== */}
-        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>{t('settings.legalAbout', { defaultValue: 'Legal & About' })}</Text>
+        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>Legal & Regulatory Information</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          {/* Privacy Policy */}
+          {/* Terms & Conditions */}
           <Pressable
-            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
-            onPress={() => setPrivacyVisible(true)}
-          >
-            <View style={[styles.iconBox, { backgroundColor: isDark ? '#082F49' : '#E0F2FE' }]}>
-              <Ionicons name="shield-checkmark-outline" size={20} color={isDark ? '#38BDF8' : '#0369A1'} />
-            </View>
-            <View style={styles.textCol}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('signup.privacyPolicy', { defaultValue: 'Privacy Policy' })}</Text>
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>AES-256 data protection & KYC privacy covenants</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
-          </Pressable>
-
-          {/* Terms and Conditions */}
-          <Pressable
-            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
-            onPress={() => setTermsVisible(true)}
+            style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
+            onPress={() => navigation.navigate('Terms')}
           >
             <View style={[styles.iconBox, { backgroundColor: isDark ? '#2E1065' : '#EDE9FE' }]}>
               <Ionicons name="document-text-outline" size={20} color={isDark ? '#A78BFA' : '#5B21B6'} />
             </View>
             <View style={styles.textCol}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('signup.termsOfService', { defaultValue: 'Terms and Conditions' })}</Text>
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>Execution agreement, e-mandates & user covenants</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Terms & Conditions</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>Execution agreement, e-mandates & user covenants</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
 
           {/* Risk Disclosures */}
           <Pressable
-            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
-            onPress={() => setDisclosuresVisible(true)}
+            style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
+            onPress={() => navigation.navigate('RiskDisclosures')}
           >
             <View style={[styles.iconBox, { backgroundColor: isDark ? '#451A03' : '#FEF3C7' }]}>
               <Ionicons name="alert-circle-outline" size={20} color={isDark ? '#FBBF24' : '#B45309'} />
             </View>
             <View style={styles.textCol}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('settings.riskDisclosures', { defaultValue: 'Statutory Risk Disclosures' })}</Text>
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>SEBI market risks, Risk-o-Meter & NAV timelines</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Statutory Risk Disclosures</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>SEBI market risks, Risk-o-Meter & NAV timelines</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
 
-          {/* Legal Compliance Center */}
+          {/* Regulatory Compliance Center */}
           <Pressable
-            style={[styles.cardRow, { borderBottomColor: colors.borderSubtle }]}
+            style={[styles.row, { borderBottomWidth: 0 }]}
             onPress={() => navigation.navigate('LegalSettings')}
           >
             <View style={[styles.iconBox, { backgroundColor: isDark ? '#064E3B' : '#ECFDF5' }]}>
               <Ionicons name="ribbon-outline" size={20} color={isDark ? '#34D399' : '#059669'} />
             </View>
             <View style={styles.textCol}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Platform Compliance Center</Text>
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>AMFI registration, investor grievance redressal & SCORES</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Platform Compliance Center</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>AMFI registration (ARN-284912), SCORES & SMART ODR</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
-
-          {/* App Version Info Tile */}
-          <View style={[styles.cardRow, { borderBottomWidth: 0 }]}>
-            <View style={[styles.iconBox, { backgroundColor: isDark ? colors.surfaceMuted : '#F1F5F9' }]}>
-              <Ionicons name="information-circle-outline" size={20} color={colors.textSecondary} />
-            </View>
-            <View style={styles.textCol}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>TechArtha Version</Text>
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>2.0.0 (Build 57.0.26) • Production SDK 57</Text>
-            </View>
-            <View style={[styles.badgePillGray, { backgroundColor: isDark ? colors.surfaceMuted : '#F1F5F9' }]}>
-              <Text style={[styles.badgePillGrayText, { color: colors.textMuted }]}>Latest</Text>
-            </View>
-          </View>
         </View>
 
         {/* ============================================================== */}
         {/* LOGOUT & REGULATORY FOOTER                                    */}
         {/* ============================================================== */}
         <View style={styles.footerSection}>
-          <Text style={[styles.sebiDisclosureText, { color: colors.textMuted }]}>
-            AMFI Registered Mutual Fund Distributor • ARN-284912{'\n'}
-            Mutual fund investments are subject to market risks.
-          </Text>
-
-          <Pressable style={[styles.logoutBtn, { backgroundColor: isDark ? '#450A0A' : '#FEF2F2', borderColor: isDark ? '#991B1B' : '#FECACA' }]} onPress={handleLogout}>
+          <Pressable
+            style={[styles.logoutBtn, { backgroundColor: isDark ? '#450A0A' : '#FEF2F2', borderColor: isDark ? '#991B1B' : '#FECACA' }]}
+            onPress={handleLogout}
+          >
             <Ionicons name="log-out-outline" size={19} color="#DC2626" style={{ marginRight: 8 }} />
             <Text style={styles.logoutText}>{t('header.logOut', { defaultValue: 'Sign Out of TechArtha' })}</Text>
           </Pressable>
+
+          <Text style={[styles.sebiDisclosureText, { color: colors.textMuted }]}>
+            AMFI Registered Mutual Fund Distributor • ARN-284912{'\n'}
+            Mutual fund investments are subject to market risks. Please read all scheme-related documents carefully.
+          </Text>
         </View>
       </ScrollView>
-
-      {/* MODALS */}
-      <TermsModal visible={termsVisible} onClose={() => setTermsVisible(false)} />
-      <PrivacyPolicyModal visible={privacyVisible} onClose={() => setPrivacyVisible(false)} />
-      <RiskDisclosuresModal visible={disclosuresVisible} onClose={() => setDisclosuresVisible(false)} />
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  container: { padding: 20, paddingBottom: 40 },
-  topHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  pageTitle: { fontSize: 28, fontWeight: '800' },
-  liveApiBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, gap: 6 },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  dotGreen: { backgroundColor: '#10B981' },
-  dotAmber: { backgroundColor: '#F59E0B' },
-  liveApiText: { fontSize: 11, fontWeight: '700' },
+  container: { padding: 16, paddingBottom: 40 },
 
-  sectionHeading: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginLeft: 4 },
-  card: { borderRadius: 16, paddingHorizontal: 16, marginBottom: 18, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 3, elevation: 1 },
+  profileHeaderCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  profileAvatarBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#3C3985',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  avatarInitials: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  profileInfoBox: {
+    flex: 1,
+  },
+  profileNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  profileNameText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  verifiedKycBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    gap: 2,
+  },
+  verifiedKycText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  profileContactText: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  editProfileBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  editProfileBtnText: {
+    color: '#3C3985',
+    fontSize: 12,
+    fontWeight: '700',
+  },
 
-  cardRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1 },
-  iconBox: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
-  textCol: { flex: 1, paddingRight: 8 },
-  rowTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
-  cardTitle: { fontSize: 14, fontWeight: '800' },
-  cardSub: { fontSize: 12 },
+  sectionHeading: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  card: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    marginBottom: 18,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 3,
+    elevation: 1,
+  },
 
-  badgePillGreen: { backgroundColor: '#ECFDF5', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  badgePillGreenText: { color: '#059669', fontSize: 10, fontWeight: '800' },
-  badgePillGreenDark: { backgroundColor: '#064E3B', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  badgePillGreenDarkText: { color: '#34D399', fontSize: 10, fontWeight: '800' },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  iconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  textCol: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  rowTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  rowTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  rowSub: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
 
-  badgePillAmber: { backgroundColor: '#FFFBEB', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  badgePillAmberText: { color: '#D97706', fontSize: 10, fontWeight: '800' },
-  badgePillAmberDark: { backgroundColor: '#451A03', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  badgePillAmberDarkText: { color: '#FBBF24', fontSize: 10, fontWeight: '800' },
+  tagPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  tagPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  tagGreen: {
+    backgroundColor: '#ECFDF5',
+  },
+  tagGreenText: {
+    color: '#059669',
+  },
+  tagAmber: {
+    backgroundColor: '#FFFBEB',
+  },
+  tagAmberText: {
+    color: '#D97706',
+  },
+  tagBlue: {
+    backgroundColor: '#EEF2FF',
+  },
+  tagBlueText: {
+    color: '#4338CA',
+  },
 
-  badgePillBlue: { backgroundColor: '#EEF2FF', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  badgePillBlueText: { color: '#4338CA', fontSize: 10, fontWeight: '800' },
-  badgePillGray: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  badgePillGrayText: { fontSize: 10, fontWeight: '700' },
-
-  footerSection: { alignItems: 'center', marginTop: 10, paddingBottom: 20 },
-  sebiDisclosureText: { fontSize: 11, textAlign: 'center', lineHeight: 16, marginBottom: 16 },
-  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 28, borderRadius: 16, borderWidth: 1, width: '100%' },
-  logoutText: { color: '#DC2626', fontSize: 15, fontWeight: '800' }
+  footerSection: {
+    alignItems: 'center',
+    marginTop: 8,
+    paddingBottom: 24,
+  },
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    width: '100%',
+    marginBottom: 16,
+  },
+  logoutText: {
+    color: '#DC2626',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  sebiDisclosureText: {
+    fontSize: 11,
+    textAlign: 'center',
+    lineHeight: 16,
+    paddingHorizontal: 12,
+  },
 });

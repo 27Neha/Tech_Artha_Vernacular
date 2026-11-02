@@ -1,27 +1,21 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  Pressable
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Header } from '../components/Header';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { TermsModal } from '../components/TermsModal';
-import { PrivacyPolicyModal } from '../components/PrivacyPolicyModal';
-import { RiskDisclosuresModal } from '../components/RiskDisclosuresModal';
 import { useTheme } from '../context/ThemeContext';
 
 export const LegalScreen = () => {
   const navigation = useNavigation<any>();
   const { colors, isDark } = useTheme();
-  const [termsVisible, setTermsVisible] = useState(false);
-  const [privacyVisible, setPrivacyVisible] = useState(false);
-  const [disclosuresVisible, setDisclosuresVisible] = useState(false);
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.canvas }]} edges={['right', 'bottom', 'left']}>
@@ -51,7 +45,7 @@ export const LegalScreen = () => {
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Pressable
             style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
-            onPress={() => setTermsVisible(true)}
+            onPress={() => navigation.navigate('Terms')}
           >
             <View style={[styles.iconBox, { backgroundColor: isDark ? '#2E1065' : '#EDE9FE' }]}>
               <Ionicons name="document-text-outline" size={20} color={isDark ? '#A78BFA' : '#5B21B6'} />
@@ -65,7 +59,7 @@ export const LegalScreen = () => {
 
           <Pressable
             style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
-            onPress={() => setPrivacyVisible(true)}
+            onPress={() => navigation.navigate('PrivacyPolicy')}
           >
             <View style={[styles.iconBox, { backgroundColor: isDark ? '#082F49' : '#E0F2FE' }]}>
               <Ionicons name="shield-checkmark-outline" size={20} color={isDark ? '#38BDF8' : '#0369A1'} />
@@ -79,13 +73,13 @@ export const LegalScreen = () => {
 
           <Pressable
             style={[styles.row, { borderBottomWidth: 0 }]}
-            onPress={() => setDisclosuresVisible(true)}
+            onPress={() => navigation.navigate('RiskDisclosures')}
           >
             <View style={[styles.iconBox, { backgroundColor: isDark ? '#451A03' : '#FEF3C7' }]}>
               <Ionicons name="alert-circle-outline" size={20} color={isDark ? '#FBBF24' : '#B45309'} />
             </View>
             <View style={{ flex: 1, paddingRight: 8 }}>
-              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Risk Disclosures Modal</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Risk Disclosures</Text>
               <Text style={[styles.rowSub, { color: colors.textSecondary }]}>SEBI statutory disclaimers, Risk-o-Meter categorization & Cutoff NAVs</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
@@ -128,10 +122,6 @@ export const LegalScreen = () => {
           </Text>
         </View>
       </ScrollView>
-
-      <TermsModal visible={termsVisible} onClose={() => setTermsVisible(false)} />
-      <PrivacyPolicyModal visible={privacyVisible} onClose={() => setPrivacyVisible(false)} />
-      <RiskDisclosuresModal visible={disclosuresVisible} onClose={() => setDisclosuresVisible(false)} />
     </SafeAreaView>
   );
 };
