@@ -1,21 +1,32 @@
-import React, { useState } from 'react';
-import { View, Text, Pressable, Modal, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, Pressable, Modal, StyleSheet, ScrollView, Image } from 'react-native';
+import { Screen } from '../types';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { TechArthaLogo } from './TechArthaLogo';
-import { colors, radii } from '../theme/tokens';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import {
+  navigationRef,
+  canGlobalGoBack,
+  handleGlobalBack,
+  registerActiveModal,
+  subscribeNavigationHistory,
+} from '../navigation/navigationService';
 
 export interface HeaderProps {
   title?: string;
-  back?: any;
-  onBack?: () => void;
-  showLogo?: boolean;
-  logoSize?: 'small' | 'medium' | 'large';
+  back?: Screen;
+  onBack?: (screen?: any) => void;
+  showBack?: boolean;
+  hideBack?: boolean;
   showSettings?: boolean;
-  onSettingsPress?: () => void;
+  showNotifications?: boolean;
   showLanguage?: boolean;
+  showLogo?: boolean;
+  logoSize?: string;
+  onSettingsPress?: () => void;
+  route?: any;
 }
 
 const LANGUAGES = [
@@ -32,27 +43,90 @@ const LANGUAGES = [
   { code: 'as', label: 'Assamese', native: 'অসমীয়া' },
 ];
 
+const NOTIFICATIONS = [
+  {
+    id: '1',
+    icon: 'calendar-outline' as const,
+    title: 'Monthly SIP Scheduled',
+    body: 'Your goal SIP mandate is active and verified with your bank.',
+    time: 'Today',
+  },
+  {
+    id: '2',
+    icon: 'newspaper-outline' as const,
+    title: 'New Market Brief Available',
+    body: 'Read today’s personalized market insight in ArthaVerse.',
+    time: '2h ago',
+  },
+  {
+    id: '3',
+    icon: 'shield-checkmark-outline' as const,
+    title: 'Direct Investor Protection',
+    body: 'Orders routed via Cybrilla directly to AMCs under AMFI regulations.',
+    time: '1d ago',
+  },
+];
+
 export const Header: React.FC<HeaderProps> = ({
   title,
   onBack,
-  showLogo,
-  logoSize = 'medium',
+  showBack,
+  hideBack = false,
   showSettings = true,
-  onSettingsPress,
+  showNotifications = true,
   showLanguage = true,
+  onSettingsPress,
+  route: routeProp,
 }) => {
   const { i18n } = useTranslation();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const [modalVisible, setModalVisible] = useState(false);
 
-  const shouldShowLogo = showLogo !== undefined ? showLogo : !title;
+  const [langModalVisible, setLangModalVisible] = useState(false);
+  const [notifModalVisible, setNotifModalVisible] = useState(false);
+
+  // Safe route resolution
+  let routeName = '';
+  if (routeProp?.name) {
+    routeName = routeProp.name;
+  } else {
+    try {
+      const route = useRoute();
+      routeName = route?.name || '';
+    } catch (e) {
+      routeName = navigationRef.isReady() ? navigationRef.getCurrentRoute()?.name || '' : '';
+    }
+  }
+
+  // Subscribe to navigation history and back ability
+  const [canBack, setCanBack] = useState(() => canGlobalGoBack());
+
+  useEffect(() => {
+    setCanBack(canGlobalGoBack());
+    const unsubscribe = subscribeNavigationHistory(() => {
+      setCanBack(canGlobalGoBack());
+    });
+    return unsubscribe;
+  }, [routeName]);
+
+  // Register active modals so hardware or header back dismisses them first
+  useEffect(() => {
+    if (langModalVisible) {
+      return registerActiveModal('header_lang_modal', () => setLangModalVisible(false));
+    }
+  }, [langModalVisible]);
+
+  useEffect(() => {
+    if (notifModalVisible) {
+      return registerActiveModal('header_notif_modal', () => setNotifModalVisible(false));
+    }
+  }, [notifModalVisible]);
 
   const currentLangCode = i18n.language || 'en';
   const currentLangObj = LANGUAGES.find((l) => l.code === currentLangCode) || LANGUAGES[0];
 
   const handleLanguageSelect = async (code: string) => {
-    setModalVisible(false);
+    setLangModalVisible(false);
     try {
       await i18n.changeLanguage(code);
       await AsyncStorage.setItem('language', code);
@@ -61,16 +135,16 @@ export const Header: React.FC<HeaderProps> = ({
     }
   };
 
-  const handleSettings = () => {
-    if (onSettingsPress) {
-      onSettingsPress();
-    } else {
-      try {
-        navigation.navigate('Settings');
-      } catch (e) {
-        console.log('Navigation to settings not available', e);
-      }
-    }
+  // Determine back button visibility: visible across all screens unless explicitly hidden
+  const shouldShowBack = showBack !== undefined ? showBack : !hideBack;
+
+  // On Home screen, if there is no previous history to return to, back button is visually disabled
+  const isHomeRoot = routeName === 'Home';
+  const isBackDisabled = isHomeRoot && !canBack;
+
+  // Intelligent back navigation respecting actual history, modals, unsaved changes, and nested stacks
+  const handleBack = () => {
+    handleGlobalBack(onBack);
   };
 
   return (
@@ -78,67 +152,109 @@ export const Header: React.FC<HeaderProps> = ({
       style={[
         localStyles.headerContainer,
         {
-          paddingTop: Math.max(insets.top, 12),
-          height: 60 + Math.max(insets.top, 12),
+          paddingTop: insets.top,
+          height: 58 + insets.top,
         },
       ]}
     >
-      {/* Left Section: Back button and/or Logo or Title */}
-      <View style={localStyles.leftSection}>
-        {onBack ? (
-          <Pressable onPress={onBack} hitSlop={12} style={localStyles.backButton}>
-            <Text style={localStyles.backArrow}>‹</Text>
-          </Pressable>
-        ) : null}
+      <View style={localStyles.headerContent}>
+        {/* Left Section: Back Button (44x44 dp) or Placeholder */}
+        <View style={localStyles.leftSection}>
+          {shouldShowBack ? (
+            <Pressable
+              onPress={handleBack}
+              disabled={isBackDisabled}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={[
+                localStyles.backBtn,
+                isBackDisabled && localStyles.backBtnDisabled,
+              ]}
+              accessibilityLabel="Go back"
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isBackDisabled }}
+            >
+              <Ionicons
+                name="arrow-back"
+                size={22}
+                color={isBackDisabled ? '#94A3B8' : '#102A54'}
+              />
+            </Pressable>
+          ) : (
+            <View style={localStyles.backBtnPlaceholder} />
+          )}
+        </View>
 
-        {shouldShowLogo ? (
-          <TechArthaLogo size={logoSize} />
-        ) : title ? (
-          <Text style={localStyles.titleText} numberOfLines={1}>
-            {title}
-          </Text>
-        ) : null}
-      </View>
+        {/* Centre Section: Always Present TechArtha Company Logo */}
+        <View style={localStyles.centerSection}>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={localStyles.logoImage}
+            resizeMode="contain"
+          />
+          {title ? (
+            <Text style={localStyles.centerSubtitle} numberOfLines={1}>
+              {title}
+            </Text>
+          ) : null}
+        </View>
 
-      {/* Right Controls: Non-overlapping Language Pill & Settings Button */}
-      <View style={localStyles.rightControls}>
-        {showLanguage && (
-          <Pressable
-            onPress={() => setModalVisible(true)}
-            hitSlop={8}
-            style={localStyles.languagePill}
-          >
-            <Text style={localStyles.languagePillText}>🌐 {currentLangObj.label}</Text>
-            <Text style={localStyles.languagePillChevron}>▾</Text>
-          </Pressable>
-        )}
+        {/* Right Section: Language, Notifications, Settings */}
+        <View style={localStyles.rightSection}>
+          {showLanguage && (
+            <Pressable
+              onPress={() => setLangModalVisible(true)}
+              hitSlop={8}
+              style={localStyles.langButton}
+              accessibilityLabel="Change language"
+              accessibilityRole="button"
+            >
+              <Text style={localStyles.langText}>{currentLangObj.label}</Text>
+              <Ionicons name="chevron-down" size={12} color="#3C3985" />
+            </Pressable>
+          )}
 
+          {showNotifications && (
+            <Pressable
+              onPress={() => setNotifModalVisible(true)}
+              hitSlop={8}
+              style={localStyles.iconButton}
+              accessibilityLabel="Notifications"
+              accessibilityRole="button"
+            >
+              <Ionicons name="notifications-outline" size={19} color="#3C3985" />
+              <View style={localStyles.unreadDot} />
+            </Pressable>
+          )}
 
-        {showSettings && (
-          <Pressable
-            onPress={handleSettings}
-            hitSlop={8}
-            style={({ pressed }) => [
-              localStyles.settingsButton,
-              pressed && { opacity: 0.7, backgroundColor: '#EDF2F7' },
-            ]}
-            accessibilityLabel="Settings"
-          >
-            <Text style={localStyles.settingsIcon}>⚙️</Text>
-          </Pressable>
-        )}
+          {showSettings && (
+            <Pressable
+              onPress={onSettingsPress || (() => navigation.navigate('Settings'))}
+              hitSlop={8}
+              style={localStyles.iconButton}
+              accessibilityLabel="Settings"
+              accessibilityRole="button"
+            >
+              <Ionicons name="settings-outline" size={19} color="#3C3985" />
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {/* Language Selection Modal */}
       <Modal
-        visible={modalVisible}
+        visible={langModalVisible}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={() => setLangModalVisible(false)}
       >
-        <Pressable style={localStyles.overlay} onPress={() => setModalVisible(false)}>
+        <Pressable style={localStyles.overlay} onPress={() => setLangModalVisible(false)}>
           <View style={localStyles.modalContent}>
-            <Text style={localStyles.modalTitle}>Select Language</Text>
+            <View style={localStyles.modalHeader}>
+              <Text style={localStyles.modalTitle}>Select Language</Text>
+              <Pressable onPress={() => setLangModalVisible(false)} hitSlop={10}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </Pressable>
+            </View>
             <ScrollView style={localStyles.scrollView} showsVerticalScrollIndicator={false}>
               {LANGUAGES.map((lang) => {
                 const isSelected = currentLangCode === lang.code;
@@ -166,109 +282,191 @@ export const Header: React.FC<HeaderProps> = ({
           </View>
         </Pressable>
       </Modal>
+
+      {/* Global Notifications Modal */}
+      <Modal
+        visible={notifModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setNotifModalVisible(false)}
+      >
+        <Pressable style={localStyles.overlay} onPress={() => setNotifModalVisible(false)}>
+          <View style={localStyles.modalContent}>
+            <View style={localStyles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="notifications" size={18} color="#3C3985" />
+                <Text style={localStyles.modalTitle}>Notifications & Alerts</Text>
+              </View>
+              <Pressable onPress={() => setNotifModalVisible(false)} hitSlop={10}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </Pressable>
+            </View>
+
+            <View style={localStyles.notifList}>
+              {NOTIFICATIONS.map((item) => (
+                <View key={item.id} style={localStyles.notifItem}>
+                  <View style={localStyles.notifIconCircle}>
+                    <Ionicons name={item.icon} size={18} color="#3C3985" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={localStyles.notifTopRow}>
+                      <Text style={localStyles.notifTitle}>{item.title}</Text>
+                      <Text style={localStyles.notifTime}>{item.time}</Text>
+                    </View>
+                    <Text style={localStyles.notifBody}>{item.body}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <Pressable
+              style={localStyles.closeBtn}
+              onPress={() => setNotifModalVisible(false)}
+            >
+              <Text style={localStyles.closeBtnText}>Done</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
 
 const localStyles = StyleSheet.create({
   headerContainer: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EDF2F7',
+    elevation: 2,
+    shadowColor: '#102A54',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    zIndex: 1000,
+  },
+  headerContent: {
+    height: 58,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingBottom: 8,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
   },
   leftSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  backButton: {
-    marginRight: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    alignItems: 'center',
+    width: 44,
+    alignItems: 'flex-start',
     justifyContent: 'center',
   },
-  backArrow: {
-    fontSize: 28,
-    color: '#102A54',
-    fontWeight: '300',
-    marginTop: -4,
-  },
-  titleText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#102A54',
-    letterSpacing: -0.3,
-  },
-  rightControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  languagePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF7ED',
-    borderWidth: 1,
-    borderColor: '#FFEDD5',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: radii.full,
-    gap: 4,
-  },
-  languagePillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#C05621',
-  },
-  languagePillChevron: {
-    fontSize: 10,
-    color: '#C05621',
-    fontWeight: '700',
-  },
-  settingsButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#F8F9FD',
+  backBtn: {
+    width: 44,
+    height: 44,
+    minWidth: 44,
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: '#F0EFFB',
     borderWidth: 1,
     borderColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  settingsIcon: {
-    fontSize: 16,
+  backBtnDisabled: {
+    opacity: 0.35,
+    backgroundColor: '#F8F9FA',
+    borderColor: '#E2E8F0',
+  },
+  backBtnPlaceholder: {
+    width: 44,
+    height: 44,
+  },
+  centerSection: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  logoImage: {
+    height: 26,
+    width: 102,
+  },
+  centerSubtitle: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#64748B',
+    marginTop: 1,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  rightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+  },
+  langButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#F0EFFB',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  langText: {
+    color: '#3C3985',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#F0EFFB',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  unreadDot: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#EF4444',
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(16, 42, 84, 0.45)',
+    backgroundColor: 'rgba(16, 42, 84, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modalContent: {
-    width: '90%',
-    maxHeight: '75%',
-    backgroundColor: '#FFFFFF',
+    width: '100%',
+    maxWidth: 380,
+    maxHeight: '80%',
+    backgroundColor: '#fff',
     borderRadius: 20,
     padding: 20,
     elevation: 8,
     shadowColor: '#102A54',
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
     color: '#102A54',
-    marginBottom: 16,
-    textAlign: 'center',
   },
   scrollView: {
     width: '100%',
@@ -279,13 +477,12 @@ const localStyles = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
     marginBottom: 8,
-    backgroundColor: '#F8F9FD',
-    borderWidth: 1,
-    borderColor: '#EDF2F7',
+    backgroundColor: '#F8F9FB',
   },
   langRowSelected: {
-    backgroundColor: '#EEF0FB',
-    borderColor: '#36358D',
+    backgroundColor: '#EBEBFA',
+    borderWidth: 1,
+    borderColor: '#3C3985',
   },
   radioContainer: {
     marginRight: 14,
@@ -295,31 +492,82 @@ const localStyles = StyleSheet.create({
     height: 18,
     borderRadius: 9,
     borderWidth: 2,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#FFFFFF',
+    borderColor: '#CBD5E0',
   },
   radioSelected: {
-    borderColor: '#36358D',
-    backgroundColor: '#36358D',
+    borderColor: '#3C3985',
+    backgroundColor: '#3C3985',
   },
   langTextContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
   nativeText: {
     fontSize: 15,
     fontWeight: '700',
     color: '#102A54',
+    width: 110,
   },
   labelText: {
     fontSize: 13,
-    color: '#64748B',
+    color: '#718096',
   },
   textSelected: {
-    color: '#36358D',
+    color: '#3C3985',
+  },
+  notifList: {
+    gap: 10,
+    marginBottom: 16,
+  },
+  notifItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#F8F9FB',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  notifIconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#EBEBFA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  notifTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#102A54',
+  },
+  notifTime: {
+    fontSize: 10,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  notifBody: {
+    fontSize: 11.5,
+    color: '#64748B',
+    lineHeight: 16,
+  },
+  closeBtn: {
+    backgroundColor: '#3C3985',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  closeBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });
-
-export default Header;

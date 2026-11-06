@@ -9,9 +9,30 @@
  * passed down as a prop, so screens never handle credentials themselves.
  */
 
-export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import Constants from 'expo-constants';
 
-const DEFAULT_TIMEOUT_MS = 20000;
+export const LIVE_TUNNEL_API_URL = 'https://necklace-expansion-vegetarian-worlds.trycloudflare.com';
+
+function resolveApiUrl(): string {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  // If explicitly pointing to a public HTTPS tunnel, use it
+  if (envUrl && envUrl.startsWith('https://') && !envUrl.includes('localhost')) {
+    return envUrl;
+  }
+  // If running over Expo tunnel (exp.direct / ngrok), always use the Cloudflare API tunnel
+  const hostUri = Constants.expoConfig?.hostUri || (Constants as any).manifest?.debuggerHost;
+  if (hostUri && (hostUri.includes('exp.direct') || hostUri.includes('ngrok') || hostUri.includes('cloudflare'))) {
+    return LIVE_TUNNEL_API_URL;
+  }
+  if (envUrl && !envUrl.includes('192.168.') && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    return envUrl;
+  }
+  return LIVE_TUNNEL_API_URL;
+}
+
+export const API_URL = resolveApiUrl();
+
+const DEFAULT_TIMEOUT_MS = 8000;
 
 export class ApiError extends Error {
   constructor(
@@ -93,11 +114,25 @@ async function request<T>(
  * where this matters most.
  */
 function extractMessage(parsed: unknown, status: number): string {
+  if (status === 500) {
+    if (parsed && typeof parsed === 'object' && (parsed as any).message && (parsed as any).message !== 'Internal server error') {
+      return String((parsed as any).message);
+    }
+    return 'The server encountered an issue. Please try again shortly.';
+  }
+  if (status === 400 && (!parsed || !(parsed as any).message)) {
+    return 'Invalid details provided. Please check and try again.';
+  }
   const fallback = `Request failed (${status}).`;
   if (!parsed || typeof parsed !== 'object') return fallback;
 
-  const message = (parsed as { message?: unknown }).message;
-  if (typeof message === 'string' && message) return message;
+  const message = (parsed as { message?: unknown; error?: unknown }).message;
+  if (typeof message === 'string' && message) {
+    if (message.toLowerCase().includes('database operation could not be completed')) {
+      return 'Please verify that all required details are entered accurately and try again.';
+    }
+    return message;
+  }
 
   if (Array.isArray(message)) {
     const parts = message
@@ -105,6 +140,15 @@ function extractMessage(parsed: unknown, status: number): string {
       .filter(Boolean) as string[];
     if (parts.length) return parts.join('\n');
   }
+
+  const errStr = (parsed as { error?: unknown }).error;
+  if (typeof errStr === 'string' && errStr) {
+    if (errStr.toLowerCase().includes('database')) {
+      return 'Please verify your entered details and try again.';
+    }
+    return errStr;
+  }
+
   return fallback;
 }
 

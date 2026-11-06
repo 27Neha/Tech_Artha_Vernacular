@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -19,7 +18,7 @@ export const WelcomeScreen = () => {
   const heroVisualHeight = isCompact ? 220 : windowHeight < 840 ? 250 : 270;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
 
       {/* 1. Header: Official TechArtha Logo on left matching other screens, language selector on right */}
@@ -27,6 +26,7 @@ export const WelcomeScreen = () => {
         showLogo={true}
         logoSize="medium"
         showSettings={false}
+        hideBack={true}
       />
 
       <ScrollView
@@ -119,7 +119,7 @@ export const WelcomeScreen = () => {
           </Text>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
@@ -25,6 +25,7 @@ const LANGUAGES = [
 export const LanguageScreen = () => {
   const { t, i18n } = useTranslation('common');
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const [selected, setSelected] = useState<string>(i18n.language || 'en');
 
   const handleLanguageSelect = async (code: string) => {
@@ -44,13 +45,13 @@ export const LanguageScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <View style={[styles.safe, { paddingTop: insets.top }]}>
       <StatusBar style="dark" />
       <View style={styles.container}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           
           <View style={styles.logoWrapper}>
-            <TechArthaLogo size="medium" />
+            <Image source={require('../../assets/logo.png')} style={styles.logoImage} resizeMode="contain" />
           </View>
 
           <View style={styles.pillContainer}>
@@ -97,7 +98,7 @@ export const LanguageScreen = () => {
           </Pressable>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -106,6 +107,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { padding: 20, paddingTop: 32, paddingBottom: 110 },
   logoWrapper: { alignItems: 'center', marginBottom: 20, marginTop: 8 },
+  logoImage: { height: 40, width: 180 },
   pillContainer: { alignItems: 'center', marginBottom: 14 },
   pill: { backgroundColor: '#EEF0FB', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: '#E0E3FA' },
   pillText: { color: '#36358D', fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },

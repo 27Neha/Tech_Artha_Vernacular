@@ -780,5 +780,21 @@
   "journey.estWealth": "Est. Accumulated Value",
   "journey.wealthGain": "Hypothetical Growth",
   "journey.planGoalCta": "Plan This Goal with TechArtha →",
-  "journey.disclaimer": "Illustrative calculation assuming 12% p.a. long-term rate of return. Actual returns vary, are market-linked, and not guaranteed."
+  "journey.disclaimer": "Illustrative calculation assuming 12% p.a. long-term rate of return. Actual returns vary, are market-linked, and not guaranteed.",
+  "mandate.successTitle": "Mandate Approved",
+  "mandate.successDesc": "Your AutoPay mandate is officially registered. Your SIP installments will be debited automatically on schedule.",
+  "mandate.rejectedTitle": "Mandate Not Approved",
+  "mandate.rejectedDesc": "Your bank or UPI application was unable to authorize this recurring debit mandate.",
+  "mandate.pendingTitle": "Awaiting Bank Confirmation",
+  "mandate.pendingDesc": "Please authorize the mandate notification in your UPI application. This screen updates automatically once approved.",
+  "mandate.viewPortfolio": "View Portfolio & Goals",
+  "mandate.tryAgain": "Try Authorizing Again",
+  "payment.successTitle": "Payment Confirmed",
+  "payment.rejectedTitle": "Payment Unsuccessful",
+  "payment.pendingTitle": "Confirming with Your Bank",
+  "payment.pendingDesc": "Please complete the transaction in your UPI app or Net Banking portal. This screen will update automatically as soon as payment is confirmed.",
+  "payment.viewPortfolio": "View in Portfolio",
+  "payment.tryAgain": "Try Paying Again",
+  "login.verifyWa": "Verify your WhatsApp Number",
+  "signup.useWaInstead": "Continue with WhatsApp instead"
 }

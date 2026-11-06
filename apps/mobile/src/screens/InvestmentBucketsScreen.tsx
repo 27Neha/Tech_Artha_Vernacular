@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { exitOnboarding } from '../utils/navigation';
@@ -8,8 +7,7 @@ import { authStore } from '../store/auth';
 import { Header } from '../components/Header';
 import { SearchIcon } from '../components/Icons';
 import { useTranslation } from 'react-i18next';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_URL } from '../services/api/client';
 
 /**
  * GET /buckets - the buckets suited to the investor's assessed risk profile.
@@ -65,7 +63,7 @@ export const InvestmentBucketsScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar style="dark" />
       <Header title="" />
       <View style={{ padding: 24, paddingBottom: 20 }}>
@@ -210,7 +208,7 @@ export const InvestmentBucketsScreen = () => {
         <Text style={styles.disclaimer}>{t('buckets.disclaimer', { defaultValue: 'Mutual Fund investments are subject to market risks.' })}</Text>
       </ScrollView>
 
-    </SafeAreaView>
+    </View>
   );
 };
 

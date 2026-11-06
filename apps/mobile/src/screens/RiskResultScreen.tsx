@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { exitOnboarding } from '../utils/navigation';
@@ -45,7 +44,7 @@ export const RiskResultScreen = () => {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title="Your Risk Profile" />
 
@@ -85,7 +84,7 @@ export const RiskResultScreen = () => {
           <Text style={styles.skipBtnText}>Skip for now</Text>
         </Pressable>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

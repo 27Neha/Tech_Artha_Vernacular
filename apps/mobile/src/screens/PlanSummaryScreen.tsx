@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Alert, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Header } from '../components/Header';
 import { authStore } from '../store/auth';
-import { api } from '../services/api/client';
+import { api, API_URL } from '../services/api/client';
 import { useTranslation } from 'react-i18next';
 
 const SIP_DATES = [1, 5, 10, 15, 20, 25];
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export const PlanSummaryScreen = () => {
   const { t } = useTranslation('common');
@@ -130,7 +128,7 @@ export const PlanSummaryScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['right', 'bottom', 'left']}>
+    <View style={styles.container}>
       <StatusBar style="dark" />
       <Header title="" />
       <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16 }}>
@@ -220,7 +218,7 @@ export const PlanSummaryScreen = () => {
           <Text style={styles.outlineText}>{t('plan.modifyPlan', { defaultValue: 'Modify Plan' })}</Text>
         </Pressable>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

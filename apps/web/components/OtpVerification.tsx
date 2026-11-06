@@ -1,13 +1,13 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 interface OtpVerificationProps {
   identifierType: 'MOBILE' | 'EMAIL';
-  initialChannel?: 'SMS' | 'WHATSAPP' | 'EMAIL' | null;
+  initialChannel?: 'WHATSAPP' | 'EMAIL' | null;
   identifierValue: string;
-  onSendOtp: (channel: 'SMS' | 'WHATSAPP' | 'EMAIL') => Promise<void>;
-  onVerify: (otp: string, channel: 'SMS' | 'WHATSAPP' | 'EMAIL' | null) => Promise<void>;
+  onSendOtp: (channel: 'WHATSAPP' | 'EMAIL') => Promise<void>;
+  onVerify: (otp: string, channel: 'WHATSAPP' | 'EMAIL' | null) => Promise<void>;
   onChangeIdentifier: () => void;
   loading: boolean;
   error: string;
@@ -27,198 +27,185 @@ export default function OtpVerification({
 }: OtpVerificationProps) {
   const { t } = useTranslation();
   const [otp, setOtp] = useState('');
-  const [otpChannel, setOtpChannel] = useState<'SMS' | 'WHATSAPP' | 'EMAIL' | null>(initialChannel || (identifierType === 'EMAIL' ? 'EMAIL' : null));
-
-  // Security guard: Auto-reading is strictly disabled for EMAIL, permitted for SMS and WhatsApp
-  const isAutoReadAllowed = identifierType === 'MOBILE' && (otpChannel === 'SMS' || otpChannel === 'WHATSAPP');
-  const [autoReadStatus, setAutoReadStatus] = useState<'reading' | 'detected' | 'idle'>(
-    isAutoReadAllowed ? 'reading' : 'idle'
+  const [otpChannel, setOtpChannel] = useState<'WHATSAPP' | 'EMAIL'>(
+    initialChannel || (identifierType === 'EMAIL' ? 'EMAIL' : 'WHATSAPP')
   );
-  const [detectedOtp, setDetectedOtp] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (initialChannel) {
-      setOtpChannel(initialChannel);
-      setHasSent(true);
-      if (initialChannel === 'SMS') setSmsTimer(60);
-      if (initialChannel === 'WHATSAPP') setWaTimer(60);
-      if (initialChannel === 'EMAIL') setEmailTimer(60);
-    }
-  }, []); // Run only on mount since parent already sent it
-
-  // Professional auto-reading for web (SMS and WhatsApp only, never for Email)
-  useEffect(() => {
-    if (!isAutoReadAllowed) {
-      setAutoReadStatus('idle');
-      setDetectedOtp(null);
-      return;
-    }
-
-    setAutoReadStatus('reading');
-    const timerId = setTimeout(() => {
-      const code = '1234';
-      setDetectedOtp(code);
-      setAutoReadStatus('detected');
-      setOtp(code);
-      setError('');
-    }, 1400);
-
-    return () => clearTimeout(timerId);
-  }, [isAutoReadAllowed, otpChannel]);
-  
-  const [smsTimer, setSmsTimer] = useState(0);
   const [waTimer, setWaTimer] = useState(0);
   const [emailTimer, setEmailTimer] = useState(0);
-  const [hasSent, setHasSent] = useState(false);
+  const [hasSent, setHasSent] = useState(true);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    let sInt: NodeJS.Timeout, wInt: NodeJS.Timeout, eInt: NodeJS.Timeout;
-    if (smsTimer > 0) sInt = setInterval(() => setSmsTimer(s => s - 1), 1000);
-    if (waTimer > 0) wInt = setInterval(() => setWaTimer(w => w - 1), 1000);
-    if (emailTimer > 0) eInt = setInterval(() => setEmailTimer(e => e - 1), 1000);
-    return () => { clearInterval(sInt); clearInterval(wInt); clearInterval(eInt); };
-  }, [smsTimer, waTimer, emailTimer]);
+    if (initialChannel === 'EMAIL') {
+      setEmailTimer(60);
+      setOtpChannel('EMAIL');
+    } else {
+      setWaTimer(60);
+      setOtpChannel('WHATSAPP');
+    }
+    inputRef.current?.focus();
+  }, [initialChannel]);
 
-  
+  useEffect(() => {
+    let wInt: NodeJS.Timeout | undefined;
+    let eInt: NodeJS.Timeout | undefined;
+    if (waTimer > 0) wInt = setInterval(() => setWaTimer((w) => w - 1), 1000);
+    if (emailTimer > 0) eInt = setInterval(() => setEmailTimer((e) => e - 1), 1000);
+    return () => {
+      if (wInt) clearInterval(wInt);
+      if (eInt) clearInterval(eInt);
+    };
+  }, [waTimer, emailTimer]);
 
-  
-const handleSend = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL') => {
+  const handleSend = async (channel: 'WHATSAPP' | 'EMAIL') => {
     setOtpChannel(channel);
     setHasSent(true);
+    setError('');
     try {
       await onSendOtp(channel);
-      if (channel === 'SMS') setSmsTimer(60);
       if (channel === 'WHATSAPP') setWaTimer(60);
       if (channel === 'EMAIL') setEmailTimer(60);
     } catch (e) {
-      // error handled by parent
+      // Error is handled by parent
     }
   };
 
   const handleVerify = () => {
+    if (otp.length < 4) {
+      setError(t('login.enterValidOtp', { defaultValue: 'Please enter the 4-digit verification code.' }));
+      return;
+    }
     onVerify(otp, otpChannel);
   };
 
+  const currentTimer = otpChannel === 'EMAIL' ? emailTimer : waTimer;
+
   return (
-    <>
-      <h1 className="page-title">{identifierType === 'EMAIL' ? (t('login.verifyEmail') || 'Verify your email') : (t('login.verifyNumber') || 'Verify your number')}</h1>
-      <p className="page-desc">{t('login.otpSentTo') || 'Enter the OTP sent to'} <strong>{identifierType === 'EMAIL' ? identifierValue : `+91 ${identifierValue}`}</strong></p>
+    <div className="flex flex-col flex-1 animate-fade-in max-w-md w-full mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-[var(--dark)] mb-2">
+          {otpChannel === 'EMAIL'
+            ? t('login.verifyEmail', { defaultValue: 'Verify your Email' })
+            : t('login.verifyWa', { defaultValue: 'Verify your WhatsApp Number' })}
+        </h1>
+        <p className="text-sm text-gray-500">
+          {t('login.otpSentTo', { defaultValue: 'Enter the 4-digit code sent to' })}{' '}
+          <strong className="text-gray-900 font-semibold">
+            {identifierType === 'EMAIL' ? identifierValue : `+91 ${identifierValue}`}
+          </strong>
+        </p>
+      </div>
 
-
-
-      <label className="label">{t('login.otpLabel') || 'One-Time Password (OTP)'}</label>
-
-      {/* Auto-read helper for SMS and WhatsApp (strictly never shown for email) */}
-      {isAutoReadAllowed && (
-        <div className="mb-3">
-          {autoReadStatus === 'reading' && (
-            <div className="flex items-center gap-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-xs font-semibold text-[#3C3985] animate-pulse">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#3C3985] animate-ping" />
-              <span>
-                {otpChannel === 'WHATSAPP' ? '📲 Auto-detecting OTP from WhatsApp...' : '💬 Auto-detecting OTP from SMS...'}
-              </span>
+      {/* Channel active pill */}
+      <div className="flex items-center gap-2 mb-6 p-3 rounded-xl border bg-gray-50">
+        {otpChannel === 'WHATSAPP' ? (
+          <>
+            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-[#25D366] flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+              </svg>
             </div>
-          )}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-gray-900">Delivered via WhatsApp</p>
+              <p className="text-[11px] text-gray-500">Check your WhatsApp incoming messages</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-[#3C3985] flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-gray-900">Delivered via Zoho ZeptoMail</p>
+              <p className="text-[11px] text-gray-500">Check your inbox and spam folder</p>
+            </div>
+          </>
+        )}
+      </div>
 
-          {autoReadStatus === 'detected' && detectedOtp && (
-            <button
-              type="button"
-              onClick={() => { setOtp(detectedOtp); setError(''); }}
-              className="w-full flex items-center justify-between p-2.5 bg-green-50 border border-green-200 rounded-lg text-xs font-semibold text-green-800 hover:bg-green-100 transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <span className="text-green-600 font-bold">✓</span>
-                <span>Auto-filled from {otpChannel === 'WHATSAPP' ? 'WhatsApp' : 'SMS'}:</span>
-                <span className="font-mono font-bold tracking-widest text-green-900 bg-green-200/60 px-1.5 py-0.5 rounded">{detectedOtp}</span>
-              </span>
-              <span className="text-green-700 underline text-[11px] font-bold">Tap to re-fill</span>
-            </button>
-          )}
-        </div>
-      )}
-      
+      <label className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 block">
+        {t('login.otpLabel', { defaultValue: 'One-Time Verification Code' })}
+      </label>
+
+      {/* 4-digit OTP input */}
       <input
-        type="number"
+        ref={inputRef}
+        type="tel"
+        inputMode="numeric"
+        maxLength={4}
         value={otp}
         onChange={(e) => {
-          if (identifierType === 'MOBILE' && !otpChannel) {
-            setError(t('signup.selectChannel') || 'Please select SMS or WhatsApp first.');
-            return;
-          }
-          setOtp(e.target.value.slice(0, 4));
+          const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+          setOtp(val);
           setError('');
-        }}
-        onFocus={() => {
-          if (identifierType === 'MOBILE' && !otpChannel) {
-            setError(t('signup.selectChannel') || 'Please select SMS or WhatsApp first.');
+          if (val.length === 4) {
+            onVerify(val, otpChannel);
           }
         }}
-        readOnly={identifierType === 'MOBILE' && !otpChannel}
-        placeholder={t('login.otpPlaceholder') || 'Enter OTP'}
-        className={`input-field text-center text-2xl font-bold tracking-widest ${(identifierType === 'MOBILE' && !otpChannel) ? 'bg-gray-50 opacity-70 cursor-not-allowed' : ''}`}
+        placeholder="••••"
+        className="w-full text-center text-3xl font-mono font-bold tracking-[0.5em] py-4 px-6 border-2 border-gray-200 rounded-xl focus:border-[#3C3985] focus:ring-2 focus:ring-indigo-100 outline-none transition-all placeholder:tracking-widest"
       />
 
-      {identifierType === 'MOBILE' ? (
-        <div className="flex gap-4 mt-6">
-          <button 
-            onClick={() => handleSend('SMS')}
-            style={{ display: otpChannel !== 'SMS' ? 'none' : 'flex' }}
-            disabled={loading || smsTimer > 0}
-            className={`flex-1 py-3 flex flex-col items-center justify-center rounded-xl border-2 font-bold transition-all ${otpChannel === 'SMS' ? 'border-[var(--primary)] text-[var(--dark)] bg-[var(--primary-light)]' : 'border-gray-100 text-gray-400 bg-white hover:border-gray-200'} ${smsTimer > 0 ? 'opacity-70 cursor-not-allowed' : ''}`}
-          >
-            {smsTimer === 0 ? (
-                <span className="text-sm">{hasSent ? (t('login.resendOtp', { defaultValue: 'Resend OTP' })) : (t('login.sendSms', { defaultValue: 'Send via SMS' }))}</span>
-              ) : (
-                <span className="text-sm opacity-50">{t('login.sent', { defaultValue: 'Sent' })}</span>
-              )}
-            {smsTimer > 0 && <span className="text-[10px] mt-0.5 opacity-80">{t('login.resendIn', { time: `${Math.floor(smsTimer / 60)}:${(smsTimer % 60).toString().padStart(2, '0')}` }) || `Resend in ${Math.floor(smsTimer / 60)}:${(smsTimer % 60).toString().padStart(2, '0')}`}</span>}
-          </button>
-          <button 
-            onClick={() => handleSend('WHATSAPP')}
-            style={{ display: otpChannel !== 'WHATSAPP' ? 'none' : 'flex' }}
-            disabled={loading || waTimer > 0}
-            className={`flex-1 py-3 flex flex-col items-center justify-center rounded-xl border-2 font-bold transition-all ${otpChannel === 'WHATSAPP' ? 'border-[#25D366] text-[#128C7E] bg-[#dcf8c6]' : 'border-gray-100 text-gray-400 bg-white hover:border-gray-200'} ${waTimer > 0 ? 'opacity-70 cursor-not-allowed' : ''}`}
-          >
-            {waTimer === 0 ? (
-                <span className="text-sm">{hasSent ? (t('login.resendOtp', { defaultValue: 'Resend OTP' })) : (t('login.sendWa', { defaultValue: 'Send via WhatsApp' }))}</span>
-              ) : (
-                <span className="text-sm opacity-50">{t('login.sent', { defaultValue: 'Sent' })}</span>
-              )}
-            {waTimer > 0 && <span className="text-[10px] mt-0.5 opacity-80">{t('login.resendIn', { time: `${Math.floor(waTimer / 60)}:${(waTimer % 60).toString().padStart(2, '0')}` }) || `Resend in ${Math.floor(waTimer / 60)}:${(waTimer % 60).toString().padStart(2, '0')}`}</span>}
-          </button>
-        </div>
-      ) : (
-        <div className="flex gap-4 mt-6">
-          <button 
-            onClick={() => handleSend('EMAIL')}
-            style={{ display: otpChannel !== 'EMAIL' ? 'none' : 'flex' }}
-            disabled={loading || emailTimer > 0}
-            className={`flex-1 py-3 flex flex-col items-center justify-center rounded-xl border-2 font-bold transition-all ${otpChannel === 'EMAIL' ? 'border-[var(--primary)] text-[var(--dark)] bg-[var(--primary-light)]' : 'border-[var(--primary)] text-[var(--primary)] bg-white hover:bg-gray-50'} ${emailTimer > 0 ? 'opacity-70 cursor-not-allowed' : ''}`}
-          >
-            {emailTimer === 0 ? (
-                <span className="text-sm">{hasSent ? (t('login.resendOtp', { defaultValue: 'Resend OTP' })) : (t('login.sendOtp', { defaultValue: 'Send OTP' }))}</span>
-              ) : (
-                <span className="text-sm opacity-50">{t('login.sent', { defaultValue: 'Sent' })}</span>
-              )}
-            {emailTimer > 0 && <span className="text-[10px] mt-0.5 opacity-80">{t('login.resendIn', { time: `${Math.floor(emailTimer / 60)}:${(emailTimer % 60).toString().padStart(2, '0')}` }) || `Resend in ${Math.floor(emailTimer / 60)}:${(emailTimer % 60).toString().padStart(2, '0')}`}</span>}
-          </button>
+      {error && (
+        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-600 text-sm">
+          <span>⚠️</span>
+          <span>{error}</span>
         </div>
       )}
 
-      {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
+      {/* Resend Action */}
+      <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100 text-sm">
+        <span className="text-gray-500 text-xs">
+          {t('login.didntReceive', { defaultValue: "Didn't receive the code?" })}
+        </span>
+
+        {currentTimer > 0 ? (
+          <span className="text-xs font-bold text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg">
+            {t('login.resendIn', { defaultValue: 'Resend in' })} {Math.floor(currentTimer / 60)}:
+            {(currentTimer % 60).toString().padStart(2, '0')}
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => handleSend(otpChannel)}
+            disabled={loading}
+            className="text-xs font-bold text-[#3C3985] hover:underline"
+          >
+            ↻ {t('login.resendOtp', { defaultValue: 'Resend Code' })}
+          </button>
+        )}
+      </div>
 
       <button
         onClick={handleVerify}
         disabled={loading || otp.length < 4}
-        className="btn-primary mt-6"
+        className={`w-full py-4 mt-6 rounded-xl font-bold text-white text-base shadow-sm transition-all flex items-center justify-center gap-2 ${
+          loading || otp.length < 4
+            ? 'bg-gray-300 cursor-not-allowed'
+            : 'bg-[#3C3985] hover:bg-[#322f73] active:scale-[0.99]'
+        }`}
       >
-        <span>{loading ? (t('login.verifying') || 'Verifying...') : (t('login.verifyOtp') || 'Verify OTP')}</span>
+        <span>
+          {loading
+            ? t('login.verifying', { defaultValue: 'Verifying...' })
+            : t('login.verifyOtp', { defaultValue: 'Verify & Continue' })}
+        </span>
         <span>➔</span>
       </button>
 
-      <button onClick={onChangeIdentifier} className="w-full text-center text-[var(--primary)] font-semibold mt-4 py-2">
-        ↻ {identifierType === 'EMAIL' ? (t('login.changeEmail') || 'Change Email') : (t('login.changeNumber') || 'Change Number')}
+      <button
+        type="button"
+        onClick={onChangeIdentifier}
+        className="w-full text-center text-sm font-semibold text-[#3C3985] hover:underline mt-4 py-2"
+      >
+        ← {identifierType === 'EMAIL'
+          ? t('login.changeEmail', { defaultValue: 'Change Email Address' })
+          : t('login.changeNumber', { defaultValue: 'Change WhatsApp Number' })}
       </button>
-    </>
+    </div>
   );
 }

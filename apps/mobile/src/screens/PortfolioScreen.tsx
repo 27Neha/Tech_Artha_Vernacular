@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Linking } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -10,8 +9,7 @@ import * as Sharing from 'expo-sharing';
 import { Header } from '../components/Header';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_URL } from '../services/api/client';
 
 type Tab = 'overview' | 'goals' | 'holdings' | 'transactions' | 'sips' | 'statements';
 
@@ -300,12 +298,10 @@ export const PortfolioScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       
-      <Header title="Portfolio" />
-      
-      <ScrollView stickyHeaderIndices={[2]} showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.headerBlock}>
           <Text style={styles.headerTitle}>{t('port.title', { defaultValue: 'Portfolio' })}</Text>
         </View>
@@ -589,15 +585,8 @@ export const PortfolioScreen = () => {
             </View>
           )}
         </View>
-
-        {/* Withdrawing has to be reachable from where holdings are shown. The screen
-            itself reports honestly when there is nothing to sell, so this does not need
-            to be conditional on holdings we may not have loaded. */}
-        <Pressable style={styles.outlineBtn} onPress={() => navigation.navigate('Redeem')}>
-          <Text style={styles.outlineBtnText}>Withdraw money</Text>
-        </Pressable>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

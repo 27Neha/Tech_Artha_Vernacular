@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, View, Text, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { styles } from '../theme/styles';
@@ -38,14 +38,14 @@ export const MinorReviewScreen = () => {
 
   if (!status) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: '#F8F9FB', justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={[styles.safe, { backgroundColor: '#F8F9FB', justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color="#1653B0" />
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: '#F8F9FB' }]}>
+    <View style={[styles.safe, { backgroundColor: '#F8F9FB' }]}>
       <StatusBar style="dark" />
       <View style={{ padding: 24, flex: 1 }}>
         <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#102A54', marginBottom: 24, marginTop: 40 }}>
@@ -66,6 +66,6 @@ export const MinorReviewScreen = () => {
           {kycLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Proceed to KYC</Text>}
         </Pressable>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };

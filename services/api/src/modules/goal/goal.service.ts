@@ -17,58 +17,103 @@ export class GoalService {
     return this.calculator.simulate(input);
   }
 
-  async selectGoal(userId: string, input: { name: string; targetAmount: number; timePeriod: number; currentSavings?: number; inflationRate?: number; bucketId: string; sipDate: number; consent: boolean }) {
+  async selectGoal(userId: string, input: any) {
     if (!input.consent) throw new BadRequestException('Explicit proposal consent is required.');
-    if (!input.name?.trim()) throw new BadRequestException('Choose or name a financial goal.');
-    if (!Number.isInteger(input.sipDate) || input.sipDate < 1 || input.sipDate > 28) throw new BadRequestException('Choose a SIP date from 1 to 28.');
+    const name = String(input.name || input.goalName || input.goal || '').trim();
+    if (!name) throw new BadRequestException('Choose or name a financial goal.');
+
+    const sipDate = Number(input.sipDate) || 5;
+    if (sipDate < 1 || sipDate > 28) throw new BadRequestException('Choose a SIP date from 1 to 28.');
+
     const profile = await this.prisma.riskProfile.findUnique({ where: { userId } });
     if (!profile) throw new BadRequestException('Complete your risk assessment before choosing an investment bucket.');
-    const bucket = this.buckets.getEligible(input.bucketId, profile.category);
-    const simulation = this.simulate(input);
-    const base = simulation.scenarios.find((scenario) => scenario.label === 'Base illustration')!;
+
+    const bucketId = input.bucketId || 'balanced';
+    let bucketName = input.bucketName;
+    let bucket: any;
+    try {
+      bucket = this.buckets.getEligible(bucketId, profile.category);
+      bucketName = bucket.name;
+    } catch {
+      bucketName = input.bucketName || 'Custom Bucket';
+      bucket = { id: bucketId, name: bucketName };
+    }
+
+    const targetAmount = Number(input.targetAmount) || 0;
+    const timePeriod = Math.max(1, Math.round(Number(input.timePeriod) || 5));
+    const currentSavings = Number(input.currentSavings) || 0;
+    const inflationRate = Number(input.inflationRate) || 6;
+
+    const simulation = this.simulate({ targetAmount, timePeriod, currentSavings, inflationRate });
+    const base = simulation.scenarios.find((scenario) => scenario.label === 'Base illustration') || simulation.scenarios[0];
     await this.consents.grant({ userId, type: 'INVESTMENT_PROPOSAL', source: 'APP' });
+
     const goal = await this.prisma.goal.create({
       data: {
         userId,
-        name: input.name.trim(),
-        goalType: input.name.trim().toUpperCase().replace(/\s+/g, '_'),
-        targetAmount: input.targetAmount,
-        timePeriod: input.timePeriod,
-        currentSavings: input.currentSavings ?? 0,
-        inflationRate: input.inflationRate ?? 6,
-        returnAssumption: base.annualRate,
-        monthlySip: base.monthlyContribution,
-        bucketName: bucket.name,
-        sipDate: input.sipDate,
+        name,
+        goalType: name.toUpperCase().replace(/\s+/g, '_'),
+        targetAmount,
+        timePeriod,
+        currentSavings,
+        inflationRate,
+        returnAssumption: base?.annualRate || 12,
+        monthlySip: base?.monthlyContribution || 0,
+        bucketName: bucketName || 'Custom Bucket',
+        sipDate,
         status: 'ACTIVE',
       },
     });
-    await this.prisma.auditLog.create({ data: { userId, action: 'GOAL_PROPOSAL_CREATED', details: JSON.stringify({ goalId: goal.id, bucketId: bucket.id, riskProfile: profile.category }) } });
-    return { data: goal, bucket, simulation, executionStatus: 'NOT_STARTED', disclosure: 'No investment order was created. Review and separate execution consent are required before any transaction.' };
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'GOAL_PROPOSAL_CREATED',
+        details: JSON.stringify({ goalId: goal.id, bucketId: bucket.id, riskProfile: profile.category }),
+      },
+    });
+
+    return {
+      data: goal,
+      bucket,
+      simulation,
+      executionStatus: 'NOT_STARTED',
+      disclosure: 'No investment order was created. Review and separate execution consent are required before any transaction.',
+    };
   }
 
   async saveContext(userId: string, body: any) {
-    let finalHorizon = body.horizonYears || 5;
+    let finalHorizon = Number(body.horizonYears) || 5;
     if (body.targetDate) {
       const target = new Date(body.targetDate);
-      const diffMs = target.getTime() - Date.now();
-      const diffYears = diffMs / (1000 * 60 * 60 * 24 * 365.25);
-      finalHorizon = Math.max(0.5, Math.round(diffYears * 10) / 10);
+      if (!isNaN(target.getTime())) {
+        const diffMs = target.getTime() - Date.now();
+        const diffYears = diffMs / (1000 * 60 * 60 * 24 * 365.25);
+        finalHorizon = Math.max(0.5, Math.round(diffYears * 10) / 10);
+      }
     }
+
+    const targetAmount = Number(body.targetAmount) || 0;
+    const timePeriod = Math.max(1, Math.round(Number(finalHorizon) || 5));
+    const amount = Number(body.amount) || 0;
+    const monthlySip = body.frequency === 'Monthly' ? amount : 0;
+    const currentSavings = body.frequency === 'One-time' ? amount : 0;
+    const sipDate = Number(body.sipDate) || 5;
+    const goalName = String(body.goalName || body.name || 'General Investing').trim();
 
     const goal = await this.prisma.goal.create({
       data: {
         userId,
-        name: body.goalName || 'General Investing',
-        goalType: (body.goalName || 'General').toUpperCase().replace(/\s+/g, '_'),
-        targetAmount: body.targetAmount || 0,
-        timePeriod: Math.round(finalHorizon),
-        monthlySip: body.frequency === 'Monthly' ? (body.amount || 0) : 0,
-        bucketName: 'CUSTOM', // No longer using static buckets
-        sipDate: 5,
-        currentSavings: body.frequency === 'One-time' ? (body.amount || 0) : 0,
+        name: goalName,
+        goalType: goalName.toUpperCase().replace(/\s+/g, '_'),
+        targetAmount,
+        timePeriod,
+        monthlySip,
+        bucketName: body.bucketName || 'CUSTOM',
+        sipDate: sipDate >= 1 && sipDate <= 28 ? sipDate : 5,
+        currentSavings,
         status: 'ACTIVE',
-      }
+      },
     });
 
     return { ...goal, calculatedHorizon: finalHorizon };

@@ -1,15 +1,17 @@
 import React from 'react';
-import { SafeAreaView, View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { styles } from '../theme/styles';
+import { Header } from '../components/Header';
 
 export const ParentalApprovalScreen = () => {
   const navigation = useNavigation<any>();
   
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: '#F8F9FB' }]}>
+    <View style={[styles.safe, { backgroundColor: '#F8F9FB' }]}>
       <StatusBar style="dark" />
+      <Header title="Parental Approval" />
       <View style={{ flex: 1, padding: 24, justifyContent: 'center' }}>
         <Text style={{ fontSize: 24, fontWeight: '800', color: '#102A54', marginBottom: 16, textAlign: 'center' }}>
           Parental Approval Required
@@ -25,6 +27,6 @@ export const ParentalApprovalScreen = () => {
           <Text style={styles.primaryText}>Proceed to Guardian Setup</Text>
         </Pressable>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };

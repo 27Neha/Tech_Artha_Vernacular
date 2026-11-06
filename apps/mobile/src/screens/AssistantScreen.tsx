@@ -12,7 +12,6 @@ import {
   Modal,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Header } from '../components/Header';
 import { HeadsetIcon, UserIcon } from '../components/Icons';
@@ -27,8 +26,7 @@ const GREETING: Message = {
   from: 'bot',
   text: "Hello! 👋 I'm your Client Assistant. I can help you with your investments, goals, KYC and account questions. How can I help you today?",
 };
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_URL } from '../services/api/client';
 
 interface RiskHistoryItem {
   id: string;
@@ -129,7 +127,7 @@ export const AssistantScreen = () => {
   const currentAssessment = historyList[selectedAssessmentIndex];
 
   return (
-    <SafeAreaView style={s.safe} edges={['right', 'left']}>
+    <View style={s.safe}>
       <StatusBar style="dark" />
       <Header title="Client Assistant" />
 
@@ -184,7 +182,7 @@ export const AssistantScreen = () => {
 
       {/* Modal: My Risk Assessment History */}
       <Modal visible={showHistoryModal} animationType="slide" transparent={false} onRequestClose={() => setShowHistoryModal(false)}>
-        <SafeAreaView style={s.modalSafe}>
+        <View style={s.modalSafe}>
           {/* Modal Header */}
           <View style={s.modalHeader}>
             <View>
@@ -319,9 +317,9 @@ export const AssistantScreen = () => {
               </ScrollView>
             </View>
           )}
-        </SafeAreaView>
+        </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 

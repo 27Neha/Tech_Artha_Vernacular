@@ -10,7 +10,6 @@ import {
   Modal,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { authStore } from '../store/auth';
@@ -175,7 +174,7 @@ export const CustomBucketScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title="Custom Bucket" />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
@@ -263,17 +262,12 @@ export const CustomBucketScreen = () => {
         </Pressable>
       </View>
 
-      <Modal visible={searchModal} animationType="slide">
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#F8F9FB' }}>
-          <Header title="Add Fund" />
+      <Modal visible={searchModal} animationType="slide" onRequestClose={() => setSearchModal(false)}>
+        <View style={{ flex: 1, backgroundColor: '#F8F9FB' }}>
+          <Header title="Add Fund" onBack={() => setSearchModal(false)} />
 
-          <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-              <Pressable onPress={() => setSearchModal(false)} style={{ padding: 4, marginRight: 8, backgroundColor: '#F1F5F9', borderRadius: 20, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 20, color: '#4A5568', lineHeight: 22 }}>×</Text>
-              </Pressable>
-              <Text style={{ fontSize: 18, fontWeight: '800', color: '#102A54' }}>Browse & Add Funds</Text>
-            </View>
+          <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: '#102A54', marginBottom: 12 }}>Browse & Add Funds</Text>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8F9FB', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, paddingHorizontal: 12 }}>
                 <SearchIcon size={16} />
@@ -337,9 +331,9 @@ export const CustomBucketScreen = () => {
               )}
             </ScrollView>
           )}
-        </SafeAreaView>
+        </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 

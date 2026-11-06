@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { SearchIcon, CloseIcon, ChevronIcon } from '../components/Icons';
 import { API_URL } from '../services/api/apiClient';
 import { api } from '../services/api/client';
@@ -18,12 +17,21 @@ const FILTERS = ['All', 'Conservative', 'Moderate', 'Aggressive'];
 export const FundsScreen = ({ apiUrl = API_URL }: FundsScreenProps) => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
-  const [query, setQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const route = useRoute<any>();
+  const initialQuery = route?.params?.query || '';
+  const [query, setQuery] = useState(initialQuery);
+  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
   const [filter, setFilter] = useState('All');
   
   const [funds, setFunds] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (route?.params?.query) {
+      setQuery(route.params.query);
+      setDebouncedQuery(route.params.query);
+    }
+  }, [route?.params?.query]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query), 400);
@@ -62,7 +70,7 @@ export const FundsScreen = ({ apiUrl = API_URL }: FundsScreenProps) => {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title="" onBack={() => navigation.goBack()} />
       
@@ -139,7 +147,7 @@ export const FundsScreen = ({ apiUrl = API_URL }: FundsScreenProps) => {
           </Pressable>
         ))}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

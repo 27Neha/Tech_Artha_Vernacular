@@ -1,6 +1,30 @@
+import * as fs from 'fs';
+import * as path from 'path';
+
+function loadEnv(filePath: string) {
+  if (!fs.existsSync(filePath)) return;
+  const content = fs.readFileSync(filePath, 'utf8');
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    let val = trimmed.slice(eqIdx + 1).trim();
+    if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
+    else if (val.startsWith("'") && val.endsWith("'")) val = val.slice(1, -1);
+    if (!process.env[key]) process.env[key] = val;
+  }
+}
+
+loadEnv(path.resolve(process.cwd(), '.env'));
+loadEnv(path.resolve(__dirname, '../.env'));
+loadEnv(path.resolve(__dirname, '../../.env'));
+
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 // Enable serialization of BigInt values across all JSON responses
 (BigInt.prototype as any).toJSON = function () {
@@ -41,6 +65,7 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Requested-With'],
   });
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
+  app.useGlobalFilters(new AllExceptionsFilter());
   await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
   Logger.log(`TechArtha API listening on ${await app.getUrl()}`, 'Bootstrap');
 }

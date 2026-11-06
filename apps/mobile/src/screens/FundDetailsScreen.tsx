@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, View, Text, Pressable, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { styles } from '../theme/styles';
 import { api } from '../services/api/client';
+import { Header } from '../components/Header';
 
 export const FundDetailsScreen = () => {
   const navigation = useNavigation<any>();
@@ -29,12 +30,10 @@ export const FundDetailsScreen = () => {
   }, [schemeCode]);
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: '#F8F9FB' }]}>
+    <View style={[styles.safe, { backgroundColor: '#F8F9FB' }]}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={{ padding: 24, paddingTop: 40, flexGrow: 1 }}>
-        <Pressable onPress={() => navigation.goBack()} style={{ marginBottom: 20 }}>
-          <Text style={{ color: '#1653B0', fontWeight: 'bold' }}>← Back</Text>
-        </Pressable>
+      <Header title="Fund Details" />
+      <ScrollView contentContainerStyle={{ padding: 24, paddingTop: 16, flexGrow: 1 }}>
         
         {loading ? (
           <ActivityIndicator size="large" color="#1653B0" style={{ marginTop: 50 }} />
@@ -72,7 +71,7 @@ export const FundDetailsScreen = () => {
           <Text style={{ textAlign: 'center', marginTop: 50 }}>Fund not found.</Text>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

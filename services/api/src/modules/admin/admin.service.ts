@@ -604,11 +604,11 @@ export class AdminService {
               include: {
                 orders: { orderBy: { createdAt: 'desc' }, take: 10 },
                 plans: { orderBy: { createdAt: 'desc' } },
+                mandates: { orderBy: { createdAt: 'desc' } },
               },
             },
           },
         },
-        FpMandate: { orderBy: { createdAt: 'desc' } },
         supportTickets: { orderBy: { createdAt: 'desc' } },
         auditLogs: { orderBy: { createdAt: 'desc' }, take: 20 },
       },
@@ -656,7 +656,7 @@ export class AdminService {
       customBuckets: user.customBuckets,
       portfolio: user.portfolio,
       financialAccounts: user.FpInvestorProfile,
-      mandates: user.FpMandate,
+      mandates: user.FpInvestorProfile?.mfAccounts.flatMap((a) => a.mandates) || [],
       supportTickets: user.supportTickets,
       auditTrail: user.auditLogs,
     };

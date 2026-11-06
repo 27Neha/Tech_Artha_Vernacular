@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { SafeAreaView, View, Text, TextInput, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { styles } from '../theme/styles';
@@ -38,7 +38,7 @@ export const MinorGuardianVerificationScreen = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: '#F8F9FB' }]}>
+    <View style={[styles.safe, { backgroundColor: '#F8F9FB' }]}>
       <StatusBar style="dark" />
       <View style={{ padding: 24, flex: 1 }}>
         <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#102A54', marginBottom: 8, marginTop: 40 }}>
@@ -59,6 +59,6 @@ export const MinorGuardianVerificationScreen = () => {
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Verify & Continue</Text>}
         </Pressable>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };

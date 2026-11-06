@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
@@ -21,7 +20,7 @@ export const LearnScreen = () => {
   const navigation = useNavigation<any>();
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title={t('dash.learnAndGrow', { defaultValue: 'Learn & Grow' })} />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
@@ -55,7 +54,7 @@ export const LearnScreen = () => {
           ))}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

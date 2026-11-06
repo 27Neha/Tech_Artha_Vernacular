@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function DigilockerPage() {
+function DigilockerContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState('Initializing DigiLocker connection...');
@@ -109,5 +109,13 @@ export default function DigilockerPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function DigilockerPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
+      <DigilockerContent />
+    </Suspense>
   );
 }

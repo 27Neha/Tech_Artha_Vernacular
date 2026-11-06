@@ -3,7 +3,6 @@ import {
   Alert,
   Linking,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +15,7 @@ import { api } from '../services/api/client';
 import { TransactionAuth, TransactionOtpModal, TransactionPayload } from '../components/TransactionOtpModal';
 import { ChoiceChips } from '../components/ChoiceChips';
 import { TermsModal } from '../components/TermsModal';
+import { Header } from '../components/Header';
 import {
   ACCOUNT_TYPE_OPTIONS,
   GENDER_OPTIONS,
@@ -446,12 +446,9 @@ export const InvestScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar style="dark" />
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Invest</Text>
-        <Text style={styles.subtitle}>{targetName}</Text>
-      </View>
+      <Header title={targetName ? `Invest • ${targetName}` : 'Invest'} />
 
       <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
         {blocker ? (
@@ -743,7 +740,7 @@ export const InvestScreen = () => {
           void placeAuthorised(auth);
         }}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

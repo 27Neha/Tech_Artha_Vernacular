@@ -144,9 +144,18 @@ export class TwoFactorService {
       },
     });
 
+    const contact = channel === 'EMAIL' ? user.email : user.mobile;
+    if (!contact) {
+      throw new BadRequestException(
+        channel === 'EMAIL'
+          ? 'A registered email address is required for authorisation.'
+          : 'A registered mobile number is required for authorisation.',
+      );
+    }
+
     const devBypass = process.env.NODE_ENV !== 'production' && process.env.AUTH_DEV_BYPASS === 'true';
     try {
-      await this.otpProvider.send({ mobile: user.mobile, code, channel });
+      await this.otpProvider.send({ mobile: contact, code, channel });
     } catch (e) {
       if (!devBypass) throw e;
       this.logger.warn(

@@ -12,8 +12,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { t } = useTranslation();
   const [step, setStep] = useState(1);
-  const [authChannel, setAuthChannel] = useState<'SMS' | 'WHATSAPP' | 'EMAIL'>('SMS');
-  const [activeChannel, setActiveChannel] = useState<'SMS'|'WHATSAPP'|'EMAIL' | null>(null);
+  const [authChannel, setAuthChannel] = useState<'WHATSAPP' | 'EMAIL'>('WHATSAPP');
   const [identifierType, setIdentifierType] = useState<'MOBILE' | 'EMAIL'>('MOBILE');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -21,26 +20,33 @@ export default function LoginPage() {
   const [termsWarning, setTermsWarning] = useState('');
   const [termsModalOpen, setTermsModalOpen] = useState(false);
   const [privacyPolicyModalOpen, setPrivacyPolicyModalOpen] = useState(false);
-  
+
   const [otpSent, setOtpSent] = useState(false);
   const mobileInputRef = useRef<HTMLInputElement>(null);
   const emailInputRef = useRef<HTMLInputElement>(null);
   const [validationError, setValidationError] = useState('');
   const [loading, setLoading] = useState(false);
-  
-    const [accountNotExistsWarning, setAccountNotExistsWarning] = useState(false);
-  
-    
-  const handleContinue = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL' | 'PASSWORD') => {
+  const [accountNotExistsWarning, setAccountNotExistsWarning] = useState(false);
+
+  const [error, setError] = useState('');
+  const [loginMethod, setLoginMethod] = useState<'otp' | 'password'>('otp');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleContinue = async (channel: 'WHATSAPP' | 'EMAIL' | 'PASSWORD') => {
     setValidationError('');
     setTermsWarning('');
     setAccountNotExistsWarning(false);
 
     if (!acceptedTerms) {
-      setTermsWarning(t('signup.termsRequired', { defaultValue: 'Please agree to the Terms of Service & Privacy Policy to continue.' }));
+      setTermsWarning(
+        t('signup.termsRequired', {
+          defaultValue: 'Please agree to the Terms of Service & Privacy Policy to continue.',
+        }),
+      );
       return;
     }
-    
+
     if (channel === 'EMAIL' || (channel === 'PASSWORD' && identifierType === 'EMAIL')) {
       if (!email.trim()) {
         setValidationError(t('validation.emailEmpty', { defaultValue: 'Please enter your email address first.' }));
@@ -68,50 +74,43 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
-      try {
-        const res = await fetch(`${API_URL}/auth/check`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(channel === 'EMAIL' || (identifierType === 'EMAIL') ? { email } : { mobile: phone })
-        });
-        const data = await res.json();
-        if (!data.exists) {
-          setAccountNotExistsWarning(true);
-          setLoading(false);
-          return;
-        }
-        
-        if (channel === 'PASSWORD') {
-          handleLogin();
-        } else {
-          setAuthChannel(channel);
-          await handleSendOtp(channel);
-        }
-      } catch (e) {
-        setError(t('common.error', { defaultValue: 'Something went wrong. Please try again.' }));
-      } finally {
+    try {
+      const res = await fetch(`${API_URL}/auth/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(channel === 'EMAIL' || identifierType === 'EMAIL' ? { email } : { mobile: phone }),
+      });
+      const data = await res.json();
+      if (!data.exists) {
+        setAccountNotExistsWarning(true);
         setLoading(false);
+        return;
       }
-    };
-  
-  const [error, setError] = useState('');
 
-  const [loginMethod, setLoginMethod] = useState<'otp' | 'password'>('otp');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+      if (channel === 'PASSWORD') {
+        handlePasswordLogin();
+      } else {
+        setAuthChannel(channel);
+        await handleSendOtp(channel);
+      }
+    } catch (e) {
+      setError(t('common.error', { defaultValue: 'Something went wrong. Please try again.' }));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const handleSendOtp = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL') => {
+  const handleSendOtp = async (channel: 'WHATSAPP' | 'EMAIL') => {
     setError('');
-    
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/auth/login/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          mobile: channel === 'EMAIL' ? undefined : phone, 
-          email: channel === 'EMAIL' ? email : undefined, 
-          channel 
+        body: JSON.stringify({
+          mobile: channel === 'EMAIL' ? undefined : phone,
+          email: channel === 'EMAIL' ? email : undefined,
+          channel,
         }),
       });
       const data = await res.json();
@@ -120,7 +119,7 @@ export default function LoginPage() {
       }
       if (!res.ok) throw new Error(data.message || t('login.failedToSendOtp', { defaultValue: 'Failed to send OTP' }));
 
-              setOtpSent(true);
+      setOtpSent(true);
     } catch (e: any) {
       setError(e.message || t('login.failedToSendOtpRetry', { defaultValue: 'Failed to send OTP. Please try again.' }));
       throw e;
@@ -129,55 +128,54 @@ export default function LoginPage() {
     }
   };
 
-  const handleLogin = async () => {
+  const handlePasswordLogin = async () => {
     setError('');
-    if (loginMethod === 'password') {
-      if (!password) { setError(t('login.enterPassword', { defaultValue: 'Enter password.' })); return; }
-      setLoading(true);
-      try {
-        const res = await fetch(`${API_URL}/auth/login-password`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            mobile: identifierType === 'EMAIL' ? undefined : phone, 
-            email: identifierType === 'EMAIL' ? email : undefined, 
-            password 
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || t('login.invalidCredentials', { defaultValue: 'Invalid credentials' }));
-        localStorage.setItem('access_token', data.accessToken || data.access_token);
-        localStorage.setItem('user_id', data.user?.id ?? '');
-        router.push('/dashboard');
-      } catch (e: any) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      setOtpSent(true);
+    if (!password) {
+      setError(t('login.enterPassword', { defaultValue: 'Enter your password.' }));
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/login-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mobile: identifierType === 'EMAIL' ? undefined : phone,
+          email: identifierType === 'EMAIL' ? email : undefined,
+          password,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || t('login.invalidCredentials', { defaultValue: 'Invalid credentials' }));
+      localStorage.setItem('access_token', data.accessToken || data.access_token);
+      localStorage.setItem('user_id', data.user?.id ?? '');
+      router.push('/dashboard');
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleVerifyOtp = async (otp: string, otpChannel: 'SMS' | 'WHATSAPP' | 'EMAIL' | null) => {
+  const handleVerifyOtp = async (otp: string, otpChannel: 'WHATSAPP' | 'EMAIL' | null) => {
     setError('');
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/auth/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          mobile: identifierType === 'EMAIL' ? undefined : phone, 
-          email: identifierType === 'EMAIL' ? email : undefined, 
-          otp, 
-          type: 'login' 
+        body: JSON.stringify({
+          mobile: identifierType === 'EMAIL' ? undefined : phone,
+          email: identifierType === 'EMAIL' ? email : undefined,
+          otp,
+          type: 'login',
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || t('login.invalidOtp', { defaultValue: 'Invalid OTP' }));
-      localStorage.setItem('access_token', data.accessToken);
+      localStorage.setItem('access_token', data.accessToken || data.access_token);
       localStorage.setItem('user_id', data.user?.id ?? '');
-      
+
       router.push('/dashboard');
     } catch (e: any) {
       setError(e.message || t('login.invalidOtpRetry', { defaultValue: 'Invalid OTP. Please try again.' }));
@@ -186,109 +184,125 @@ export default function LoginPage() {
     }
   };
 
-  const isContinueDisabled = identifierType === 'EMAIL' 
-    ? !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email) 
-    : phone.length !== 10;
-
   return (
     <div className="flex flex-col flex-1">
       <div className="flex-1 p-6">
-                        {step === 1 && !otpSent && (
+        {step === 1 && !otpSent && (
           <div className="animate-fade-in flex flex-col justify-start max-w-md w-full mx-auto mt-4">
-            <h1 className="text-2xl font-bold text-[var(--dark)] mb-6">{t('login.welcomeBack') || 'Welcome back'}</h1>
+            <h1 className="text-2xl font-bold text-[var(--dark)] mb-2">
+              {t('login.welcomeBack', { defaultValue: 'Welcome back' })}
+            </h1>
+            <p className="text-sm text-gray-500 mb-6">
+              Sign in to manage your goals and investments with TechArtha.
+            </p>
 
             {termsWarning && (
               <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 animate-fade-in">
                 <span className="text-xl">⚠️</span>
-                <p className="text-sm font-bold text-red-600 leading-snug">
-                  {termsWarning}
-                </p>
+                <p className="text-sm font-bold text-red-600 leading-snug">{termsWarning}</p>
               </div>
             )}
-              {accountNotExistsWarning && (
-                <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl flex flex-col items-center justify-center text-center">
-                  <p className="text-sm text-red-600 mb-2 font-medium">
-                    {identifierType === 'EMAIL' ? (t('login.emailNotExists', { defaultValue: 'This account is not registered. Please sign up first.' })) : (t('login.mobileNotExists', { defaultValue: 'This account is not registered. Please sign up first.' }))}
-                  </p>
-                  <button onClick={() => router.push('/signup')} className="text-sm font-bold text-red-700 hover:underline">
-                    {t('login.goToSignup', { defaultValue: 'Go to Sign Up' })} →
-                  </button>
-                </div>
-              )}
 
-            
+            {accountNotExistsWarning && (
+              <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col items-center justify-center text-center">
+                <p className="text-sm text-amber-900 mb-2 font-medium">
+                  {identifierType === 'EMAIL'
+                    ? t('login.emailNotExists', { defaultValue: 'No TechArtha account found with this email address.' })
+                    : t('login.mobileNotExists', { defaultValue: 'No TechArtha account found with this mobile number.' })}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => router.push('/signup')}
+                  className="text-sm font-bold text-[#3C3985] hover:underline"
+                >
+                  {t('login.goToSignup', { defaultValue: 'Create a new account instead' })} →
+                </button>
+              </div>
+            )}
 
             <div className="mb-6">
               <label className="label text-sm text-gray-700 font-semibold mb-2 block">
-                {identifierType === 'EMAIL' ? (t('signup.emailAddress') || 'Email Address') : (t('signup.mobileNumber') || 'Mobile Number')}
+                {identifierType === 'EMAIL'
+                  ? t('signup.emailAddress', { defaultValue: 'Email Address' })
+                  : t('signup.mobileNumber', { defaultValue: 'Mobile Number' })}
               </label>
-              
+
               {identifierType === 'EMAIL' ? (
-                <input 
+                <input
                   type="email"
-                      ref={emailInputRef}
-                  value={email} 
-                  onChange={e => setEmail(e.target.value)} 
-                  placeholder={t('signup.emailPlaceholder', { defaultValue: 'name@example.com' })} 
-                  className="w-full p-4 border border-gray-200 rounded-xl focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none transition-colors" 
+                  ref={emailInputRef}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={t('signup.emailPlaceholder', { defaultValue: 'name@example.com' })}
+                  className="w-full p-4 border border-gray-200 rounded-xl focus:border-[#3C3985] focus:ring-1 focus:ring-[#3C3985] outline-none transition-colors"
                 />
               ) : (
                 <div className="flex w-full">
                   <div className="flex-shrink-0 flex items-center justify-center px-4 border border-gray-200 border-r-0 rounded-l-xl bg-gray-50 text-gray-600 font-semibold">
                     +91
                   </div>
-                  <input 
+                  <input
                     type="tel"
-                      ref={mobileInputRef}
-                    value={phone} 
-                    onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} 
-                    placeholder={t('signup.mobilePlaceholder', { defaultValue: 'Enter 10-digit mobile number' })} 
-                    className="w-full p-4 border border-gray-200 rounded-r-xl focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none transition-colors" 
+                    ref={mobileInputRef}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    placeholder={t('signup.mobilePlaceholder', { defaultValue: 'Enter 10-digit mobile number' })}
+                    className="w-full p-4 border border-gray-200 rounded-r-xl focus:border-[#3C3985] focus:ring-1 focus:ring-[#3C3985] outline-none transition-colors"
                     maxLength={10}
                     inputMode="numeric"
                   />
-              {validationError && <p className="text-red-500 text-xs mt-2 font-medium">{validationError}</p>}
-              </div>
+                </div>
               )}
+              {validationError && <p className="text-red-500 text-xs mt-2 font-medium">{validationError}</p>}
             </div>
 
             <label className="label text-sm text-gray-700 font-semibold mb-3 block">
               {t('login.loginVia', { defaultValue: 'Login via' })}
             </label>
-            <div className="flex bg-gray-50 p-1 rounded-xl mb-6 border border-gray-200">
-              <button 
-                onClick={() => setLoginMethod('otp')} 
-                className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${loginMethod === 'otp' ? 'bg-white shadow-sm text-[var(--primary)] border border-gray-200' : 'text-gray-500 hover:text-[var(--dark)]'}`}
+            <div className="flex bg-gray-100 p-1 rounded-xl mb-6 border border-gray-200">
+              <button
+                type="button"
+                onClick={() => setLoginMethod('otp')}
+                className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${
+                  loginMethod === 'otp'
+                    ? 'bg-white shadow-sm text-[#3C3985] border border-gray-200'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
               >
-                {t('login.viaOtp') || 'OTP'}
+                {t('login.viaOtp', { defaultValue: 'OTP Verification' })}
               </button>
-              <button 
-                onClick={() => setLoginMethod('password')} 
-                className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${loginMethod === 'password' ? 'bg-white shadow-sm text-[var(--primary)] border border-gray-200' : 'text-gray-500 hover:text-[var(--dark)]'}`}
+              <button
+                type="button"
+                onClick={() => setLoginMethod('password')}
+                className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${
+                  loginMethod === 'password'
+                    ? 'bg-white shadow-sm text-[#3C3985] border border-gray-200'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
               >
-                {t('login.viaPassword') || 'Password'}
+                {t('login.viaPassword', { defaultValue: 'Password' })}
               </button>
             </div>
 
             {loginMethod === 'password' ? (
               <div className="animate-fade-in">
-
-                  
-                                                  <div className="mb-8">
-                  <label className="label text-sm text-gray-700 font-semibold mb-2 block">{t('login.password') || 'Password'}</label>
+                <div className="mb-6">
+                  <label className="label text-sm text-gray-700 font-semibold mb-2 block">
+                    {t('login.password', { defaultValue: 'Password' })}
+                  </label>
                   <div className="relative flex items-center">
-                    <input 
-                      type={showPassword ? "text" : "password"} 
-                      value={password} 
-                      onChange={e => setPassword(e.target.value)} 
-                      className="w-full p-4 border border-gray-200 rounded-xl focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none transition-colors pr-12 [&::-ms-reveal]:hidden [&::-webkit-credentials-auto-fill-button]:hidden" 
-                      placeholder={t('login.passwordPlaceholder') || 'Enter your password'} 
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full p-4 border border-gray-200 rounded-xl focus:border-[#3C3985] focus:ring-1 focus:ring-[#3C3985] outline-none transition-colors pr-12"
+                      placeholder={t('login.passwordPlaceholder', { defaultValue: 'Enter your password' })}
                     />
-                    <button 
-                      type="button" 
-                      onClick={() => setShowPassword(!showPassword)} 
-                      className="absolute right-3 text-gray-400 hover:text-[var(--primary)] focus:outline-none flex items-center justify-center w-8 h-8 transition-colors"
-                      title={showPassword ? "Hide password" : "Show password"}
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 text-gray-400 hover:text-[#3C3985] focus:outline-none flex items-center justify-center w-8 h-8 transition-colors"
+                      title={showPassword ? 'Hide password' : 'Show password'}
                     >
                       {showPassword ? (
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
@@ -298,128 +312,130 @@ export default function LoginPage() {
                     </button>
                   </div>
                 </div>
-                
-                <button 
+
+                <button
+                  type="button"
                   onClick={() => handleContinue('PASSWORD')}
-                  disabled={loading || !password} 
-                  className="btn-primary w-full py-4 rounded-xl font-bold text-lg shadow-sm"
+                  disabled={loading || !password}
+                  className="w-full py-4 rounded-xl font-bold text-lg text-white bg-[#3C3985] hover:bg-[#322f73] transition-all shadow-sm disabled:opacity-50"
                 >
-                  {t('login.login') || 'Login'} →
+                  {t('login.login', { defaultValue: 'Login' })} →
                 </button>
               </div>
             ) : (
-              <div className="animate-fade-in">
+              <div className="animate-fade-in flex flex-col gap-3">
+                {identifierType === 'EMAIL' ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleContinue('EMAIL')}
+                      disabled={loading}
+                      className="w-full flex items-center justify-center gap-3 py-4 rounded-xl font-bold text-lg text-white bg-[#3C3985] hover:bg-[#322f73] transition-all shadow-sm"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                        <polyline points="22,6 12,13 2,6"></polyline>
+                      </svg>
+                      <span>{t('signup.continueWithEmail', { defaultValue: 'Continue with Email' })}</span>
+                      <span>→</span>
+                    </button>
 
-                  
-                    {identifierType === 'EMAIL' ? (
-                      <div>
-                        <button 
-                          onClick={() => handleContinue('EMAIL')}
-                          disabled={loading} 
-                          className="btn-primary w-full py-4 rounded-xl font-bold text-lg mb-6 shadow-sm"
-                        >
-                          {t('signup.continueWithEmail') || 'Continue with Email'} →
-                        </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIdentifierType('MOBILE');
+                        setAuthChannel('WHATSAPP');
+                        setValidationError('');
+                        setTermsWarning('');
+                      }}
+                      className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors shadow-sm"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                      </svg>
+                      {t('signup.useWaInstead', { defaultValue: 'Continue with WhatsApp instead' })}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleContinue('WHATSAPP')}
+                      disabled={loading}
+                      className="w-full flex items-center justify-center gap-3 py-4 rounded-xl font-bold text-lg text-white bg-[#25D366] hover:bg-[#20ba5a] transition-all shadow-sm"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                      </svg>
+                      <span>{t('login.useWaInstead', { defaultValue: 'Continue with WhatsApp' })}</span>
+                      <span>→</span>
+                    </button>
 
-                        <button 
-                          onClick={() => { setIdentifierType('MOBILE'); setAuthChannel('SMS'); setValidationError(''); setTermsWarning(''); }} 
-                          className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors mb-6 shadow-sm"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3C3985" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-                            <line x1="12" y1="18" x2="12.01" y2="18"></line>
-                          </svg>
-                          {t('signup.useMobileInstead') || 'Use mobile instead'}
-                        </button>
-                      </div>
-                    ) : (
-                      <div>
-                        <button 
-                          onClick={() => handleContinue('SMS')}
-                          disabled={loading} 
-                          className="btn-primary w-full py-4 rounded-xl font-bold text-lg mb-6 shadow-sm"
-                        >
-                          {t('signup.continueWithSms') || 'Continue with SMS'} →
-                        </button>
-                        
-                        <div className="relative flex items-center justify-center mb-6">
-                          <div className="border-t border-gray-200 w-full absolute"></div>
-                          <span className="bg-white px-4 text-gray-400 text-sm relative">{t('signup.or') || 'or'}</span>
-                        </div>
-
-                        <button 
-                          onClick={() => handleContinue('WHATSAPP')} 
-                          disabled={loading}
-                          className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors mb-3 shadow-sm"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
-                          </svg>
-                          {t('login.useWaInstead') || 'Continue with WhatsApp'}
-                        </button>
-
-                        <button 
-                          onClick={() => { setIdentifierType('EMAIL'); setAuthChannel('EMAIL'); setValidationError(''); setTermsWarning(''); }} 
-                          className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors mb-6 shadow-sm"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3C3985" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                            <polyline points="22,6 12,13 2,6"></polyline>
-                          </svg>
-                          {t('signup.useEmailInstead') || 'Use email instead'}
-                        </button>
-                      </div>
-                    )}
-
-                  {/* Terms & Conditions Checkbox and Learn More */}
-                  {/* Terms of Service & Privacy Policy checkbox */}
-                  <div className="mt-2 mb-6">
-
-                    <div className="flex items-start gap-3 select-none">
-                      <input
-                        type="checkbox"
-                        id="login-terms"
-                        checked={acceptedTerms}
-                        onChange={(e) => {
-                          setAcceptedTerms(e.target.checked);
-                          if (e.target.checked) setTermsWarning('');
-                        }}
-                        className={`mt-1 h-5 w-5 rounded border text-[var(--primary)] focus:ring-[var(--primary)] cursor-pointer ${
-                          termsWarning ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                      />
-                      <div className="text-xs sm:text-sm text-gray-600 leading-snug">
-                        <label htmlFor="login-terms" className="cursor-pointer">
-                          {t('signup.termsPrefix') || 'I agree to the '}
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => setTermsModalOpen(true)}
-                          className="font-semibold text-gray-900 underline hover:text-blue-600 transition-colors inline"
-                        >
-                          {t('signup.termsOfService') || 'Terms of Service'}
-                        </button>
-                        <span>{` ${t('signup.and') || 'and'} `}</span>
-                        <button
-                          type="button"
-                          onClick={() => setPrivacyPolicyModalOpen(true)}
-                          className="font-semibold text-gray-900 underline hover:text-blue-600 transition-colors inline"
-                        >
-                          {t('signup.privacyPolicy') || 'Privacy Policy'}
-                        </button>
-                        <span> </span>
-                        <button
-                          type="button"
-                          onClick={() => setTermsModalOpen(true)}
-                          className="font-bold text-blue-600 hover:text-blue-800 underline transition-colors inline"
-                        >
-                          {t('signup.learnMore') || 'Learn more'}
-                        </button>
-                      </div>
+                    <div className="relative flex items-center justify-center my-2">
+                      <div className="border-t border-gray-200 w-full absolute"></div>
+                      <span className="bg-white px-4 text-gray-400 text-xs font-semibold relative">
+                        {t('signup.or', { defaultValue: 'OR' })}
+                      </span>
                     </div>
-                  </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIdentifierType('EMAIL');
+                        setAuthChannel('EMAIL');
+                        setValidationError('');
+                        setTermsWarning('');
+                      }}
+                      className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors shadow-sm"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3C3985" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                        <polyline points="22,6 12,13 2,6"></polyline>
+                      </svg>
+                      {t('signup.useEmailInstead', { defaultValue: 'Continue with Email' })}
+                    </button>
+                  </>
+                )}
               </div>
             )}
+
+            {/* Terms of Service & Privacy Policy Checkbox */}
+            <div className="mt-6 mb-6">
+              <div className="flex items-start gap-3 select-none">
+                <input
+                  type="checkbox"
+                  id="login-terms"
+                  checked={acceptedTerms}
+                  onChange={(e) => {
+                    setAcceptedTerms(e.target.checked);
+                    if (e.target.checked) setTermsWarning('');
+                  }}
+                  className={`mt-1 h-5 w-5 rounded border text-[#3C3985] focus:ring-[#3C3985] cursor-pointer ${
+                    termsWarning ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                />
+                <div className="text-xs sm:text-sm text-gray-600 leading-snug">
+                  <label htmlFor="login-terms" className="cursor-pointer">
+                    {t('signup.termsPrefix', { defaultValue: 'I agree to the ' })}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setTermsModalOpen(true)}
+                    className="font-semibold text-gray-900 underline hover:text-[#3C3985] transition-colors inline"
+                  >
+                    {t('signup.termsOfService', { defaultValue: 'Terms of Service' })}
+                  </button>
+                  <span>{` ${t('signup.and', { defaultValue: 'and' })} `}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPrivacyPolicyModalOpen(true)}
+                    className="font-semibold text-gray-900 underline hover:text-[#3C3985] transition-colors inline"
+                  >
+                    {t('signup.privacyPolicy', { defaultValue: 'Privacy Policy' })}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -431,28 +447,33 @@ export default function LoginPage() {
               identifierValue={authChannel === 'EMAIL' ? email : phone}
               onSendOtp={handleSendOtp}
               onVerify={handleVerifyOtp}
-              onChangeIdentifier={() => { setOtpSent(false); setStep(1); }}
+              onChangeIdentifier={() => {
+                setOtpSent(false);
+                setStep(1);
+              }}
               loading={loading}
               error={error}
               setError={setError}
-                          />
+            />
           </div>
         )}
 
         <p className="text-sm text-center mt-6">
-          <span className="text-gray-500"> {t('login.noAccount') || 'Not have an account?'} </span>
-          <button onClick={() => router.push('/signup')} className="font-bold text-[var(--primary)] hover:underline">{t('login.signUp') || 'Sign up'}</button>
+          <span className="text-gray-500">
+            {t('login.noAccount', { defaultValue: "Don't have an account?" })}{' '}
+          </span>
+          <button
+            type="button"
+            onClick={() => router.push('/signup')}
+            className="font-bold text-[#3C3985] hover:underline"
+          >
+            {t('login.signUp', { defaultValue: 'Sign up' })}
+          </button>
         </p>
       </div>
 
-      <TermsModal 
-        isOpen={termsModalOpen} 
-        onClose={() => setTermsModalOpen(false)} 
-      />
-      <PrivacyPolicyModal
-        isOpen={privacyPolicyModalOpen}
-        onClose={() => setPrivacyPolicyModalOpen(false)}
-      />
+      <TermsModal isOpen={termsModalOpen} onClose={() => setTermsModalOpen(false)} />
+      <PrivacyPolicyModal isOpen={privacyPolicyModalOpen} onClose={() => setPrivacyPolicyModalOpen(false)} />
     </div>
   );
 }

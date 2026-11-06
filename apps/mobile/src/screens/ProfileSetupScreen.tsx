@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { SafeAreaView, View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { styles } from '../theme/styles';
 import { api } from '../services/api/client';
+import { Header } from '../components/Header';
 
 export const ProfileSetupScreen = () => {
   const navigation = useNavigation<any>();
@@ -56,12 +57,10 @@ export const ProfileSetupScreen = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: '#F8F9FB' }]}>
+    <View style={[styles.safe, { backgroundColor: '#F8F9FB' }]}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24 }}>
-        <Text style={{ fontSize: 24, fontWeight: '800', color: '#102A54', marginBottom: 8, marginTop: 40 }}>
-          Profile Details
-        </Text>
+      <Header title="Profile Details" />
+      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24, paddingTop: 12 }}>
         <Text style={{ fontSize: 16, color: '#4A5568', marginBottom: 32 }}>
           We need a few details to personalize your experience.
         </Text>
@@ -113,7 +112,7 @@ export const ProfileSetupScreen = () => {
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Continue</Text>}
         </Pressable>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

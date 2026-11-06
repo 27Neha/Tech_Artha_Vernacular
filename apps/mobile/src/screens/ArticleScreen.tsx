@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
@@ -109,17 +108,17 @@ export const ArticleScreen = () => {
 
   if (!article || !content) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <View style={styles.safe}>
         <Header title={t('dash.learnAndGrow', { defaultValue: 'Learn' })} onBack={() => navigation.goBack()} />
         <View style={styles.center}>
           <Text style={styles.notFound}>{t('learn.notFound', { defaultValue: 'Article not found.' })}</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title="" onBack={() => navigation.goBack()} />
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -145,7 +144,7 @@ export const ArticleScreen = () => {
         </View>
 
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -14,9 +14,11 @@ export default function ActivityFeedPage() {
     setLoading(true);
     try {
       const data = await adminApi.getActivityOverview(50);
-      setActivities(data || []);
+      const list = Array.isArray(data) ? data : Array.isArray((data as any)?.events) ? (data as any).events : [];
+      setActivities(list);
     } catch (err) {
       console.error('Failed to load activities', err);
+      setActivities([]);
     } finally {
       setLoading(false);
     }
@@ -26,13 +28,16 @@ export default function ActivityFeedPage() {
     fetchActivities();
   }, []);
 
-  const filtered = activities.filter((act) => {
-    const matchesFilter = filterAction === 'ALL' || act.action.toUpperCase().includes(filterAction);
+  const activityList = Array.isArray(activities) ? activities : [];
+  const filtered = activityList.filter((act) => {
+    const actionStr = (act.action || '').toUpperCase();
+    const matchesFilter = filterAction === 'ALL' || actionStr.includes(filterAction);
+    const searchLower = search.toLowerCase();
     const matchesSearch =
       !search ||
-      act.action.toLowerCase().includes(search.toLowerCase()) ||
-      act.actorEmail?.toLowerCase().includes(search.toLowerCase()) ||
-      act.details?.toLowerCase().includes(search.toLowerCase());
+      actionStr.toLowerCase().includes(searchLower) ||
+      (act.actorEmail || '').toLowerCase().includes(searchLower) ||
+      (act.details || '').toLowerCase().includes(searchLower);
     return matchesFilter && matchesSearch;
   });
 

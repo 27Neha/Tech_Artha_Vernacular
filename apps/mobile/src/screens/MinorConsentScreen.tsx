@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { SafeAreaView, View, Text, Pressable, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { styles } from '../theme/styles';
@@ -24,7 +24,7 @@ export const MinorConsentScreen = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: '#F8F9FB' }]}>
+    <View style={[styles.safe, { backgroundColor: '#F8F9FB' }]}>
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={{ padding: 24, flexGrow: 1 }}>
         <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#102A54', marginBottom: 24, marginTop: 40 }}>
@@ -48,6 +48,6 @@ export const MinorConsentScreen = () => {
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Accept & Continue</Text>}
         </Pressable>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };

@@ -9,7 +9,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
@@ -71,7 +70,7 @@ export const ExpensesScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title={t('exp.title', { defaultValue: 'Expenses' })} />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
@@ -145,7 +144,7 @@ export const ExpensesScreen = () => {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

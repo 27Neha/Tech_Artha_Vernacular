@@ -19,11 +19,11 @@ export class AuthController {
     throw new BadRequestException('Mobile or email is required');
   }
 
-
   @Post('send-otp')
   @HttpCode(202)
-  async sendOtp(@Body() body: { mobile?: string; channel?: 'SMS' | 'WHATSAPP' | 'EMAIL' }) {
-    return this.authService.sendOtp(body.mobile ?? '', body.channel ?? 'SMS');
+  async sendOtp(@Body() body: { mobile?: string; channel?: 'WHATSAPP' | 'EMAIL' | 'SMS' }) {
+    const channel = body.channel === 'SMS' ? 'WHATSAPP' : (body.channel ?? 'WHATSAPP');
+    return this.authService.sendOtp(body.mobile ?? '', channel as any);
   }
 
   @Post('verify-otp')
@@ -34,30 +34,38 @@ export class AuthController {
   }
 
   @Post('signup/start')
-  async signupStart(@Body() body: { mobile?: string; email?: string; channel?: 'SMS' | 'WHATSAPP' | 'EMAIL' }) {
+  async signupStart(@Body() body: { mobile?: string; email?: string; channel?: 'WHATSAPP' | 'EMAIL' | 'SMS' }) {
     if (body.channel === 'EMAIL') {
-      const email = body.email || (body.mobile?.includes(String.fromCharCode(64)) ? body.mobile : undefined); if (!email) throw new BadRequestException('Email is required for EMAIL channel'); body.email = email;
+      const email = body.email || (body.mobile?.includes('@') ? body.mobile : undefined);
+      if (!email) throw new BadRequestException('Email is required for EMAIL channel');
+      body.email = email;
       return this.authService.signupStartEmail(body.email);
     }
-    if (!body.mobile) throw new BadRequestException('Mobile is required for SMS/WHATSAPP channel');
-    return this.authService.signupStart(body.mobile, body.channel);
+    if (!body.mobile) throw new BadRequestException('Mobile is required for mobile channel');
+    const channel = body.channel === 'SMS' ? 'WHATSAPP' : (body.channel ?? 'WHATSAPP');
+    return this.authService.signupStart(body.mobile, channel as any);
   }
 
   @Post('login/start')
-  async loginStart(@Body() body: { mobile?: string; email?: string; channel?: 'SMS' | 'WHATSAPP' | 'EMAIL' }) {
+  async loginStart(@Body() body: { mobile?: string; email?: string; channel?: 'WHATSAPP' | 'EMAIL' | 'SMS' }) {
     if (body.channel === 'EMAIL') {
-      const email = body.email || (body.mobile?.includes(String.fromCharCode(64)) ? body.mobile : undefined); if (!email) throw new BadRequestException('Email is required for EMAIL channel'); body.email = email;
+      const email = body.email || (body.mobile?.includes('@') ? body.mobile : undefined);
+      if (!email) throw new BadRequestException('Email is required for EMAIL channel');
+      body.email = email;
       return this.authService.loginStartEmail(body.email);
     }
-    if (!body.mobile) throw new BadRequestException('Mobile is required for SMS/WHATSAPP channel');
-    return this.authService.loginStart(body.mobile, body.channel);
+    if (!body.mobile) throw new BadRequestException('Mobile is required for mobile channel');
+    const channel = body.channel === 'SMS' ? 'WHATSAPP' : (body.channel ?? 'WHATSAPP');
+    return this.authService.loginStart(body.mobile, channel as any);
   }
 
   @Post('otp/verify')
   async dualFlowVerifyOtp(
     @Body() body: { mobile?: string; email?: string; otp: string; type: 'login' | 'signup'; password?: string },
   ) {
-    const email = body.email || (body.mobile?.includes(String.fromCharCode(64)) ? body.mobile : undefined); if (email) { body.email = email;
+    const email = body.email || (body.mobile?.includes('@') ? body.mobile : undefined);
+    if (email) {
+      body.email = email;
       return this.authService.dualFlowVerifyOtpEmail(body.email, body.otp, body.type, body.password);
     }
     if (!body.mobile) throw new BadRequestException('Mobile is required');
@@ -65,14 +73,27 @@ export class AuthController {
   }
 
   @Post('signup')
-  async signup(@Body() body: { mobile?: string; email?: string; password?: string; clientType?: string; referralCode?: string; deviceId?: string }) {
-    return this.authService.signup({
-      mobile: body.mobile,
-      email: body.email,
-      password: body.password,
-      clientType: body.clientType,
-      referralCode: body.referralCode
-    }, body.deviceId);
+  async signup(
+    @Body()
+    body: {
+      mobile?: string;
+      email?: string;
+      password?: string;
+      clientType?: string;
+      referralCode?: string;
+      deviceId?: string;
+    },
+  ) {
+    return this.authService.signup(
+      {
+        mobile: body.mobile,
+        email: body.email,
+        password: body.password,
+        clientType: body.clientType,
+        referralCode: body.referralCode,
+      },
+      body.deviceId,
+    );
   }
 
   @Post('login-password')
@@ -96,8 +117,7 @@ export class AuthController {
       const { NotFoundException } = require('@nestjs/common');
       throw new NotFoundException();
     }
-    const result = await this.authService.sendOtp(body.mobile, 'SMS');
-    return result;
+    return this.authService.sendOtp(body.mobile, 'WHATSAPP');
   }
 
   /**
@@ -172,7 +192,7 @@ export class AuthController {
 
   @Put('password')
   @UseGuards(AccessTokenGuard)
-  async setPassword(@CurrentUser() user: AuthenticatedUser, @Body() body: { password: string }) {
+  async updatePassword(@CurrentUser() user: AuthenticatedUser, @Body() body: { password: string }) {
     return this.authService.setPassword(user.id, body.password);
   }
 
@@ -180,11 +200,9 @@ export class AuthController {
   @UseGuards(AccessTokenGuard)
   async updateProfile(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { fullName?: string; dateOfBirth?: string; pan?: string; clientType?: string; referralCode?: string }
+    @Body()
+    body: { fullName?: string; dateOfBirth?: string; pan?: string; clientType?: string; referralCode?: string; gender?: string },
   ) {
     return this.authService.updateProfile(user.id, body);
   }
-
-
 }
-

@@ -77,8 +77,8 @@ export class MinorService {
     if (!guardian) throw new BadRequestException('Guardian details not found');
     if (guardian.mobile !== mobile) throw new BadRequestException('Mobile number mismatch');
 
-    await this.authService.sendOtp(mobile, 'SMS');
-    return { success: true, message: 'OTP sent to guardian' };
+    await this.authService.sendOtp(mobile, 'WHATSAPP');
+    return { success: true, message: 'OTP sent to guardian via WhatsApp' };
   }
 
   async verifyGuardianOtp(userId: string, mobile: string, code: string) {

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, Alert, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
-import { api } from '../services/api/client';
+import { api, API_URL } from '../services/api/client';
+import { authStore } from '../store/auth';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { exitOnboarding } from '../utils/navigation';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -52,7 +52,7 @@ export const KycScreen = (props: KycScreenProps) => {
   const setPan = props.setPan ?? setLocalPan;
   const consent = props.consent ?? localConsent;
   const setConsent = props.setConsent ?? setLocalConsent;
-  const apiUrl = props.apiUrl ?? (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000');
+  const apiUrl = props.apiUrl ?? API_URL;
 
   const formattedDob = dobDate ? dobDate.toISOString().split('T')[0] : '';
 
@@ -125,11 +125,10 @@ export const KycScreen = (props: KycScreenProps) => {
     } finally { 
       setKycSubmitting(false); 
     }
-    }
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title="Identity verification" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.page}>
@@ -196,7 +195,7 @@ export const KycScreen = (props: KycScreenProps) => {
         </Pressable>
         <Text style={styles.legal}>We never store your PAN in the app. KYC is completed by the secure verification service.</Text>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

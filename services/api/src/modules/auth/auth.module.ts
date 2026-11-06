@@ -6,14 +6,12 @@ import { JwtModule } from '@nestjs/jwt';
 import { EmailOtpProvider } from './email.provider';
 import { AccessTokenGuard } from '../../common/auth';
 import { InteraktModule } from '../../integrations/interakt/interakt.module';
-import { MtalkzModule } from '../mtalkz/mtalkz.module';
 import { ZohoModule } from '../zoho/zoho.module';
 
 @Module({
   imports: [
     PrismaModule,
     InteraktModule,
-    MtalkzModule,
     ZohoModule,
     JwtModule.register({
       global: true,

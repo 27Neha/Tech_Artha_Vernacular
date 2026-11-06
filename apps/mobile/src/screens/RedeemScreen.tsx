@@ -9,7 +9,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { api } from '../services/api/client';
@@ -143,15 +142,15 @@ export const RedeemScreen = () => {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+      <View style={styles.safe}>
         <Header title="Withdraw" />
         <ActivityIndicator style={{ marginTop: 40 }} color="#3C3985" />
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title="Withdraw" />
       <ScrollView contentContainerStyle={styles.content}>
@@ -254,7 +253,7 @@ export const RedeemScreen = () => {
         onCancel={() => setPendingAuth(null)}
         onAuthorised={placeAuthorised}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

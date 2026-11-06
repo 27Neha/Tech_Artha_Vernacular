@@ -23,7 +23,6 @@ import { CybrillaModule } from './modules/cybrilla/cybrilla.module';
 import { MinorModule } from './modules/minor/minor.module';
 import { CrmModule } from './modules/crm/crm.module';
 import { SupportModule } from './modules/support/support.module';
-import { MtalkzModule } from './modules/mtalkz/mtalkz.module';
 import { ZohoModule } from './modules/zoho/zoho.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { NomineeModule } from './modules/nominee/nominee.module';
@@ -32,6 +31,8 @@ import { TwoFactorModule } from './modules/twofactor/twofactor.module';
 import { MandatesModule } from './modules/mandates/mandates.module';
 import { HoldingsModule } from './modules/holdings/holdings.module';
 import { PostbackModule } from './modules/postback/postback.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { MarketModule } from './modules/market/market.module';
 
 @Module({
   imports: [
@@ -63,9 +64,10 @@ import { PostbackModule } from './modules/postback/postback.module';
     MinorModule,
     CrmModule,
     SupportModule,
-    MtalkzModule,
+    PaymentsModule,
     ZohoModule,
     AdminModule,
+    MarketModule,
   ],
   controllers: [AppController],
   providers: [AppService],

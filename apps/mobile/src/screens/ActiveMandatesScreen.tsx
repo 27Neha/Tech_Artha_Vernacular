@@ -1,6 +1,5 @@
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Header } from '../components/Header';
@@ -113,7 +112,7 @@ export const ActiveMandatesScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title="Auto-debit mandates" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.page}>
@@ -173,7 +172,7 @@ export const ActiveMandatesScreen = () => {
           </>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

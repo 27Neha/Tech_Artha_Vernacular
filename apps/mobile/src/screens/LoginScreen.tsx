@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
@@ -13,7 +12,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { TermsModal } from '../components/TermsModal';
 import { PrivacyPolicyModal } from '../components/PrivacyPolicyModal';
 
-const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+const DEFAULT_API_URL = (process.env.EXPO_PUBLIC_API_URL && process.env.EXPO_PUBLIC_API_URL.startsWith('https://'))
+  ? process.env.EXPO_PUBLIC_API_URL
+  : 'https://boulevard-nickname-encryption-ruling.trycloudflare.com';
 
 interface LoginScreenProps {
   apiUrl?: string;
@@ -22,6 +23,7 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, setPhone: setParentPhone }: LoginScreenProps) => {
+  const effectiveApiUrl = (apiUrl && apiUrl.startsWith('https://')) ? apiUrl : DEFAULT_API_URL;
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
   const { signIn } = useAuth();
@@ -70,6 +72,16 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
     }
   };
 
+  const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs = 15000) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
   const handleContinue = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL' | 'PASSWORD') => {
     setError('');
     setTermsWarning('');
@@ -113,7 +125,7 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${apiUrl}/auth/login/start`, {
+      const res = await fetchWithTimeout(`${effectiveApiUrl}/auth/login/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(identifierType === 'EMAIL' ? { email, channel } : { mobile: phone, channel })
@@ -124,8 +136,11 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
       setDevOtp(data?.devOtp ?? null);
       setStep(2);
     } catch (e: any) {
-      const msg = e?.message === 'Network request failed'
-        ? `Could not reach server at ${apiUrl}. Check your Wi-Fi connection.`
+      const isCanceled = e?.name === 'AbortError' || e?.message?.includes('cancel') || e?.message?.includes('aborted');
+      const msg = isCanceled
+        ? 'Connection timed out. Please try again.'
+        : e?.message === 'Network request failed'
+        ? `Could not reach server. Please check your internet connection.`
         : (e?.message || t('login.failedToSendOtp', { defaultValue: 'Failed to send OTP' }));
       setError(msg);
       throw new Error(msg);
@@ -142,7 +157,7 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${apiUrl}/auth/login-password`, {
+      const res = await fetchWithTimeout(`${effectiveApiUrl}/auth/login-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(identifierType === 'EMAIL' ? { email, password } : { mobile: phone, password })
@@ -162,7 +177,7 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
       }
       navigation.navigate('MainTabs');
     } catch (e: any) {
-      setError(e.message);
+      setError(e.name === 'AbortError' ? 'Request timed out. Please try again.' : e.message);
     } finally {
       setLoading(false);
     }
@@ -172,7 +187,7 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${apiUrl}/auth/otp/verify`, {
+      const res = await fetchWithTimeout(`${effectiveApiUrl}/auth/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(identifierType === 'EMAIL' ? { email, otp: otpValue, type: 'login' } : { mobile: phone, otp: otpValue, type: 'login' })
@@ -199,7 +214,7 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title="" onBack={() => {
         if (step === 2) setStep(1);
@@ -420,7 +435,7 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
         visible={privacyModalVisible}
         onClose={() => setPrivacyModalVisible(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

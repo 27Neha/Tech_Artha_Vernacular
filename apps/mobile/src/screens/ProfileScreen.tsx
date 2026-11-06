@@ -1,15 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { authStore } from '../store/auth';
-import { api } from '../services/api/client';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { api, API_URL } from '../services/api/client';
 
 export const ProfileScreen = () => {
   const { t } = useTranslation('common');
@@ -47,9 +44,8 @@ export const ProfileScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
-      <Header title={t('header.viewProfile', { defaultValue: 'Profile' })} />
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.pageTitle}>{t('header.viewProfile', { defaultValue: 'Profile' })}</Text>
         
@@ -149,7 +145,7 @@ export const ProfileScreen = () => {
         </Pressable>
 
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -6,7 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
-import { HomeIcon, TrendingIcon, WalletIcon, HeadsetIcon, UserIcon } from './src/components/Icons';
+import { HomeIcon, TrendingIcon, WalletIcon, HeadsetIcon, UserIcon, CompassIcon, TargetIcon } from './src/components/Icons';
 
 import { LanguageScreen } from './src/screens/LanguageScreen';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
@@ -14,6 +14,8 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { SignupScreen } from './src/screens/SignupScreen';
 import { KycScreen } from './src/screens/KycScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { ArthaVerseScreen } from './src/screens/ArthaVerseScreen';
+import { GoalsScreen } from './src/screens/GoalsScreen';
 import { FundsScreen } from './src/screens/FundsScreen';
 import { PortfolioScreen } from './src/screens/PortfolioScreen';
 import { ExpensesScreen } from './src/screens/ExpensesScreen';
@@ -46,20 +48,34 @@ import { MinorVerifyScreen } from './src/screens/minor/MinorVerifyScreen';
 import { MinorConsentScreen } from './src/screens/minor/MinorConsentScreen';
 import { MinorReviewScreen } from './src/screens/minor/MinorReviewScreen';
 import { AuthProvider, useAuth } from './src/store/AuthContext';
+import {
+  navigationRef,
+  recordTabVisit,
+  initHardwareBackHandler,
+  resetNavigationHistory,
+} from './src/navigation/navigationService';
+export { navigationRef };
+
+import { API_URL } from './src/services/api/client';
+
+import { Header } from './src/components/Header';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
-
-export const navigationRef = createNavigationContainerRef();
 
 function MainTabs({ route }: any) {
   const { name } = route?.params || {};
   return (
     <Tab.Navigator
+      backBehavior="history"
+      screenListeners={({ route: tabRoute }) => ({
+        focus: () => {
+          recordTabVisit(tabRoute.name);
+        },
+      })}
       screenOptions={({ route: tabRoute }) => ({
-        headerShown: false,
+        headerShown: true,
+        header: () => <Header route={tabRoute} />,
         tabBarActiveTintColor: '#36358D',
         tabBarInactiveTintColor: '#94A3B8',
         tabBarShowLabel: false,
@@ -81,9 +97,9 @@ function MainTabs({ route }: any) {
           let IconComponent;
           const label = tabRoute.name;
           if (tabRoute.name === 'Home') IconComponent = HomeIcon;
+          else if (tabRoute.name === 'Explore') IconComponent = CompassIcon;
+          else if (tabRoute.name === 'Goals') IconComponent = TargetIcon;
           else if (tabRoute.name === 'Portfolio') IconComponent = TrendingIcon;
-          else if (tabRoute.name === 'Expenses') IconComponent = WalletIcon;
-          else if (tabRoute.name === 'Assistant') IconComponent = HeadsetIcon;
           else if (tabRoute.name === 'Profile') IconComponent = UserIcon;
           else IconComponent = HomeIcon;
 
@@ -119,9 +135,9 @@ function MainTabs({ route }: any) {
       <Tab.Screen name="Home">
         {(props) => <HomeScreen {...props} name={name} />}
       </Tab.Screen>
+      <Tab.Screen name="Explore" component={ArthaVerseScreen} />
+      <Tab.Screen name="Goals" component={GoalsScreen} />
       <Tab.Screen name="Portfolio" component={PortfolioScreen} />
-      <Tab.Screen name="Expenses" component={ExpensesScreen} />
-      <Tab.Screen name="Assistant" component={AssistantScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
@@ -132,8 +148,16 @@ function RootNavigator() {
   const previousStatus = useRef(status);
 
   useEffect(() => {
+    const cleanupHardwareBack = initHardwareBackHandler();
+    return cleanupHardwareBack;
+  }, []);
+
+  useEffect(() => {
     if (previousStatus.current === 'authenticated' && status === 'anonymous' && navigationRef.isReady()) {
+      resetNavigationHistory();
       navigationRef.reset({ index: 0, routes: [{ name: 'Welcome' as never }] });
+    } else if (status === 'authenticated') {
+      resetNavigationHistory();
     }
     previousStatus.current = status;
   }, [status]);
@@ -168,6 +192,7 @@ function RootNavigator() {
       <Stack.Screen name="RiskResult" component={RiskResultScreen} />
       <Stack.Screen name="RiskProfileResult" component={RiskResultScreen} />
       <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
+      <Stack.Screen name="GoalConfiguration" component={GoalSelectionScreen} />
       <Stack.Screen name="GoalDetails" component={GoalDetailsScreen} />
       <Stack.Screen name="EditGoal" component={EditGoalScreen} />
       <Stack.Screen name="InvestmentBuckets" component={InvestmentBucketsScreen} />
@@ -175,6 +200,10 @@ function RootNavigator() {
       <Stack.Screen name="PlanSummary" component={PlanSummaryScreen} />
       <Stack.Screen name="Plan" component={PlanScreen} />
       <Stack.Screen name="MainTabs" component={MainTabs} />
+      <Stack.Screen name="Explore" component={ArthaVerseScreen} />
+      <Stack.Screen name="ArthaVerse" component={ArthaVerseScreen} />
+      <Stack.Screen name="Goals" component={GoalsScreen} />
+      <Stack.Screen name="Expenses" component={ExpensesScreen} />
       <Stack.Screen name="Funds">
         {(props) => <FundsScreen {...props} apiUrl={API_URL} />}
       </Stack.Screen>
@@ -204,7 +233,15 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <NavigationContainer ref={navigationRef}>
+        <NavigationContainer
+          ref={navigationRef}
+          onStateChange={() => {
+            const currentRoute = navigationRef.getCurrentRoute()?.name;
+            if (currentRoute) {
+              recordTabVisit(currentRoute);
+            }
+          }}
+        >
           <RootNavigator />
         </NavigationContainer>
       </AuthProvider>

@@ -1,6 +1,7 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, ServiceUnavailableException } from '@nestjs/common';
 import { AccessTokenGuard } from '../../common/auth';
 import { CybrillaService } from './cybrilla.service';
+import { isBankLinkingEnabled } from '../../common/feature-flags';
 
 @Controller('cybrilla/sandbox')
 @UseGuards(AccessTokenGuard)
@@ -14,6 +15,12 @@ export class CybrillaController {
 
   @Post('bank-account')
   async createBankAccount(@Body() body: any) {
+    if (!isBankLinkingEnabled()) {
+      throw new ServiceUnavailableException({
+        code: 'FEATURE_DISABLED',
+        message: 'Bank linking is currently unavailable pending regulatory clearances.',
+      });
+    }
     return this.cybrillaService.createBankAccount(body);
   }
 }

@@ -647,7 +647,19 @@ class AdminApiClient {
   // OPERATIONAL DOMAINS
   // ==========================================
   async getActivityOverview(limit = 30): Promise<ActivityOverviewItem[]> {
-    return this.request(`/admin/activity?limit=${limit}`);
+    const res = await this.request<any>(`/admin/activity?limit=${limit}`);
+    const rawList: any[] = Array.isArray(res) ? res : Array.isArray(res?.events) ? res.events : [];
+    return rawList.map((item: any) => ({
+      id: item.id || String(Math.random()),
+      action: item.action || item.title || item.type || 'SYSTEM_EVENT',
+      details: item.details || '',
+      actorEmail: item.actorEmail || item.actor || undefined,
+      actorRole: item.actorRole || item.category || undefined,
+      result: item.result || (item.category === 'SECURITY' ? 'AUDIT' : 'SUCCESS'),
+      ipAddress: item.ipAddress || undefined,
+      createdAt: item.createdAt || item.timestamp || new Date().toISOString(),
+      user: item.user || null,
+    }));
   }
 
   async getBankVerifications(params: { page?: number; limit?: number; status?: string; search?: string } = {}): Promise<{

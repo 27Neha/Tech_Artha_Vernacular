@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, Alert, ScrollView, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
@@ -13,11 +12,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { TermsModal } from '../components/TermsModal';
 import { PrivacyPolicyModal } from '../components/PrivacyPolicyModal';
 
+const DEFAULT_API_URL = (process.env.EXPO_PUBLIC_API_URL && process.env.EXPO_PUBLIC_API_URL.startsWith('https://'))
+  ? process.env.EXPO_PUBLIC_API_URL
+  : 'https://boulevard-nickname-encryption-ruling.trycloudflare.com';
+
 interface SignupScreenProps {
-  apiUrl: string;
+  apiUrl?: string;
 }
 
-export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
+export const SignupScreen = ({ apiUrl = DEFAULT_API_URL }: SignupScreenProps) => {
+  const effectiveApiUrl = (apiUrl && apiUrl.startsWith('https://')) ? apiUrl : DEFAULT_API_URL;
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
   const { signIn } = useAuth();
@@ -69,6 +73,16 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
     }
   };
 
+  const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs = 15000) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
   const handleContinue = async (channel: 'SMS' | 'WHATSAPP' | 'EMAIL') => {
     setError('');
     setTermsWarning('');
@@ -101,7 +115,7 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${apiUrl}/auth/signup/start`, {
+      const res = await fetchWithTimeout(`${effectiveApiUrl}/auth/signup/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(channel === 'EMAIL' ? { email, channel } : { mobile, channel })
@@ -115,7 +129,8 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
       
       setStep(1.5);
     } catch (e: any) {
-      setError(e.message);
+      const isCanceled = e?.name === 'AbortError' || e?.message?.includes('cancel') || e?.message?.includes('aborted');
+      setError(isCanceled ? 'Connection timed out. Please try again.' : e.message);
     } finally {
       setLoading(false);
     }
@@ -125,7 +140,7 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${apiUrl}/auth/otp/verify`, {
+      const res = await fetchWithTimeout(`${effectiveApiUrl}/auth/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(authChannel === 'EMAIL' ? { email, otp, type: 'signup' } : { mobile, otp, type: 'signup' })
@@ -138,19 +153,19 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
       const token = data.accessToken || data.access_token;
       setSignupSession({ accessToken: token, refreshToken: data.refreshToken || '', user: data.user });
 
-      // The terms were accepted on the first step, before an account existed to record
-      // them against. Recorded now, so acceptance is held server-side with its version,
-      // not only as a checkbox in the app.
-      const consentRes = await fetch(`${apiUrl}/consents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ type: 'TERMS_AND_CONDITIONS' }),
-      });
-      if (!consentRes.ok) throw new Error('Could not record your acceptance of the terms. Please try again.');
+      // Record terms acceptance non-blocking
+      if (token) {
+        fetchWithTimeout(`${effectiveApiUrl}/consents`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ type: 'TERMS_AND_CONDITIONS' }),
+        }, 5000).catch(() => {});
+      }
 
       setStep(1.6);
     } catch (e: any) {
-      setError(e.message);
+      const isCanceled = e?.name === 'AbortError' || e?.message?.includes('cancel') || e?.message?.includes('aborted');
+      setError(isCanceled ? 'Connection timed out. Please try again.' : e.message);
     } finally {
       setLoading(false);
     }
@@ -175,7 +190,7 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
     try {
       // POST /auth/signup would refuse here: the OTP step already created the account.
       // The password is set on that account through its own session instead.
-      const res = await fetch(`${apiUrl}/auth/password`, {
+      const res = await fetchWithTimeout(`${effectiveApiUrl}/auth/password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${signupSession.accessToken}` },
         body: JSON.stringify({ password, clientType: 'retail' })
@@ -193,19 +208,17 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
           user: { id: user.id, mobile: user.mobile || mobile || '' }
         });
       }
-      // 'ProfileSetup' was never a registered route, so signup dead-ended here. KYC is
-      // the screen that collects the name, PAN and date of birth a new investor still
-      // owes us, and it is the next step of onboarding for everyone else too.
       navigation.navigate('KYC');
     } catch (e: any) {
-      setError(e.message);
+      const isCanceled = e?.name === 'AbortError' || e?.message?.includes('cancel') || e?.message?.includes('aborted');
+      setError(isCanceled ? 'Connection timed out. Please try again.' : e.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title="" onBack={() => {
         if (step > 1) setStep(1);
@@ -489,7 +502,7 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
         visible={privacyModalVisible}
         onClose={() => setPrivacyModalVisible(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Linking } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +14,7 @@ import {
   openEmailSupport,
   TECH_ARTHA_SUPPORT,
 } from '../utils/contact';
+import { supportApi } from '../services/api/support';
 import { SupportQuerySection } from '../components/SupportQuerySection';
 import { TermsModal } from '../components/TermsModal';
 import { PrivacyPolicyModal } from '../components/PrivacyPolicyModal';
@@ -62,6 +62,20 @@ export const SettingsScreen = () => {
   };
 
   const handleWhatsApp = async () => {
+    // 1. Immediately create live ticket in backend so it appears on CRM support desk
+    try {
+      await supportApi.submitQuery({
+        channel: 'WHATSAPP',
+        subject: 'WhatsApp Support Query',
+        message: 'Customer initiated contact via WhatsApp Support (+91 83088 16023).',
+        customerPhone: user?.mobile || undefined,
+        customerName: user?.mobile ? `Investor (${user.mobile})` : 'App User',
+      });
+    } catch (e) {
+      console.log('Background ticket sync failed:', e);
+    }
+
+    // 2. Open WhatsApp conversation
     await openWhatsAppSupport({
       onError: () => {
         Alert.alert(
@@ -75,6 +89,18 @@ export const SettingsScreen = () => {
   };
 
   const handleEmail = async () => {
+    try {
+      await supportApi.submitQuery({
+        channel: 'EMAIL',
+        subject: 'Email Support Inquiry',
+        message: 'Customer initiated contact via Email Support (support@techartha.com).',
+        customerPhone: user?.mobile || undefined,
+        customerName: user?.mobile ? `Investor (${user.mobile})` : 'App User',
+      });
+    } catch (e) {
+      console.log('Background ticket sync failed:', e);
+    }
+
     await openEmailSupport({
       onError: () => {
         Alert.alert(
@@ -84,6 +110,24 @@ export const SettingsScreen = () => {
           })
         );
       },
+    });
+  };
+
+  const handleSms = async () => {
+    try {
+      await supportApi.submitQuery({
+        channel: 'SMS',
+        subject: 'SMS Support Inquiry',
+        message: 'Customer initiated contact via SMS Support (+91 83088 16023).',
+        customerPhone: user?.mobile || undefined,
+        customerName: user?.mobile ? `Investor (${user.mobile})` : 'App User',
+      });
+    } catch (e) {
+      console.log('Background ticket sync failed:', e);
+    }
+
+    Linking.openURL(`sms:${TECH_ARTHA_SUPPORT.phone}?body=Hi%20TechArtha%20Support`).catch(() => {
+      Alert.alert('Unable to open SMS', `Please send an SMS to ${TECH_ARTHA_SUPPORT.displayPhone}`);
     });
   };
 
@@ -118,7 +162,7 @@ export const SettingsScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title={t('settings.title', { defaultValue: 'Settings' })} onBack={() => navigation.goBack()} showSettings={false} />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
@@ -287,6 +331,28 @@ export const SettingsScreen = () => {
                   <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
                 </Pressable>
 
+                {/* Option 3: SMS Support */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.contactOption,
+                    pressed && styles.contactOptionPressed,
+                  ]}
+                  onPress={handleSms}
+                  accessibilityRole="button"
+                  accessibilityLabel="SMS Support"
+                  accessibilityHint="Opens SMS messaging to send an inquiry to +91 83088 16023"
+                >
+                  <View style={[styles.contactIconWrap, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}>
+                    <Ionicons name="chatbox-ellipses-outline" size={22} color="#EA580C" />
+                  </View>
+                  <View style={styles.contactDetails}>
+                    <Text style={styles.contactOptionTitle}>SMS Support</Text>
+                    <Text style={styles.contactOptionSub}>Send a text message directly to our desk</Text>
+                    <Text style={styles.contactOptionMeta}>{TECH_ARTHA_SUPPORT.displayPhone}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </Pressable>
+
                 {/* Option 3: Support Query Submission & Tracking Desk */}
                 <SupportQuerySection userEmail={(user as any)?.email} />
               </View>
@@ -411,7 +477,7 @@ export const SettingsScreen = () => {
         visible={privacyModalVisible}
         onClose={() => setPrivacyModalVisible(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

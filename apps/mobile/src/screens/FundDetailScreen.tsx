@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../services/api/client';
 import { addToDraft } from '../store/customBucket';
+import { Header } from '../components/Header';
 
 /**
  * GET /funds/:schemeCode - ported from apps/web/app/funds/[id]/page.tsx.
@@ -87,11 +87,11 @@ export const FundDetailScreen = () => {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.centre}>
           <ActivityIndicator />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -101,14 +101,14 @@ export const FundDetailScreen = () => {
 
   if (error || !meta) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.centre}>
           <Text style={styles.error}>{error ?? 'Fund not found.'}</Text>
           <Pressable style={styles.outlineButton} onPress={() => navigation.goBack()}>
             <Text style={styles.outlineText}>Go back</Text>
           </Pressable>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -127,8 +127,9 @@ export const FundDetailScreen = () => {
   const span = max - min || 1;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar style="dark" />
+      <Header title="Fund Details" />
       <ScrollView>
         {showRiskWarning ? (
           <View style={styles.warningBox}>
@@ -201,7 +202,7 @@ export const FundDetailScreen = () => {
           </Pressable>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

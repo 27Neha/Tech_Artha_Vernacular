@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, SafeAreaView, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../../services/api/client';
+import { Header } from '../../components/Header';
 import { minorStyles as s } from './minorStyles';
 
 /**
@@ -51,8 +52,9 @@ export const MinorVerifyScreen = () => {
   };
 
   return (
-    <SafeAreaView style={s.container}>
+    <View style={s.container}>
       <StatusBar style="dark" />
+      <Header title="Verify Guardian" />
       <View style={s.header}>
         <Text style={s.step}>STEP 2 OF 4</Text>
         <Text style={s.title}>Verify the guardian</Text>
@@ -92,6 +94,6 @@ export const MinorVerifyScreen = () => {
         )}
         <View style={s.spacer} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };

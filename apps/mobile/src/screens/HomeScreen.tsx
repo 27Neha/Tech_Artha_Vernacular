@@ -1,683 +1,1223 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  ActivityIndicator,
+  StyleSheet,
+  RefreshControl,
+  Modal,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Header } from '../components/Header';
 import { PortfolioChart } from '../components/PortfolioChart';
 import { authStore } from '../store/auth';
-import { api } from '../services/api/client';
+import { API_URL } from '../services/api/client';
 import { useTranslation } from 'react-i18next';
-import { colors, radii, shadows } from '../theme/tokens';
+import { Ionicons } from '@expo/vector-icons';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+interface HomeScreenProps {
+  name?: string;
+}
 
-export const HomeScreen = ({ name }: { name?: string }) => {
+export const HomeScreen: React.FC<HomeScreenProps> = ({ name }) => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
-  const [profileName, setProfileName] = useState<string | null>(name ?? null);
+
+  // User state
   const [goals, setGoals] = useState<any[]>([]);
   const [portfolio, setPortfolio] = useState<any>(null);
   const [profile, setProfile] = useState('Moderate');
-  const [recommendedFunds, setRecommendedFunds] = useState<any[]>([]);
-  const [sipPlans, setSipPlans] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [profileData, setProfileData] = useState<any>(null);
+  const [userProfileInfo, setUserProfileInfo] = useState<any>(null);
 
-  const greeting = useMemo(() => {
-    const raw = (profileName || name || '').trim();
-    return raw ? raw.split(' ')[0] : 'Investor';
-  }, [profileName, name]);
+  // UI state
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [riskModalVisible, setRiskModalVisible] = useState(false);
+
+  // Greeting computation based on local time
+  const timeGreeting = useMemo(() => {
+    const hours = new Date().getHours();
+    if (hours < 12) return 'Good morning';
+    if (hours < 17) return 'Good afternoon';
+    return 'Good evening';
+  }, []);
+
+  const displayName = useMemo(() => {
+    if (name?.trim()) return name.trim().split(' ')[0];
+    if (userProfileInfo?.name?.trim()) return userProfileInfo.name.trim().split(' ')[0];
+    return 'Investor';
+  }, [name, userProfileInfo]);
 
   const fetchData = useCallback(async () => {
     try {
       const token = authStore.accessToken;
-      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
-      const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-
-      // Every request here is a route the API serves.
-      const [goalsRes, portRes, profileRes, investmentsRes, bucketsRes] = await Promise.all([
-        fetch(`${API_URL}/goals`, { headers }),
-        fetch(`${API_URL}/portfolio`, { headers }),
-        fetch(`${API_URL}/auth/profile`, { headers }),
-        fetch(`${API_URL}/buckets/investments`, { headers }),
-        fetch(`${API_URL}/buckets`, { headers }),
+      const [goalsRes, portRes, profileRes] = await Promise.all([
+        fetch(`${API_URL}/goals`, { headers: authHeaders }).catch(() => null),
+        fetch(`${API_URL}/portfolio`, { headers: authHeaders }).catch(() => null),
+        fetch(`${API_URL}/auth/profile`, { headers: authHeaders }).catch(() => null),
       ]);
 
-      if (goalsRes.ok) setGoals(await goalsRes.json());
-      if (portRes.ok) {
-        const portData = await portRes.json();
-        setPortfolio(portData?.data ?? portData);
+      if (goalsRes?.ok) {
+        const g = await goalsRes.json();
+        setGoals(Array.isArray(g) ? g : []);
       }
-      if (investmentsRes.ok) {
-        const inv = await investmentsRes.json();
-        setSipPlans([
-          ...(inv.plans ?? []).map((p: any) => ({ ...p, kind: 'plan' })),
-          ...(inv.orders ?? []).map((o: any) => ({ ...o, kind: 'order' })),
-        ]);
+      if (portRes?.ok) {
+        setPortfolio(await portRes.json());
       }
-      if (profileRes.ok) {
-        const profileData = await profileRes.json();
-        if (profileData?.profile?.fullName) setProfileName(profileData.profile.fullName);
-        const category: string | undefined = profileData.riskProfile?.category;
-        setProfile(category ? category.charAt(0) + category.slice(1).toLowerCase().replace(/_/g, ' ') : 'Not assessed');
-      }
-      if (bucketsRes.ok) {
-        // Reference funds from the bucket suited to the investor's profile.
-        const { buckets } = await bucketsRes.json();
-        const suited = (buckets ?? []).find((b: any) => b.recommended) ?? buckets?.[0];
-        setRecommendedFunds((suited?.recommendedFunds ?? suited?.funds ?? []).slice(0, 3));
-      }
+      if (profileRes?.ok) {
+        const p = await profileRes.json();
+        setUserProfileInfo(p);
+        const category: string | undefined = p?.riskProfile?.category;
+        if (category) {
+          const formatted = category.charAt(0) + category.slice(1).toLowerCase().replace(/_/g, ' ');
+          setProfile(formatted);
+          setProfileData(p.riskProfile);
+        }
       }
     } catch (e) {
-      console.log('Error fetching dashboard data', e);
+      console.log('Error fetching home screen data', e);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [profile]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       fetchData();
-    }, [fetchData])
+    }, [fetchData]),
   );
 
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchData();
+  }, [fetchData]);
+
+  // Portfolio calculations
+  const invested = portfolio?.totals?.invested;
+  const current = portfolio?.totals?.current;
+  const gain = current != null && invested != null ? current - invested : null;
+  const gainPercent = invested && invested > 0 && gain != null ? (gain / invested) * 100 : null;
+  const hasInvestments = portfolio?.status === 'OK' && current != null && current > 0;
+
+  // Risk profile spectrum visual indicator
+  const riskIndex = useMemo(() => {
+    const p = profile.toLowerCase();
+    if (p.includes('conservative')) return 0;
+    if (p.includes('moderately low')) return 1;
+    if (p.includes('moderate')) return 2;
+    if (p.includes('moderately high')) return 3;
+    if (p.includes('aggressive')) return 4;
+    return 2;
+  }, [profile]);
+
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
-      <Header title="" />
-      <ScrollView contentContainerStyle={styles.home} showsVerticalScrollIndicator={false}>
-        {/* Welcome Salutation */}
-        <View style={styles.headerBlock}>
-          <View style={styles.eyebrowRow}>
-            <View style={styles.accentIndicator} />
-            <Text style={styles.eyebrow}>{t('dash.welcomeBack', { defaultValue: 'WELCOME BACK' })}</Text>
+
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3C3985']} />
+        }
+      >
+        {/* ========================================================
+            SECTION 1: GREETING & QUICK ACTIONS
+           ======================================================== */}
+        <View style={styles.greetingHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.timeGreetingText}>{timeGreeting.toUpperCase()}, {displayName} 👋</Text>
+            <Text style={styles.journeySubtext}>Your financial journey is moving forward.</Text>
           </View>
-          <Text style={styles.homeTitle}>
-            {t('dash.hello', { defaultValue: 'Hello {{name}}', name: greeting }).replace(/\{\{?name\}\}?/g, greeting)} 👋
-          </Text>
-          <Text style={styles.homeSub}>{t('dash.subtitle', { defaultValue: 'Small steps today. A stronger tomorrow.' })}</Text>
         </View>
-        
-        {/* 3D Elevated Portfolio Summary Card */}
-        <View style={styles.balanceCard}>
-          <View style={styles.balanceTopRow}>
-            <Text style={styles.balanceLabel}>{t('dash.investmentJourney', { defaultValue: 'YOUR INVESTMENT JOURNEY' })}</Text>
-            <View style={styles.amfiPill}>
-              <Text style={styles.amfiPillText}>AMFI Registered</Text>
+
+        {/* ========================================================
+            SECTION 2: MY INVESTMENT DASHBOARD
+           ======================================================== */}
+        <View style={styles.dashboardCard}>
+          <View style={styles.dashboardTopRow}>
+            <View>
+              <Text style={styles.dashboardEyebrow}>MY INVESTMENT DASHBOARD</Text>
+              <Text style={styles.asOnText}>
+                {portfolio?.asOn ? `As on ${new Date(portfolio.asOn).toLocaleDateString('en-IN')}` : 'Verified Folio Status'}
+              </Text>
+            </View>
+            <View style={styles.regBadge}>
+              <Text style={styles.regBadgeText}>AMFI Registered</Text>
             </View>
           </View>
 
           {loading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" style={{ marginVertical: 14 }} />
+            <View style={styles.cardLoader}>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            </View>
+          ) : !hasInvestments ? (
+            /* Attractive Empty State (No fabricated numbers) */
+            <View style={styles.emptyPortfolioBox}>
+              <View style={styles.emptySparkleRow}>
+                <Ionicons name="sparkles" size={18} color="#F7941E" />
+                <Text style={styles.emptyPortfolioTitle}>Your investment journey starts here</Text>
+              </View>
+              <Text style={styles.emptyPortfolioDesc}>
+                Begin investing systematically in direct, commission-free mutual funds aligned with your life milestones.
+              </Text>
+              <View style={styles.emptyActionsRow}>
+                <Pressable
+                  style={styles.startInvestingBtn}
+                  onPress={() => navigation.navigate('Funds')}
+                >
+                  <Text style={styles.startInvestingText}>Explore Funds</Text>
+                  <Ionicons name="arrow-forward" size={14} color="#3C3985" />
+                </Pressable>
+                <Pressable
+                  style={styles.planGoalOutlineBtn}
+                  onPress={() => navigation.navigate('GoalSelection')}
+                >
+                  <Text style={styles.planGoalOutlineText}>Plan a Goal</Text>
+                </Pressable>
+              </View>
+            </View>
           ) : (
-            <View style={{ marginVertical: 4 }}>
-              {/* From GET /portfolio (Cybrilla's holdings report); a dash when unknown, never a 0 we did not read. */}
-              <Text style={styles.balance}>
-                {portfolio?.totals?.current != null
-                  ? `₹${Math.round(portfolio.totals.current).toLocaleString('en-IN')}`
-                  : portfolio?.currentValue != null
-                  ? `₹${Math.round(portfolio.currentValue).toLocaleString('en-IN')}`
-                  : portfolio?.status === 'NO_ACCOUNT'
-                  ? '₹0'
-                  : '—'}
-              </Text>
-              <Text style={styles.balanceSub}>
-                {t('port.totalInvested', { defaultValue: 'Total Invested:' })}{' '}
-                {portfolio?.totals?.invested != null
-                  ? `₹${Math.round(portfolio.totals.invested).toLocaleString('en-IN')}`
-                  : portfolio?.totalInvested != null
-                  ? `₹${Math.round(portfolio.totalInvested).toLocaleString('en-IN')}`
-                  : portfolio?.status === 'NO_ACCOUNT'
-                  ? '₹0'
-                  : '—'}
-              </Text>
+            /* Real Portfolio Numbers */
+            <View style={styles.portfolioStatsBox}>
+              <View style={styles.valueRow}>
+                <View>
+                  <Text style={styles.portfolioCurrentLabel}>CURRENT VALUE</Text>
+                  <Text style={styles.portfolioCurrentValue}>
+                    ₹{Math.round(current).toLocaleString('en-IN')}
+                  </Text>
+                </View>
+                {gain != null && (
+                  <View style={[styles.gainBadge, { backgroundColor: gain >= 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)' }]}>
+                    <Ionicons
+                      name={gain >= 0 ? 'trending-up' : 'trending-down'}
+                      size={14}
+                      color={gain >= 0 ? '#10B981' : '#EF4444'}
+                    />
+                    <Text style={[styles.gainText, { color: gain >= 0 ? '#10B981' : '#EF4444' }]}>
+                      {gain >= 0 ? '+' : ''}₹{Math.abs(Math.round(gain)).toLocaleString('en-IN')} ({gainPercent ? `${gain >= 0 ? '+' : ''}${gainPercent.toFixed(2)}%` : ''})
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.portfolioMetaRow}>
+                <Text style={styles.investedMetaText}>
+                  Invested: ₹{Math.round(invested).toLocaleString('en-IN')}
+                </Text>
+                <Pressable
+                  onPress={() => navigation.navigate('Portfolio', { tab: 'overview' })}
+                  style={styles.viewPortfolioLink}
+                >
+                  <Text style={styles.viewPortfolioText}>View Details</Text>
+                  <Ionicons name="chevron-forward" size={13} color="#FFFFFF" />
+                </Pressable>
+              </View>
             </View>
           )}
-
-          {/* Actual Historical Trend or Truthful Empty State */}
-          <View style={styles.chartWrapper}>
-            <PortfolioChart
-              history={portfolio?.history}
-              currentValue={portfolio?.currentValue ?? 0}
-              height={130}
-            />
-          </View>
-
-          <View style={styles.cardActionsRow}>
-            <Pressable
-              style={styles.primaryActionButton}
-              onPress={() => navigation.navigate('Funds')}
-            >
-              <Text style={styles.primaryActionText}>{t('dash.browseFunds', { defaultValue: 'Browse Funds' })}</Text>
-            </Pressable>
-            <Pressable
-              style={styles.secondaryActionButton}
-              onPress={() => navigation.navigate('Portfolio', { tab: 'Overview' })}
-            >
-              <Text style={styles.secondaryActionText}>{t('dash.viewDetails', { defaultValue: 'View Details' })} →</Text>
-            </Pressable>
-          </View>
         </View>
 
-        {/* Goals Section */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>{t('port.myGoals', { defaultValue: 'My Goals' })}</Text>
-          {goals.length > 0 && (
-            <Pressable onPress={() => navigation.navigate('GoalSelection')} hitSlop={8}>
-              <Text style={styles.linkText}>{t('goals.createNewGoal', { defaultValue: '+ Plan Goal' })}</Text>
-            </Pressable>
-          )}
+        {/* ========================================================
+            SECTION 3: MY GOALS
+           ======================================================== */}
+        <View style={styles.sectionHeaderRow}>
+          <View>
+            <Text style={styles.sectionTitle}>My Goals</Text>
+            <Text style={styles.sectionSubtitle}>Milestone-based systematic investing</Text>
+          </View>
+          <Pressable
+            onPress={() => navigation.navigate('Goals')}
+            style={styles.seeAllBtn}
+          >
+            <Text style={styles.seeAllText}>View All</Text>
+            <Ionicons name="arrow-forward" size={12} color="#3C3985" />
+          </Pressable>
         </View>
 
-        {loading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 24 }} />
-        ) : goals.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emoji}>🎯</Text>
-            <Text style={styles.emptyTitle}>{t('goals.noGoalsTitle', { defaultValue: 'No goals created yet' })}</Text>
-            <Text style={styles.emptyDesc}>
-              {t('goals.noGoalsDesc', { defaultValue: 'Start planning for your future by setting a financial goal.' })}
-            </Text>
-            <Pressable style={styles.emptyCtaButton} onPress={() => navigation.navigate('GoalSelection')}>
-              <Text style={styles.emptyCtaText}>{t('goals.planAGoal', { defaultValue: 'Plan a Goal' })}</Text>
+        {goals.length === 0 ? (
+          <View style={styles.emptyGoalCard}>
+            <View style={styles.emptyGoalCircle}>
+              <Ionicons name="flag-outline" size={24} color="#3C3985" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.emptyGoalTitle}>Plan Your First Milestone</Text>
+              <Text style={styles.emptyGoalSub}>
+                Give your monthly SIPs a purpose like retirement, buying a home, or child education.
+              </Text>
+            </View>
+            <Pressable
+              style={styles.planBtnCompact}
+              onPress={() => navigation.navigate('GoalSelection')}
+            >
+              <Text style={styles.planBtnText}>+ Plan</Text>
             </Pressable>
           </View>
         ) : (
-          goals.slice(0, 2).map((g) => {
-            const p = g.progressPercentage || 0;
-            const currentSaved = g.currentSavings || g.currentInvestmentValue || 0;
-            return (
-              <Pressable 
-                key={g.id} 
-                style={styles.goalCard}
-                onPress={() => navigation.navigate('GoalDetails', { goalId: g.id, goalData: g })}
-              >
-                <View style={styles.cardHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.goalTitle}>{g.name}</Text>
-                    <Text style={styles.goalSubtitle}>{g.timePeriod} {t('common.years', { defaultValue: 'Years' })} · {g.bucketName || 'Bucket'}</Text>
+          <View style={styles.goalsList}>
+            {goals.slice(0, 2).map((g) => {
+              const p = g.progressPercentage || (g.targetAmount > 0 ? ((g.currentSavings || 0) / g.targetAmount) * 100 : 0);
+              const currentSaved = g.currentSavings || g.currentInvestmentValue || 0;
+              return (
+                <Pressable
+                  key={g.id}
+                  style={styles.goalCard}
+                  onPress={() => navigation.navigate('GoalDetails', { goalId: g.id, goalData: g })}
+                >
+                  <View style={styles.goalCardTop}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.goalCardName}>{g.name}</Text>
+                      <Text style={styles.goalCardHorizon}>
+                        {g.timePeriod} Years • {g.bucketName || 'Balanced Bucket'}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.goalCardTarget}>₹{Number(g.targetAmount).toLocaleString('en-IN')}</Text>
+                      <Text style={styles.goalCardTargetLabel}>TARGET</Text>
+                    </View>
                   </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.targetAmount}>₹{g.targetAmount?.toLocaleString('en-IN')}</Text>
-                    <Text style={styles.targetLabel}>{t('dash.target', { defaultValue: 'TARGET' }).toUpperCase()}</Text>
+
+                  <View style={styles.goalCardProgressRow}>
+                    <Text style={styles.goalSavedAmount}>
+                      ₹{currentSaved.toLocaleString('en-IN')} accumulated
+                    </Text>
+                    <Text style={styles.goalPercentText}>{p.toFixed(1)}%</Text>
                   </View>
-                </View>
-                <View style={{ marginTop: 8 }}>
-                  <View style={styles.progressRow}>
-                    <Text style={styles.savedText}>₹{currentSaved.toLocaleString('en-IN')} {t('dash.saved', { defaultValue: 'Saved' })}</Text>
-                    <Text style={styles.percentText}>{p.toFixed(1)}%</Text>
-                  </View>
+
                   <View style={styles.progressBarBg}>
                     <View style={[styles.progressBarFill, { width: `${Math.min(p, 100)}%` }]} />
                   </View>
-                </View>
-              </Pressable>
-            );
-          })
+                </Pressable>
+              );
+            })}
+          </View>
         )}
-          
-        {goals.length > 2 && (
+
+        {/* ========================================================
+            SECTION 4: MY RISK PROFILE ("Your Investment Personality")
+           ======================================================== */}
+        <View style={styles.sectionHeaderRow}>
+          <View>
+            <Text style={styles.sectionTitle}>Your Investment Personality</Text>
+            <Text style={styles.sectionSubtitle}>Assessed risk capacity & volatility preferences</Text>
+          </View>
           <Pressable
-            onPress={() => navigation.navigate('Portfolio', { tab: 'Goals' })}
-            style={styles.moreGoalsButton}
+            onPress={() => navigation.navigate('RiskAssessment')}
+            style={styles.retakeBtn}
           >
-            <Text style={styles.moreGoalsText}>{t('dash.seeMoreGoals', { defaultValue: 'See more goals' })} →</Text>
+            <Text style={styles.retakeText}>Retake</Text>
           </Pressable>
-        )}
+        </View>
 
-        {/* SIP Orders Section */}
-        {sipPlans.length > 0 && (
-          <>
-            <Text style={[styles.sectionTitle, { marginTop: 24, marginBottom: 12 }]}>{t('dash.yourOrders', { defaultValue: 'Your Orders' })}</Text>
-            <View style={{ gap: 10 }}>
-              {sipPlans.map((p) => (
-                <View key={p.id} style={styles.sipCard}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={[styles.sipTitle, { flex: 1 }]} numberOfLines={1}>{p.fundName || 'Mutual Fund Investment'}</Text>
-                    <View style={styles.badgeSuccess}>
-                      <Text style={styles.badgeSuccessText}>
-                        {p.statusLabel ? t(`status.${p.statusLabel.toLowerCase()}`, { defaultValue: p.statusLabel }) : 'PROCESSING'}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.sipSubtitle}>
-                    ₹{(p.amount ?? 0).toLocaleString('en-IN')} • {p.kind === 'plan' ? `${t('dash.monthly', { defaultValue: 'monthly' })} • ${t('dash.day', { defaultValue: 'day' })} ${p.installmentDay || 1}` : t('dash.oneTime', { defaultValue: 'one-time' })}
-                  </Text>
-                </View>
-              ))}
+        <View style={styles.riskCard}>
+          <View style={styles.riskTopRow}>
+            <View style={styles.riskPill}>
+              <View style={styles.riskDot} />
+              <Text style={styles.riskPillText}>{profile.toUpperCase()} INVESTOR</Text>
             </View>
-          </>
-        )}
-
-        {/* Recommended Funds */}
-        <View style={[styles.sectionHeader, { marginTop: 26, alignItems: 'flex-start' }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.sectionTitle}>{t('dash.forYourRiskProfile', { defaultValue: 'For your risk profile' })}</Text>
-            <Text style={[styles.profileSubLabel, { marginTop: 4 }]}>
-              {t('dash.basedOnProfile', { defaultValue: 'Based on: {{profile}}', profile }).replace(/\{\{?profile\}\}?/g, profile)}
+            <Text style={styles.riskDateText}>
+              Assessed {profileData?.updatedAt ? new Date(profileData.updatedAt).toLocaleDateString('en-IN') : 'Recently'}
             </Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Pressable onPress={() => navigation.navigate('InvestmentBuckets')}>
-              <Text style={styles.linkText}>{t('dash.seeBuckets', { defaultValue: 'See Buckets' })}</Text>
-            </Pressable>
-            <Pressable onPress={() => navigation.navigate('RiskAssessment')}>
-              <Text style={styles.linkText}>{t('dash.retake', { defaultValue: 'Retake' })}</Text>
-            </Pressable>
+
+          {/* 5-Step Visual Risk Spectrum Bar */}
+          <View style={styles.spectrumContainer}>
+            <View style={styles.spectrumLabels}>
+              <Text style={styles.spectrumLabelLeft}>Lower Volatility</Text>
+              <Text style={styles.spectrumLabelCenter}>Moderate</Text>
+              <Text style={styles.spectrumLabelRight}>Higher Volatility</Text>
+            </View>
+            <View style={styles.spectrumTrack}>
+              {[0, 1, 2, 3, 4].map((step) => {
+                const isActive = step === riskIndex;
+                return (
+                  <View
+                    key={step}
+                    style={[
+                      styles.spectrumSegment,
+                      isActive && styles.spectrumSegmentActive,
+                    ]}
+                  />
+                );
+              })}
+            </View>
           </View>
-        </View>
 
-        <View style={{ gap: 12 }}>
-          {recommendedFunds.map((fund, idx) => (
-            <Pressable key={fund.schemeCode || idx} style={[styles.card, { flexDirection: 'row', alignItems: 'center' }]} onPress={() => navigation.navigate('FundDetail', { schemeCode: fund.schemeCode })}>
-              <View style={{ flex: 1, paddingRight: 8 }}>
-                <Text style={styles.fundCardTitle} numberOfLines={1}>{fund.name || fund.schemeName}</Text>
-                <View style={styles.fundBadge}>
-                  <Text style={styles.fundBadgeText}>
-                    {fund.category ? t(`category.${fund.category.toLowerCase().replace(/\s+/g, '')}`, { defaultValue: fund.category }) : 'Mutual Fund'}
-                  </Text>
-                </View>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.fundNavText}>
-                  ₹{fund.nav ? parseFloat(fund.nav).toFixed(2) : (fund.latestNav ? parseFloat(fund.latestNav).toFixed(2) : t('dash.na', { defaultValue: 'N/A' }))}
-                </Text>
-                <Text style={styles.fundArrow}>→</Text>
-              </View>
-            </Pressable>
-          ))}
-        </View>
-
-        {/* Safety Assurances */}
-        <View style={styles.safetyBanner}>
-          <Text style={styles.safetyTitle}>🛡️ {t('dash.whereMoneyGoes', { defaultValue: 'Where your money goes' })}</Text>
-          <Text style={styles.safetyDesc}>
-            {t('dash.moneyGoesDesc', { defaultValue: 'Orders are placed with the fund house through our transaction partner, Cybrilla. You pay from your own bank account, and units are allotted in your name by the fund house.' })}
+          <Text style={styles.riskExplanationText}>
+            You prefer balanced growth with measured risk exposure. Your portfolio is geared toward diversified equity cushioned with defensive instruments to soften market drawdowns.
           </Text>
+
+          <View style={styles.riskActionRow}>
+            <Pressable
+              style={styles.understandBtn}
+              onPress={() => setRiskModalVisible(true)}
+            >
+              <Ionicons name="information-circle-outline" size={15} color="#3C3985" />
+              <Text style={styles.understandBtnText}>Understand my risk profile</Text>
+            </Pressable>
+            <Pressable
+              style={styles.viewBucketsBtn}
+              onPress={() => navigation.navigate('InvestmentBuckets')}
+            >
+              <Text style={styles.viewBucketsText}>View Suited Buckets</Text>
+              <Ionicons name="chevron-forward" size={13} color="#3C3985" />
+            </Pressable>
+          </View>
         </View>
 
-        {/* Learn Section */}
-        <View style={[styles.sectionHeader, { marginTop: 28 }]}>
-          <Text style={styles.sectionTitle}>📚 {t('dash.learnAndGrow', { defaultValue: 'Learn & Grow' })}</Text>
-        </View>
-        <Pressable style={styles.learnBanner} onPress={() => navigation.navigate('Learn')}>
-          <View style={styles.learnBannerIconWrapper}>
-            <Text style={{ fontSize: 32 }}>🎓</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.learnBannerTitle}>{t('dash.academyTitle', { defaultValue: 'TechArtha Academy' })}</Text>
-            <Text style={styles.learnBannerDesc}>{t('dash.academyDesc', { defaultValue: 'Master the basics of mutual funds, SIPs, and risk management with our bite-sized lessons.' })}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
-              <Text style={styles.linkText}>{t('dash.startLearning', { defaultValue: 'Start Learning' })}</Text>
-              <Text style={[styles.linkText, { marginLeft: 4 }]}>→</Text>
+        {/* ========================================================
+            SECTION 5: ARTHAVERSE DISCOVERY BANNER (HERO CTA)
+           ======================================================== */}
+        <Pressable
+          style={styles.arthaVerseHeroBanner}
+          onPress={() => navigation.navigate('Explore')}
+        >
+          <View style={styles.arthaVerseContent}>
+            <View style={styles.bannerTagRow}>
+              <View style={styles.bannerOrangeDot} />
+              <Text style={styles.bannerEyebrow}>DEDICATED DISCOVERY DESTINATION</Text>
+            </View>
+
+            <Text style={styles.bannerTitle}>Welcome to ArthaVerse</Text>
+            <Text style={styles.bannerSub}>
+              Markets, vetted fund intelligence & financial knowledge — all in one dedicated place.
+            </Text>
+
+            <View style={styles.bannerCtaRow}>
+              <View style={styles.bannerExploreBtn}>
+                <Text style={styles.bannerExploreText}>Explore ArthaVerse</Text>
+                <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+              </View>
+              <Text style={styles.bannerMotto}>Explore. Understand. Grow.</Text>
             </View>
           </View>
         </Pressable>
 
-        <View style={{ height: 32 }} />
+        {/* ========================================================
+            SECTION 6: CONTINUE YOUR JOURNEY (QUICK SHORTCUTS)
+           ======================================================== */}
+        <View style={styles.sectionHeaderRow}>
+          <View>
+            <Text style={styles.sectionTitle}>Continue Your Journey</Text>
+            <Text style={styles.sectionSubtitle}>Personalized steps for your portfolio</Text>
+          </View>
+        </View>
+
+        <View style={styles.shortcutsGrid}>
+          <Pressable
+            style={styles.shortcutCard}
+            onPress={() => navigation.navigate('Funds', { query: 'Index' })}
+          >
+            <View style={[styles.shortcutIconWrap, { backgroundColor: '#EEF2FF' }]}>
+              <Ionicons name="trending-up-outline" size={18} color="#4F46E5" />
+            </View>
+            <Text style={styles.shortcutTitle}>Top Index Funds</Text>
+            <Text style={styles.shortcutSub}>Low-cost NIFTY 50 tracking</Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.shortcutCard}
+            onPress={() => navigation.navigate('GoalSelection')}
+          >
+            <View style={[styles.shortcutIconWrap, { backgroundColor: '#FAF5FF' }]}>
+              <Ionicons name="flag-outline" size={18} color="#7E22CE" />
+            </View>
+            <Text style={styles.shortcutTitle}>Set a Goal</Text>
+            <Text style={styles.shortcutSub}>Milestone planning</Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.shortcutCard}
+            onPress={() => navigation.navigate('Explore')}
+          >
+            <View style={[styles.shortcutIconWrap, { backgroundColor: '#F0FDF4' }]}>
+              <Ionicons name="school-outline" size={18} color="#16A34A" />
+            </View>
+            <Text style={styles.shortcutTitle}>ArthaPlay Quiz</Text>
+            <Text style={styles.shortcutSub}>Earn knowledge badges</Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.shortcutCard}
+            onPress={() => navigation.navigate('RiskAssessment')}
+          >
+            <View style={[styles.shortcutIconWrap, { backgroundColor: '#FFF7ED' }]}>
+              <Ionicons name="speedometer-outline" size={18} color="#EA580C" />
+            </View>
+            <Text style={styles.shortcutTitle}>Risk Calibration</Text>
+            <Text style={styles.shortcutSub}>Review your suitability</Text>
+          </Pressable>
+        </View>
+
+        {/* ========================================================
+            SECTION 7: INVESTOR PROTECTION & COMPLIANCE
+           ======================================================== */}
+        <View style={styles.safetyCard}>
+          <View style={styles.safetyHeader}>
+            <Ionicons name="shield-checkmark" size={17} color="#3C3985" />
+            <Text style={styles.safetyTitle}>Direct Investor Protection</Text>
+          </View>
+          <Text style={styles.safetyText}>
+            Orders are executed directly with asset management companies through Cybrilla. Investments are held in your own name and folio under AMFI-registered mutual fund frameworks.
+          </Text>
+        </View>
+
+        <View style={styles.complianceFooter}>
+          <Text style={styles.complianceText}>
+            Mutual fund investments are subject to market risks. Read all scheme related documents carefully before investing. Past performance is not indicative of future returns.
+          </Text>
+          <Text style={[styles.complianceText, { marginTop: 4, fontWeight: '700' }]}>
+            TechArtha 2.0 • AMFI-Registered Mutual Fund Distributor
+          </Text>
+        </View>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+
+      {/* Understand Risk Profile Modal */}
+      <Modal
+        visible={riskModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setRiskModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalHeading}>Understanding Your Risk Profile</Text>
+                <Text style={styles.modalSubheading}>Assessed Level: {profile}</Text>
+              </View>
+              <Pressable onPress={() => setRiskModalVisible(false)} hitSlop={10}>
+                <Ionicons name="close-circle" size={24} color="#64748B" />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 10 }}>
+              <View style={styles.modalSection}>
+                <Text style={styles.modalSecTitle}>WHAT THIS PROFILE MEANS</Text>
+                <Text style={styles.modalSecBody}>
+                  A Moderate profile balances wealth accumulation with capital stability. You are willing to endure minor short-term fluctuations to achieve inflation-beating long-term returns.
+                </Text>
+              </View>
+
+              <View style={styles.modalSection}>
+                <Text style={styles.modalSecTitle}>WHAT VOLATILITY MEANS</Text>
+                <Text style={styles.modalSecBody}>
+                  Volatility refers to temporary price movements. High volatility means sharp ups and downs; low volatility means steady, conservative growth. Volatility is not a permanent loss unless you panic-sell during dips.
+                </Text>
+              </View>
+
+              <View style={styles.modalSection}>
+                <Text style={styles.modalSecTitle}>TIME HORIZON MATTERS</Text>
+                <Text style={styles.modalSecBody}>
+                  Money needed within 1–3 years belongs in low-volatility debt funds. Equities require 5+ years so market cycles have enough time to average out short-term corrections.
+                </Text>
+              </View>
+
+              <View style={styles.modalSection}>
+                <Text style={styles.modalSecTitle}>RISK DISCLOSURE</Text>
+                <Text style={styles.modalSecBody}>
+                  This profile provides educational suitability context based on your assessment answers. It is not an individual financial guarantee or a prediction of future returns.
+                </Text>
+              </View>
+            </ScrollView>
+
+            <Pressable
+              style={styles.modalCloseBtn}
+              onPress={() => setRiskModalVisible(false)}
+            >
+              <Text style={styles.modalCloseText}>Understood</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.canvas },
-  home: { paddingHorizontal: 20, paddingBottom: 24, paddingTop: 10 },
-  headerBlock: { marginBottom: 8 },
-  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  accentIndicator: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
-  eyebrow: { color: colors.accentDark, fontSize: 11, letterSpacing: 1.4, fontWeight: '800' },
-  homeTitle: { color: colors.textPrimary, fontSize: 30, textTransform: 'capitalize', fontWeight: '900', marginTop: 4 },
-  homeSub: { color: colors.textSecondary, fontSize: 14, marginTop: 2 },
-
-  // 3D Elevated Balance Card
-  balanceCard: {
-    backgroundColor: colors.primary,
-    borderRadius: radii['2xl'],
-    padding: 22,
-    marginTop: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    ...shadows.glowPrimary,
-  },
-  balanceTopRow: {
+  safe: { flex: 1, backgroundColor: '#F8F9FD' },
+  container: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 24 },
+  greetingHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 16,
   },
-  balanceLabel: {
-    color: 'rgba(255, 255, 255, 0.75)',
+  timeGreetingText: {
     fontSize: 11,
-    letterSpacing: 1,
     fontWeight: '800',
+    color: '#F7941E',
+    letterSpacing: 0.8,
   },
-  amfiPill: {
+  journeySubtext: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#102A54',
+    marginTop: 2,
+  },
+  quickActionIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  iconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  unreadDot: {
+    position: 'absolute',
+    top: 7,
+    right: 7,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#EF4444',
+  },
+  langPillText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#3C3985',
+  },
+  dashboardCard: {
+    backgroundColor: '#3C3985',
+    borderRadius: 22,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#3C3985',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  dashboardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+  dashboardEyebrow: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#CBD5E1',
+    letterSpacing: 0.8,
+  },
+  asOnText: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  regBadge: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: radii.full,
+    borderRadius: 6,
   },
-  amfiPillText: {
+  regBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
     color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
   },
-  balance: {
+  cardLoader: {
+    paddingVertical: 30,
+    alignItems: 'center',
+  },
+  emptyPortfolioBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  emptySparkleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  emptyPortfolioTitle: {
+    fontSize: 14,
+    fontWeight: '800',
     color: '#FFFFFF',
-    fontSize: 36,
-    fontWeight: '900',
-    marginTop: 4,
   },
-  balanceSub: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 2,
+  emptyPortfolioDesc: {
+    fontSize: 12,
+    color: '#E2E8F0',
+    lineHeight: 17,
+    marginBottom: 14,
   },
-  chartWrapper: {
-    marginTop: 10,
-    marginBottom: 10,
-  },
-  cardActionsRow: {
+  emptyActionsRow: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 6,
   },
-  primaryActionButton: {
+  startInvestingBtn: {
     backgroundColor: '#FFFFFF',
-    borderRadius: radii.lg,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    ...shadows.card,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 4,
   },
-  primaryActionText: {
-    color: colors.primary,
+  startInvestingText: {
+    fontSize: 12,
     fontWeight: '800',
-    fontSize: 13,
+    color: '#3C3985',
   },
-  secondaryActionButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
-    borderRadius: radii.lg,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+  planGoalOutlineBtn: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
-  secondaryActionText: {
-    color: '#FFFFFF',
+  planGoalOutlineText: {
+    fontSize: 12,
     fontWeight: '700',
-    fontSize: 13,
+    color: '#FFFFFF',
   },
-
-  // Section Headers
-  sectionHeader: {
+  portfolioStatsBox: {
+    gap: 12,
+  },
+  valueRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginTop: 26,
+    alignItems: 'flex-start',
+  },
+  portfolioCurrentLabel: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#CBD5E1',
+    letterSpacing: 0.6,
+  },
+  portfolioCurrentValue: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginTop: 2,
+  },
+  gainBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  gainText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  portfolioMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  investedMetaText: {
+    fontSize: 11.5,
+    color: '#E2E8F0',
+    fontWeight: '600',
+  },
+  viewPortfolioLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  viewPortfolioText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 12,
   },
   sectionTitle: {
-    color: colors.textPrimary,
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '900',
+    color: '#102A54',
   },
-  linkText: {
-    color: colors.primary,
-    fontSize: 13,
-    fontWeight: '800',
+  sectionSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '500',
   },
-  profileSubLabel: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-
-  // Goals Card
-  emptyCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 24,
-    borderRadius: radii.xl,
+  seeAllBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 2,
+    paddingVertical: 4,
+  },
+  seeAllText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#3C3985',
+  },
+  retakeBtn: {
+    paddingVertical: 4,
+  },
+  retakeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#3C3985',
+  },
+  emptyGoalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    ...shadows.card,
+    marginBottom: 20,
   },
-  emoji: {
-    fontSize: 38,
-    marginBottom: 12,
+  emptyGoalCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EBEBFA',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  emptyTitle: {
-    fontSize: 16,
+  emptyGoalTitle: {
+    fontSize: 14,
     fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: 6,
+    color: '#102A54',
+    marginBottom: 2,
   },
-  emptyDesc: {
-    fontSize: 12,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginBottom: 18,
-    lineHeight: 18,
+  emptyGoalSub: {
+    fontSize: 11,
+    color: '#64748B',
+    lineHeight: 15,
   },
-  emptyCtaButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 22,
-    paddingVertical: 12,
-    borderRadius: radii.md,
-    ...shadows.buttonPrimary,
+  planBtnCompact: {
+    backgroundColor: '#3C3985',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
   },
-  emptyCtaText: {
+  planBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '800',
+  },
+  goalsList: {
+    gap: 10,
+    marginBottom: 20,
   },
   goalCard: {
     backgroundColor: '#FFFFFF',
+    borderRadius: 18,
     padding: 16,
-    borderRadius: radii.xl,
     borderWidth: 1,
-    borderColor: '#E8ECF4',
-    marginBottom: 10,
-    ...shadows.card,
+    borderColor: '#E2E8F0',
+    shadowColor: '#102A54',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  cardHeader: {
+  goalCardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
   },
-  goalTitle: {
+  goalCardName: {
     fontSize: 15,
     fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: 2,
+    color: '#102A54',
   },
-  goalSubtitle: {
+  goalCardHorizon: {
     fontSize: 11,
-    color: colors.textMuted,
-    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 2,
   },
-  targetAmount: {
-    fontSize: 16,
+  goalCardTarget: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#102A54',
+  },
+  goalCardTargetLabel: {
+    fontSize: 8.5,
     fontWeight: '800',
-    color: colors.primary,
+    color: '#94A3B8',
+    letterSpacing: 0.5,
   },
-  targetLabel: {
-    fontSize: 9,
-    color: colors.textMuted,
-    fontWeight: '800',
-    marginTop: 1,
-  },
-  progressRow: {
+  goalCardProgressRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 6,
   },
-  savedText: {
+  goalSavedAmount: {
     fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
+    color: '#475569',
+    fontWeight: '600',
   },
-  percentText: {
+  goalPercentText: {
     fontSize: 11,
     fontWeight: '800',
-    color: colors.textMuted,
+    color: '#3C3985',
   },
   progressBarBg: {
-    height: 7,
-    backgroundColor: '#EDF2F7',
-    borderRadius: 3.5,
+    height: 6,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 3,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: colors.accent,
-    borderRadius: 3.5,
+    backgroundColor: '#3C3985',
+    borderRadius: 3,
   },
-  moreGoalsButton: {
-    paddingVertical: 10,
-    alignItems: 'center',
-    backgroundColor: '#F8F9FD',
-    borderRadius: radii.md,
+  riskCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 18,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderStyle: 'dashed',
+    shadowColor: '#102A54',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+    marginBottom: 20,
+  },
+  riskTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  riskPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EBEBFA',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    gap: 6,
+  },
+  riskDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#3C3985',
+  },
+  riskPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#3C3985',
+  },
+  riskDateText: {
+    fontSize: 10,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  spectrumContainer: {
+    marginBottom: 12,
+  },
+  spectrumLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: 6,
   },
-  moreGoalsText: {
-    color: colors.primary,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-
-  // SIP orders
-  sipCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 14,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: '#E8ECF4',
-    ...shadows.card,
-  },
-  sipTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  sipSubtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  badgeSuccess: {
-    backgroundColor: colors.status.successBg,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.status.successBorder,
-  },
-  badgeSuccessText: {
-    color: colors.status.success,
-    fontSize: 10,
-    fontWeight: '800',
-  },
-
-  // Fund cards
-  fundCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 14,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: '#E8ECF4',
-    flexDirection: 'row',
-    alignItems: 'center',
-    ...shadows.card,
-  },
-  fundCardTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  fundBadge: {
-    backgroundColor: colors.primaryMuted,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: radii.sm,
-    alignSelf: 'flex-start',
-    marginTop: 4,
-  },
-  fundBadgeText: {
-    color: colors.primary,
-    fontSize: 10,
+  spectrumLabelLeft: {
+    fontSize: 9.5,
     fontWeight: '700',
+    color: '#10B981',
   },
-  fundNavText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.primary,
+  spectrumLabelCenter: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#F59E0B',
   },
-  fundArrow: {
-    color: '#CBD5E0',
-    fontSize: 16,
-    fontWeight: '800',
+  spectrumLabelRight: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#EF4444',
   },
-
-  // Safety & Academy banners
-  safetyBanner: {
-    backgroundColor: '#EBEBFA',
-    borderRadius: radii.lg,
-    padding: 16,
-    marginTop: 22,
-    borderWidth: 1,
-    borderColor: '#D8D8F6',
+  spectrumTrack: {
+    flexDirection: 'row',
+    gap: 4,
   },
-  safetyTitle: {
-    color: colors.primary,
-    fontWeight: '800',
-    fontSize: 13,
+  spectrumSegment: {
+    flex: 1,
+    height: 6,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 3,
   },
-  safetyDesc: {
-    color: colors.primaryDark,
-    opacity: 0.85,
-    fontSize: 11,
-    marginTop: 4,
-    lineHeight: 16,
-    fontWeight: '600',
+  spectrumSegmentActive: {
+    backgroundColor: '#3C3985',
   },
-  learnBanner: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: radii.xl,
-    padding: 18,
+  riskExplanationText: {
+    fontSize: 12.5,
+    color: '#4A5568',
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  riskActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  understandBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    borderWidth: 1,
-    borderColor: '#E8ECF4',
-    ...shadows.card,
+    gap: 4,
   },
-  learnBannerIconWrapper: {
-    backgroundColor: '#FFF4E8',
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+  understandBtnText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#3C3985',
+  },
+  viewBucketsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  viewBucketsText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#3C3985',
+  },
+  arthaVerseHeroBanner: {
+    backgroundColor: '#1E1B4B',
+    borderRadius: 22,
+    padding: 22,
+    marginBottom: 20,
+    shadowColor: '#1E1B4B',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#3730A3',
+  },
+  arthaVerseContent: {
+    gap: 6,
+  },
+  bannerTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  bannerOrangeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#F7941E',
+  },
+  bannerEyebrow: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#F7941E',
+    letterSpacing: 0.8,
+  },
+  bannerTitle: {
+    fontSize: 21,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.3,
+  },
+  bannerSub: {
+    fontSize: 12.5,
+    color: '#CBD5E1',
+    lineHeight: 18,
+  },
+  bannerCtaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  bannerExploreBtn: {
+    backgroundColor: '#4338CA',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 6,
+  },
+  bannerExploreText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  bannerMotto: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#A5B4FC',
+    fontStyle: 'italic',
+  },
+  shortcutsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 20,
+  },
+  shortcutCard: {
+    width: '48%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  shortcutIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 8,
   },
-  learnBannerTitle: {
-    color: colors.textPrimary,
-    fontSize: 15,
+  shortcutTitle: {
+    fontSize: 13,
     fontWeight: '800',
+    color: '#102A54',
+    marginBottom: 2,
   },
-  learnBannerDesc: {
-    color: colors.textMuted,
-    fontSize: 11,
-    marginTop: 3,
+  shortcutSub: {
+    fontSize: 10.5,
+    color: '#64748B',
+  },
+  safetyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 14,
+  },
+  safetyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  safetyTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#102A54',
+  },
+  safetyText: {
+    fontSize: 11.5,
+    color: '#64748B',
     lineHeight: 16,
   },
+  complianceFooter: {
+    padding: 14,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 14,
+  },
+  complianceText: {
+    fontSize: 10,
+    color: '#64748B',
+    lineHeight: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(16, 42, 84, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    padding: 22,
+    width: '100%',
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  modalHeading: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#102A54',
+  },
+  modalSubheading: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  modalSection: {
+    marginBottom: 12,
+  },
+  modalSecTitle: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#3C3985',
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  modalSecBody: {
+    fontSize: 12.5,
+    color: '#334155',
+    lineHeight: 18,
+  },
+  modalCloseBtn: {
+    backgroundColor: '#3C3985',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  modalCloseText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  notifItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#F8F9FD',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  notifTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#102A54',
+    marginBottom: 2,
+  },
+  notifBody: {
+    fontSize: 11,
+    color: '#64748B',
+    lineHeight: 15,
+  },
 });
-
-export default HomeScreen;

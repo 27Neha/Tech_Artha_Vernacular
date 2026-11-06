@@ -8,13 +8,15 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { authStore } from '../store/auth';
-import { api } from '../services/api/client';
+import { api, API_URL } from '../services/api/client';
 import { HeadsetIcon, UserIcon, EditIcon } from '../components/Icons';
+import { Ionicons } from '@expo/vector-icons';
+import { Header } from '../components/Header';
+import { handleGlobalBack, registerUnsavedChecker } from '../navigation/navigationService';
 
 const FALLBACK_QUESTIONS = [
   { id: 'net_worth', question: "Current market value of net worth (Assets - Liabilities)", options: [{ label: "Negative/0", score: 1 }, { label: "< 10L", score: 2 }, { label: "10L-50L", score: 3 }, { label: "> 50L", score: 4 }, { label: "> 1Cr", score: 5 }] },
@@ -28,10 +30,7 @@ const FALLBACK_QUESTIONS = [
   { id: 'loss_tolerance', question: "How long will you hold a poorly performing portfolio?", options: [{ label: "< 3 months", score: 1 }, { label: "3-6 months", score: 2 }, { label: "6-12 months", score: 3 }, { label: "1-3 years", score: 4 }, { label: "> 3 years", score: 5 }] },
   { id: 'invest_share', question: "Percentage of net worth you plan to invest", options: [{ label: "< 10%", score: 1 }, { label: "10-25%", score: 2 }, { label: "25-50%", score: 3 }, { label: "50-75%", score: 4 }, { label: "> 75%", score: 5 }] },
   { id: 'savings_ability', question: "Ability to save money consistently", options: [{ label: "Very poor", score: 1 }, { label: "Poor", score: 2 }, { label: "Average", score: 3 }, { label: "Good", score: 4 }, { label: "Excellent", score: 5 }] },
-  { id: 'market_view', question: "What is your overall attitude towards the stock market?", options: [{ label: "It is a casino, highly dangerous", score: 1 }, { label: "A place for experts only", score: 2 }, { label: "A good place to invest, with some caution", score: 3 }, { label: "An excellent wealth-building opportunity", score: 4 }, { label: "The only place to beat inflation and maximize returns", score: 5 }] },
 ];
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 interface QuestionItem {
   id: string | number;
@@ -140,6 +139,11 @@ export const RiskAssessmentScreen = () => {
   const currentQ = questions[currentIndex];
   const progressPercent = questions.length ? Math.min(100, Math.round(((history.length) / questions.length) * 100)) : 0;
 
+  // Prompt confirmation if user attempts to leave mid-assessment
+  useEffect(() => {
+    return registerUnsavedChecker('risk_assessment', () => history.length > 0 && !submitting);
+  }, [history.length, submitting]);
+
   if (submitting) {
     return (
       <View style={styles.loadingContainer}>
@@ -150,10 +154,11 @@ export const RiskAssessmentScreen = () => {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-      <StatusBar style="light" />
+    <View style={styles.safe}>
+      <StatusBar style="dark" />
+      <Header title="Risk Assessment" />
 
-      {/* Header */}
+      {/* Bot Sub-Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View style={styles.headerBotInfo}>
@@ -295,7 +300,7 @@ export const RiskAssessmentScreen = () => {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

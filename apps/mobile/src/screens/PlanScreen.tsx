@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { SafeAreaView, View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { styles } from '../theme/styles';
 import { api } from '../services/api/client';
 import { useAuth } from '../store/AuthContext';
+import { Header } from '../components/Header';
 
 const SIP_DATES = [1, 5, 10, 15, 20, 25];
 
@@ -62,16 +63,10 @@ export const PlanScreen = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: '#F8F9FB' }]}>
+    <View style={[styles.safe, { backgroundColor: '#F8F9FB' }]}>
       <StatusBar style="dark" />
       <View style={{ flex: 1 }}>
-        <View style={localStyles.header}>
-          <Pressable onPress={() => navigation.goBack()}>
-            <Text style={{ fontSize: 24, color: '#1653B0' }}>←</Text>
-          </Pressable>
-          <Text style={localStyles.headerTitle}>Your Investment Plan</Text>
-          <View style={{ width: 24 }} />
-        </View>
+        <Header title="Your Investment Plan" />
 
         <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
           <View style={localStyles.card}>
@@ -162,7 +157,7 @@ export const PlanScreen = () => {
           </Pressable>
         </ScrollView>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
