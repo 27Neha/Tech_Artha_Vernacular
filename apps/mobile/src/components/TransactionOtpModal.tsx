@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../services/api/client';
 
 /**
@@ -21,6 +22,7 @@ export type TransactionPayload = {
   frequency?: string;
   numberOfInstallments?: number;
   fullExit?: boolean;
+  channel?: 'SMS' | 'WHATSAPP' | 'EMAIL';
 };
 
 type Challenge = {
@@ -51,6 +53,7 @@ export const TransactionOtpModal = ({
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
+  const [channelUsed, setChannelUsed] = useState<'SMS' | 'WHATSAPP' | 'EMAIL'>('WHATSAPP');
   // Never pre-ticked: consent is the investor's act at the moment of entering the code.
   const [consented, setConsented] = useState(false);
 
@@ -64,8 +67,19 @@ export const TransactionOtpModal = ({
     }
     let active = true;
     setSending(true);
-    api
-      .post<Challenge>('/transactions/2fa/challenge', payload)
+    AsyncStorage.getItem('techartha_2fa_preferred_channel')
+      .catch(() => null)
+      .then((savedChannel) => {
+        const ch: 'SMS' | 'WHATSAPP' | 'EMAIL' =
+          savedChannel === 'SMS' || savedChannel === 'EMAIL' || savedChannel === 'WHATSAPP'
+            ? savedChannel
+            : 'WHATSAPP';
+        if (active) setChannelUsed(ch);
+        return api.post<Challenge>('/transactions/2fa/challenge', {
+          ...payload,
+          channel: payload.channel ?? ch,
+        });
+      })
       .then((data) => {
         if (!active) return;
         setChallenge(data);
@@ -104,7 +118,11 @@ export const TransactionOtpModal = ({
                   ? `You are authorising a ${challenge.summary}.`
                   : 'You are authorising this transaction.'}
               </Text>
-              <Text style={styles.hint}>We have sent a 4-digit code to your registered mobile number.</Text>
+              <Text style={styles.hint}>
+                {channelUsed === 'EMAIL'
+                  ? 'We have sent a 4-digit code to your registered email address.'
+                  : 'We have sent a 4-digit code to your registered mobile number.'}
+              </Text>
 
               <TextInput
                 value={otp}

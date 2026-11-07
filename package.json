@@ -10,6 +10,9 @@
   "scripts": {
     "dev": "npm run dev --workspaces",
     "mobile": "npm run start --workspace=mobile",
+    "mobile:lan": "npm run start:lan --workspace=mobile",
+    "mobile:tunnel": "npm run start:tunnel --workspace=mobile",
+    "mobile:localhost": "npm run start:localhost --workspace=mobile",
     "web": "npm run dev --workspace=web",
     "admin": "npm run dev --workspace=admin",
     "api": "npm run start:dev --workspace=api",

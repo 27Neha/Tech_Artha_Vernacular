@@ -9,6 +9,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { exitOnboarding } from '../utils/navigation';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTranslation } from 'react-i18next';
+import { API_URL } from '../services/api/client';
 
 interface KycScreenProps {
   phone?: string;
@@ -47,7 +48,7 @@ export const KycScreen = (props: KycScreenProps) => {
   const setPan = props.setPan ?? setLocalPan;
   const consent = props.consent ?? localConsent;
   const setConsent = props.setConsent ?? setLocalConsent;
-  const apiUrl = props.apiUrl ?? (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000');
+  const apiUrl = props.apiUrl ?? API_URL;
 
   const formattedDob = dobDate ? dobDate.toISOString().split('T')[0] : '';
 

@@ -9,7 +9,7 @@ import { ChevronIcon } from '../components/Icons';
 import Svg, { Path, Polyline, Line } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_URL } from '../services/api/client';
 
 
 const CheckIcon = ({ color }: any) => (

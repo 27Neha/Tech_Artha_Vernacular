@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 
 const SIP_DATES = [1, 5, 10, 15, 20, 25];
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_URL } from '../services/api/client';
 
 export const PlanSummaryScreen = () => {
   const { t } = useTranslation('common');

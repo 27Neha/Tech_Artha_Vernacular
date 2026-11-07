@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,6 @@ import {
   Pressable,
   ScrollView,
   Alert,
-  Platform,
-  Modal,
-  Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -19,13 +16,12 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authStore } from '../store/auth';
 import { api } from '../services/api/client';
-import { openEmailSupport, TECH_ARTHA_SUPPORT } from '../utils/contact';
 import { useTheme } from '../context/ThemeContext';
 
 export const ProfileScreen = () => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
 
   // Profile data from backend
   const [profile, setProfile] = useState<{
@@ -39,9 +35,6 @@ export const ProfileScreen = () => {
   const [bankCount, setBankCount] = useState<number>(0);
   const [nomineeCount, setNomineeCount] = useState<number>(0);
   const [mandateCount, setMandateCount] = useState<number>(0);
-
-  // Account Closure Advisory Modal
-  const [closureModalVisible, setClosureModalVisible] = useState(false);
 
   const fetchProfileData = useCallback(async () => {
     try {
@@ -115,25 +108,6 @@ export const ProfileScreen = () => {
     );
   };
 
-  const handleShowDeviceSession = () => {
-    Alert.alert(
-      'Active Device Session',
-      `Operating System: ${Platform.OS === 'ios' ? 'Apple iOS' : 'Google Android'}\nPlatform Version: ${Platform.Version}\nApplication: Tech Artha 2.0 (SDK 57)\nSession Security: TLS 1.3 / OAuth 2.0\nStatus: Secure & Authenticated`,
-      [{ text: 'Close', style: 'default' }]
-    );
-  };
-
-  const handleContactForClosure = () => {
-    setClosureModalVisible(false);
-    const subject = encodeURIComponent('Account Closure & Deactivation Request');
-    const body = encodeURIComponent(
-      `Dear TechArtha Grievance Officer,\n\nI wish to request the deactivation/closure of my TechArtha mutual fund investor account.\n\nRegistered Mobile: ${profile?.mobile ?? '-'}\nRegistered Email: ${profile?.email ?? '-'}\nInvestor Name: ${profile?.profile?.fullName ?? '-'}\n\nPlease advise on the next steps as per SEBI regulations.`
-    );
-    Linking.openURL(`mailto:${TECH_ARTHA_SUPPORT.email}?subject=${subject}&body=${body}`).catch(() => {
-      openEmailSupport();
-    });
-  };
-
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.canvas }]} edges={['right', 'bottom', 'left']}>
       <StatusBar style={colors.statusBar} />
@@ -167,7 +141,7 @@ export const ProfileScreen = () => {
           <Pressable style={styles.card} onPress={() => navigation.navigate('EditProfile')}>
             <View style={styles.cardHeader}>
               <View style={[styles.iconBox, { backgroundColor: '#EBEAF8' }]}>
-                <Ionicons name="person-circle-outline" size={22} color="#3C3985" />
+                <Ionicons name="person-circle-outline" size={22} color="#36358D" />
               </View>
               <View style={{ flex: 1, paddingRight: 8 }}>
                 <Text style={styles.cardTitle}>{t('profile.editProfile', { defaultValue: 'Personal Details & PAN' })}</Text>
@@ -290,129 +264,12 @@ export const ProfileScreen = () => {
           </Pressable>
         </View>
 
-        {/* 3. ACCOUNT MANAGEMENT */}
-        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>Account Management</Text>
-        <View style={styles.sectionGroup}>
-          {/* App Settings & Preferences */}
-          <Pressable
-            style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => navigation.navigate('Settings')}
-          >
-            <View style={styles.cardHeader}>
-              <View style={[styles.iconBox, { backgroundColor: isDark ? '#2E1065' : '#EDE9FE' }]}>
-                <Ionicons name="settings-outline" size={20} color={isDark ? '#A78BFA' : '#5B21B6'} />
-              </View>
-              <View style={{ flex: 1, paddingRight: 8 }}>
-                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('header.settings', { defaultValue: 'App Settings & Preferences' })}</Text>
-                <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
-                  Security, theme, notifications, language & cache
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
-            </View>
-          </Pressable>
-
-          {/* Active Device & Session Info */}
-          <Pressable style={styles.card} onPress={handleShowDeviceSession}>
-            <View style={styles.cardHeader}>
-              <View style={[styles.iconBox, { backgroundColor: '#F1F5F9' }]}>
-                <Ionicons name="phone-portrait-outline" size={20} color="#475569" />
-              </View>
-              <View style={{ flex: 1, paddingRight: 8 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={styles.cardTitle}>Active Device & Session</Text>
-                  <View style={styles.statusPillActive}>
-                    <Text style={styles.statusPillActiveText}>Active</Text>
-                  </View>
-                </View>
-                <Text style={styles.cardSub}>
-                  {Platform.OS === 'ios' ? 'Apple iOS' : 'Google Android'} • Session verified with encrypted token
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#CBD5E0" />
-            </View>
-          </Pressable>
-
-          {/* Account Closure Advisory & Request */}
-          <Pressable style={styles.card} onPress={() => setClosureModalVisible(true)}>
-            <View style={styles.cardHeader}>
-              <View style={[styles.iconBox, { backgroundColor: '#FEF2F2' }]}>
-                <Ionicons name="alert-circle-outline" size={20} color="#DC2626" />
-              </View>
-              <View style={{ flex: 1, paddingRight: 8 }}>
-                <Text style={styles.cardTitle}>Account Closure Request</Text>
-                <Text style={styles.cardSub}>
-                  SEBI regulatory deactivation procedure and portfolio exit guidelines
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#CBD5E0" />
-            </View>
-          </Pressable>
-        </View>
-
         {/* LOGOUT BUTTON */}
         <Pressable style={styles.logoutBtn} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={18} color="#C53030" style={{ marginRight: 8 }} />
           <Text style={styles.logoutText}>{t('header.logOut', { defaultValue: 'Log Out' })}</Text>
         </Pressable>
       </ScrollView>
-
-      {/* SEBI ACCOUNT CLOSURE / DEACTIVATION MODAL */}
-      <Modal visible={closureModalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.closureCard}>
-            <View style={styles.closureHeader}>
-              <View style={styles.closureIconBox}>
-                <Ionicons name="alert-circle" size={26} color="#DC2626" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.closureTitle}>Account Closure Advisory</Text>
-                <Text style={styles.closureSub}>SEBI & PMLA Regulatory Procedure</Text>
-              </View>
-              <Pressable onPress={() => setClosureModalVisible(false)} hitSlop={12}>
-                <Ionicons name="close" size={24} color="#718096" />
-              </Pressable>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} style={styles.closureScroll}>
-              <View style={styles.closureInfoBox}>
-                <Text style={styles.closureInfoHeading}>Prerequisites for Account Deactivation:</Text>
-                
-                <View style={styles.closurePointRow}>
-                  <Ionicons name="checkmark-circle" size={16} color="#3C3985" style={{ marginTop: 2 }} />
-                  <Text style={styles.closurePointText}>
-                    <Text style={{ fontWeight: '700', color: '#102A54' }}>Zero Mutual Fund Units:</Text> All active holdings must be completely redeemed or transferred. Proceeds must be cleared to your bank.
-                  </Text>
-                </View>
-
-                <View style={styles.closurePointRow}>
-                  <Ionicons name="checkmark-circle" size={16} color="#3C3985" style={{ marginTop: 2 }} />
-                  <Text style={styles.closurePointText}>
-                    <Text style={{ fontWeight: '700', color: '#102A54' }}>Cancel Active Mandates:</Text> All NPCI e-Mandates must be revoked to stop future automated monthly SIP debits.
-                  </Text>
-                </View>
-
-                <View style={styles.closurePointRow}>
-                  <Ionicons name="checkmark-circle" size={16} color="#3C3985" style={{ marginTop: 2 }} />
-                  <Text style={styles.closurePointText}>
-                    <Text style={{ fontWeight: '700', color: '#102A54' }}>5-Year Statutory Retention:</Text> Under SEBI Master Circulars and Prevention of Money Laundering Act (PMLA), investor records and transaction history must be archived for 5 years after closure.
-                  </Text>
-                </View>
-              </View>
-            </ScrollView>
-
-            <View style={{ gap: 10 }}>
-              <Pressable style={styles.contactSupportBtn} onPress={handleContactForClosure}>
-                <Ionicons name="mail-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
-                <Text style={styles.contactSupportBtnText}>Contact Grievance Officer</Text>
-              </Pressable>
-              <Pressable style={styles.keepActiveBtn} onPress={() => setClosureModalVisible(false)}>
-                <Text style={styles.keepActiveBtnText}>Keep Account Active</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };
@@ -424,7 +281,7 @@ const styles = StyleSheet.create({
 
   // Profile Header Card
   profileCard: { backgroundColor: '#fff', borderRadius: 24, padding: 24, alignItems: 'center', marginBottom: 24, borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
-  avatar: { width: 76, height: 76, borderRadius: 38, backgroundColor: '#3C3985', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  avatar: { width: 76, height: 76, borderRadius: 38, backgroundColor: '#36358D', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   avatarText: { color: '#fff', fontSize: 30, fontWeight: '800' },
   name: { fontSize: 20, fontWeight: '800', color: '#102A54', marginBottom: 3 },
   mobile: { fontSize: 13, color: '#718096', fontWeight: '600', marginBottom: 3 },
@@ -446,31 +303,12 @@ const styles = StyleSheet.create({
   // Status Indicator Pills
   statusPillGreen: { backgroundColor: '#ECFDF5', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   statusPillGreenText: { color: '#059669', fontSize: 10, fontWeight: '800' },
-  statusPillGray: { backgroundColor: '#F1F5F9', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  statusPillGrayText: { color: '#64748B', fontSize: 10, fontWeight: '700' },
-  statusPillActive: { backgroundColor: '#F0FDF4', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#DCFCE7' },
-  statusPillActiveText: { color: '#16A34A', fontSize: 10, fontWeight: '800' },
   countBadge: { backgroundColor: '#EEF2FF', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   countBadgeText: { color: '#4338CA', fontSize: 10, fontWeight: '800' },
 
   // Logout Button
   logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF5F5', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#FEB2B2', marginTop: 8 },
   logoutText: { color: '#C53030', fontSize: 15, fontWeight: '800' },
-
-  // Closure Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  closureCard: { backgroundColor: '#fff', borderRadius: 24, padding: 22, width: '100%', maxWidth: 420 },
-  closureHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 12 },
-  closureIconBox: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center' },
-  closureTitle: { fontSize: 17, fontWeight: '800', color: '#102A54' },
-  closureSub: { fontSize: 12, color: '#718096', marginTop: 2 },
-  closureScroll: { maxHeight: 300, marginVertical: 8 },
-  closureInfoBox: { backgroundColor: '#F8FAFC', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#E2E8F0', gap: 12 },
-  closureInfoHeading: { fontSize: 13, fontWeight: '800', color: '#102A54', marginBottom: 2 },
-  closurePointRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  closurePointText: { fontSize: 12, color: '#4A5568', lineHeight: 18, flex: 1 },
-  contactSupportBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#DC2626', borderRadius: 14, paddingVertical: 14 },
-  contactSupportBtnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
-  keepActiveBtn: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9', borderRadius: 14, paddingVertical: 12 },
-  keepActiveBtnText: { color: '#475569', fontSize: 13, fontWeight: '700' }
 });
+
+export default ProfileScreen;

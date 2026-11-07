@@ -42,7 +42,7 @@ const GREETING: Message = {
   text: "Hello! 👋 I'm your Client Assistant. I can help you with your investments, goals, KYC and account questions. How can I help you today?",
 };
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_URL } from '../services/api/client';
 
 interface RiskHistoryItem {
   id: string;
@@ -59,7 +59,7 @@ export const AssistantScreen = () => {
   const { i18n } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([GREETING]);
   const [input, setInput] = useState('');
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<any>(null);
 
   // Risk Assessment History state
   const [showHistoryModal, setShowHistoryModal] = useState(false);

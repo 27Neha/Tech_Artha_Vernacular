@@ -6,6 +6,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { exitOnboarding } from '../utils/navigation';
 import { useTranslation } from 'react-i18next';
 import { Header } from '../components/Header';
+import { Ionicons } from '@expo/vector-icons';
 import { RiskometerGauge, RISK_CATEGORIES } from '../components/RiskometerGauge';
 
 export const RiskResultScreen = () => {
@@ -47,7 +48,7 @@ export const RiskResultScreen = () => {
   return (
     <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
       <StatusBar style="dark" />
-      <Header title="Your Risk Profile" />
+      <Header title="Your Risk Profile" onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
@@ -65,17 +66,7 @@ export const RiskResultScreen = () => {
 
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
-              <View style={styles.statLabelRow}>
-                <Text style={styles.statLabel}>Calculated Score</Text>
-                <Pressable
-                  style={({ pressed }) => [styles.learnHowBtn, pressed && styles.learnHowBtnPressed]}
-                  onPress={() => navigation.navigate('Article', { slug: 'risk-score-calculation', highlight: true })}
-                  accessibilityRole="button"
-                  accessibilityLabel="Learn how your risk score is calculated"
-                >
-                  <Text style={styles.learnHowText}>{t('risk.learnHow', { defaultValue: 'Learn How' })}</Text>
-                </Pressable>
-              </View>
+              <Text style={styles.statLabel}>Calculated Score</Text>
               <Text style={styles.statValue}>{score} / 60</Text>
             </View>
             <View style={styles.statBox}>
@@ -83,6 +74,49 @@ export const RiskResultScreen = () => {
               <Text style={styles.statValue}>Equity {recommendedSplit}</Text>
             </View>
           </View>
+
+          {/* Option 1: Learn How (Riskometer Representation & Guidance) */}
+          <Pressable
+            style={({ pressed }) => [styles.actionCard, styles.learnHowCard, pressed && styles.actionPressed]}
+            onPress={() => navigation.navigate('Article', { slug: 'understanding-risk' })}
+            accessibilityRole="button"
+            accessibilityLabel="Learn How: Understand what the Riskometer represents"
+          >
+            <View style={[styles.actionIconBox, { backgroundColor: '#EBEBFA' }]}>
+              <Ionicons name="school-outline" size={20} color="#36358D" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.actionTitle}>Learn How</Text>
+                <View style={styles.academyTag}>
+                  <Text style={styles.academyTagText}>ACADEMY</Text>
+                </View>
+              </View>
+              <Text style={styles.actionSubtitle}>
+                What the Riskometer represents & how to understand your risk score
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#36358D" />
+          </Pressable>
+
+          {/* Option 2: How Is Your Score Calculated? */}
+          <Pressable
+            style={({ pressed }) => [styles.actionCard, styles.calcCard, pressed && styles.actionPressed]}
+            onPress={() => navigation.navigate('Article', { slug: 'risk-score-calculation' })}
+            accessibilityRole="button"
+            accessibilityLabel="How Is Your Score Calculated?"
+          >
+            <View style={[styles.actionIconBox, { backgroundColor: '#FFF4E5' }]}>
+              <Ionicons name="calculator-outline" size={20} color="#F7941D" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.actionTitle}>How Is Your Score Calculated?</Text>
+              <Text style={styles.actionSubtitle}>
+                12 suitability factors & SEBI category formula explained
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#F7941D" />
+          </Pressable>
         </View>
 
         <Pressable style={styles.primaryBtn} onPress={() => navigation.navigate('GoalSelection')}>
@@ -148,7 +182,7 @@ const styles = StyleSheet.create({
     color: '#4A5568',
     textAlign: 'center',
     lineHeight: 21,
-    marginBottom: 24,
+    marginBottom: 20,
     paddingHorizontal: 10,
     fontWeight: '500',
   },
@@ -156,6 +190,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     width: '100%',
+    marginBottom: 4,
   },
   statBox: {
     flex: 1,
@@ -167,50 +202,85 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#EDF2F7',
   },
-  statLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginBottom: 4,
-    flexWrap: 'wrap',
-  },
   statLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
-    color: '#A0AEC0',
+    color: '#718096',
     textTransform: 'uppercase',
-  },
-  learnHowBtn: {
-    backgroundColor: '#EBEBFA',
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#D4D2F5',
-  },
-  learnHowBtnPressed: {
-    backgroundColor: '#DDD9F5',
-  },
-  learnHowText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#3C3985',
+    letterSpacing: 0.5,
+    marginBottom: 4,
   },
   statValue: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
     color: '#102A54',
   },
+  actionCard: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    marginTop: 12,
+    gap: 12,
+  },
+  learnHowCard: {
+    backgroundColor: '#F9F9FE',
+    borderColor: '#DEDBF7',
+  },
+  calcCard: {
+    backgroundColor: '#FFFAF5',
+    borderColor: '#FEE0C2',
+  },
+  actionPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.99 }],
+  },
+  actionIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#102A54',
+  },
+  actionSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  academyTag: {
+    backgroundColor: '#EBEBFA',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  academyTagText: {
+    color: '#36358D',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
   primaryBtn: {
     width: '100%',
-    backgroundColor: '#3C3985',
+    backgroundColor: '#36358D',
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    shadowColor: '#36358D',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
   },
   primaryBtnText: {
     color: '#fff',
@@ -224,7 +294,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   skipBtnText: {
-    color: '#3C3985',
+    color: '#36358D',
     fontSize: 15,
     fontWeight: '700',
   },

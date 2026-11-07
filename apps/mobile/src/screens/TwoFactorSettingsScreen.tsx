@@ -5,64 +5,57 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  Switch,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../context/ThemeContext';
 import { api } from '../services/api/client';
+
+type TwoFactorChannel = 'WHATSAPP' | 'SMS' | 'EMAIL';
 
 export const TwoFactorSettingsScreen = () => {
   const navigation = useNavigation<any>();
   const { colors, isDark } = useTheme();
 
-  const [whatsappEnabled, setWhatsappEnabled] = useState(true);
-  const [emailOtpEnabled, setEmailOtpEnabled] = useState(true);
-  const [smsBackup, setSmsBackup] = useState(true);
+  const [preferredChannel, setPreferredChannel] = useState<TwoFactorChannel>('WHATSAPP');
   const [userMobile, setUserMobile] = useState<string>('');
   const [userEmail, setUserEmail] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [sendingTest, setSendingTest] = useState(false);
 
   useEffect(() => {
     let mounted = true;
-    const fetchProfile = async () => {
+    const loadData = async () => {
       try {
-        const res = await api.get<any>('/auth/profile');
-        if (mounted && res) {
+        const [savedChannel, res] = await Promise.all([
+          AsyncStorage.getItem('techartha_2fa_preferred_channel'),
+          api.get<any>('/auth/profile').catch(() => null),
+        ]);
+        if (!mounted) return;
+        if (savedChannel === 'WHATSAPP' || savedChannel === 'SMS' || savedChannel === 'EMAIL') {
+          setPreferredChannel(savedChannel);
+        }
+        if (res) {
           if (res.mobile) setUserMobile(`+91 ${res.mobile}`);
           if (res.email) setUserEmail(res.email);
-        }
-      } catch {
-        // Fallback display
-        if (mounted) {
-          setUserMobile('+91 Registered Mobile');
-          setUserEmail('Registered Email');
         }
       } finally {
         if (mounted) setLoading(false);
       }
     };
 
-    fetchProfile();
+    loadData();
     return () => {
       mounted = false;
     };
   }, []);
 
-  const handleTest2FA = async () => {
-    setSendingTest(true);
-    setTimeout(() => {
-      setSendingTest(false);
-      Alert.alert(
-        '2FA Channel Verified',
-        `A verification ping was dispatched to ${userMobile || 'your registered device'}. Two-factor security is working normally.`
-      );
-    }, 1000);
+  const handleSelectChannel = async (channel: TwoFactorChannel) => {
+    setPreferredChannel(channel);
+    await AsyncStorage.setItem('techartha_2fa_preferred_channel', channel);
   };
 
   return (
@@ -76,11 +69,13 @@ export const TwoFactorSettingsScreen = () => {
         </Pressable>
         <View style={styles.headerTitleWrap}>
           <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Two-Factor Authentication</Text>
-          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>Transaction Security & OTP Channels</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
+            Transaction Security & OTP Delivery Channel
+          </Text>
         </View>
         <View style={styles.badge}>
           <Ionicons name="shield-checkmark" size={14} color="#059669" />
-          <Text style={styles.badgeText}>Active</Text>
+          <Text style={styles.badgeText}>Enforced</Text>
         </View>
       </View>
 
@@ -92,9 +87,9 @@ export const TwoFactorSettingsScreen = () => {
               <Ionicons name="finger-print-outline" size={28} color="#3C3985" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>2FA Mandatory Protection</Text>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Mandatory Transaction 2FA</Text>
               <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
-                Enforced on all purchases, redemptions, and bank modifications.
+                Every mutual fund purchase, SIP registration, and redemption requires a cryptographic 4-digit OTP challenge.
               </Text>
             </View>
           </View>
@@ -104,94 +99,92 @@ export const TwoFactorSettingsScreen = () => {
         <View style={[styles.regBanner, { backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF', borderColor: '#C7D2FE' }]}>
           <Ionicons name="information-circle" size={20} color="#3730A3" />
           <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={styles.regTitle}>SEBI Circular SEBI/HO/IMD/IMD-I/P/CIR/2022/132</Text>
+            <Text style={styles.regTitle}>SEBI Two-Factor Compliance</Text>
             <Text style={styles.regText}>
-              In accordance with SEBI compliance, two-factor authentication cannot be deactivated for mutual fund transaction orders.
+              Per SEBI regulations, two-factor authentication cannot be disabled for mutual fund orders. You can choose your preferred OTP delivery channel below.
             </Text>
           </View>
         </View>
 
-        {/* Verification Channels */}
-        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>ACTIVE DELIVERY CHANNELS</Text>
+        {/* Preferred Delivery Channel */}
+        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>PREFERRED OTP DELIVERY CHANNEL</Text>
 
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          {/* WhatsApp Channel */}
-          <View style={[styles.channelRow, { borderBottomColor: colors.borderSubtle }]}>
-            <View style={[styles.channelIcon, { backgroundColor: '#DCFCE7' }]}>
-              <Ionicons name="logo-whatsapp" size={22} color="#15803D" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.channelName, { color: colors.textPrimary }]}>WhatsApp Quick OTP</Text>
-              <Text style={[styles.channelSub, { color: colors.textSecondary }]}>
-                {loading ? 'Loading...' : userMobile || 'Registered Mobile'}
-              </Text>
-            </View>
-            <Switch
-              value={whatsappEnabled}
-              onValueChange={setWhatsappEnabled}
-              trackColor={{ false: '#D1D5DB', true: '#3C3985' }}
-              thumbColor="#FFFFFF"
-            />
+        {loading ? (
+          <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 20 }} />
+        ) : (
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {/* WhatsApp Channel */}
+            <Pressable
+              style={[styles.channelRow, { borderBottomColor: colors.borderSubtle }]}
+              onPress={() => handleSelectChannel('WHATSAPP')}
+            >
+              <View style={[styles.channelIcon, { backgroundColor: '#DCFCE7' }]}>
+                <Ionicons name="logo-whatsapp" size={22} color="#15803D" />
+              </View>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={[styles.channelName, { color: colors.textPrimary }]}>WhatsApp OTP (Recommended)</Text>
+                <Text style={[styles.channelSub, { color: colors.textSecondary }]}>
+                  {userMobile
+                    ? `Sent to ${userMobile} with automatic SMS fallback`
+                    : 'Sent to your registered mobile number with SMS fallback'}
+                </Text>
+              </View>
+              <Ionicons
+                name={preferredChannel === 'WHATSAPP' ? 'radio-button-on' : 'radio-button-off'}
+                size={22}
+                color={preferredChannel === 'WHATSAPP' ? colors.primary : colors.textPlaceholder}
+              />
+            </Pressable>
+
+            {/* SMS Channel */}
+            <Pressable
+              style={[styles.channelRow, { borderBottomColor: colors.borderSubtle }]}
+              onPress={() => handleSelectChannel('SMS')}
+            >
+              <View style={[styles.channelIcon, { backgroundColor: '#E0F2FE' }]}>
+                <Ionicons name="chatbubble-ellipses-outline" size={22} color="#0369A1" />
+              </View>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={[styles.channelName, { color: colors.textPrimary }]}>Direct SMS OTP</Text>
+                <Text style={[styles.channelSub, { color: colors.textSecondary }]}>
+                  {userMobile
+                    ? `Standard carrier SMS to ${userMobile}`
+                    : 'Standard carrier SMS to your registered mobile number'}
+                </Text>
+              </View>
+              <Ionicons
+                name={preferredChannel === 'SMS' ? 'radio-button-on' : 'radio-button-off'}
+                size={22}
+                color={preferredChannel === 'SMS' ? colors.primary : colors.textPlaceholder}
+              />
+            </Pressable>
+
+            {/* Email OTP */}
+            <Pressable
+              style={[styles.channelRow, { borderBottomWidth: 0 }]}
+              onPress={() => handleSelectChannel('EMAIL')}
+            >
+              <View style={[styles.channelIcon, { backgroundColor: '#EDE9FE' }]}>
+                <Ionicons name="mail-outline" size={22} color="#5B21B6" />
+              </View>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={[styles.channelName, { color: colors.textPrimary }]}>Verified Email OTP</Text>
+                <Text style={[styles.channelSub, { color: colors.textSecondary }]}>
+                  {userEmail ? `Delivered to ${userEmail}` : 'Delivered to your verified email address'}
+                </Text>
+              </View>
+              <Ionicons
+                name={preferredChannel === 'EMAIL' ? 'radio-button-on' : 'radio-button-off'}
+                size={22}
+                color={preferredChannel === 'EMAIL' ? colors.primary : colors.textPlaceholder}
+              />
+            </Pressable>
           </View>
-
-          {/* SMS Channel */}
-          <View style={[styles.channelRow, { borderBottomColor: colors.borderSubtle }]}>
-            <View style={[styles.channelIcon, { backgroundColor: '#E0F2FE' }]}>
-              <Ionicons name="chatbubble-ellipses-outline" size={22} color="#0369A1" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.channelName, { color: colors.textPrimary }]}>SMS Fallback Delivery</Text>
-              <Text style={[styles.channelSub, { color: colors.textSecondary }]}>
-                Used if WhatsApp delivery fails or is unreachable
-              </Text>
-            </View>
-            <Switch
-              value={smsBackup}
-              onValueChange={setSmsBackup}
-              trackColor={{ false: '#D1D5DB', true: '#3C3985' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-
-          {/* Email OTP */}
-          <View style={[styles.channelRow, { borderBottomWidth: 0 }]}>
-            <View style={[styles.channelIcon, { backgroundColor: '#EDE9FE' }]}>
-              <Ionicons name="mail-outline" size={22} color="#5B21B6" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.channelName, { color: colors.textPrimary }]}>Email Confirmation</Text>
-              <Text style={[styles.channelSub, { color: colors.textSecondary }]}>
-                {loading ? 'Loading...' : userEmail || 'Registered Email'}
-              </Text>
-            </View>
-            <Switch
-              value={emailOtpEnabled}
-              onValueChange={setEmailOtpEnabled}
-              trackColor={{ false: '#D1D5DB', true: '#3C3985' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-        </View>
-
-        {/* Security Test Action */}
-        <Pressable
-          style={[styles.testBtn, { backgroundColor: colors.surface, borderColor: '#3C3985' }]}
-          onPress={handleTest2FA}
-          disabled={sendingTest}
-        >
-          {sendingTest ? (
-            <ActivityIndicator size="small" color="#3C3985" />
-          ) : (
-            <>
-              <Ionicons name="shield-checkmark-outline" size={18} color="#3C3985" style={{ marginRight: 8 }} />
-              <Text style={styles.testBtnText}>Test 2FA Delivery Channel</Text>
-            </>
-          )}
-        </Pressable>
+        )}
 
         <View style={styles.footerNote}>
           <Text style={[styles.footerText, { color: colors.textMuted }]}>
-            All OTP sessions are valid for 5 minutes and expire after 3 failed attempts.
+            All transaction OTP challenges are fingerprinted to the exact scheme and amount, remain valid for 5 minutes, and lock after 5 incorrect attempts.
           </Text>
         </View>
       </ScrollView>
@@ -298,7 +291,7 @@ const styles = StyleSheet.create({
   channelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
   },
   channelIcon: {
@@ -315,28 +308,17 @@ const styles = StyleSheet.create({
   },
   channelSub: {
     fontSize: 12,
-    marginTop: 1,
-  },
-  testBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    marginTop: 8,
-  },
-  testBtnText: {
-    color: '#3C3985',
-    fontSize: 14,
-    fontWeight: '700',
+    marginTop: 2,
+    lineHeight: 16,
   },
   footerNote: {
-    marginTop: 20,
+    marginTop: 12,
+    paddingHorizontal: 8,
     alignItems: 'center',
   },
   footerText: {
     fontSize: 12,
     textAlign: 'center',
+    lineHeight: 17,
   },
 });

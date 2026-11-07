@@ -902,5 +902,8 @@
   "signup.learnMore": "ਹੋਰ ਜਾਣੋ",
   "risk.learnHow": "ਕਿਵੇਂ ਹੁੰਦਾ ਹੈ ਸਿੱਖੋ",
   "learn.riskScoreCalculation.title": "ਜਾਣੋ ਤੁਹਾਡਾ ਜੋਖਮ ਸਕੋਰ ਕਿਵੇਂ ਗਿਣਿਆ ਜਾਂਦਾ ਹੈ",
-  "learn.riskScoreCalculation.desc": "ਸਮਝੋ ਕਿ ਤੁਹਾਡੇ 12 ਅਨੁਕੂਲਤਾ ਸਵਾਲਾਂ ਦੇ ਜਵਾਬ ਅਤੇ ਸੇਬੀ ਸੰਪੱਤੀ ਵੰਡ ਪੱਧਰ ਕਿਵੇਂ ਮੁਲਾਂਕਣ ਕੀਤੇ ਜਾਂਦੇ ਹਨ।"
+  "learn.riskScoreCalculation.desc": "ਸਮਝੋ ਕਿ ਤੁਹਾਡੇ 12 ਅਨੁਕੂਲਤਾ ਸਵਾਲਾਂ ਦੇ ਜਵਾਬ ਅਤੇ ਸੇਬੀ ਸੰਪੱਤੀ ਵੰਡ ਪੱਧਰ ਕਿਵੇਂ ਮੁਲਾਂਕਣ ਕੀਤੇ ਜਾਂਦੇ ਹਨ।",
+  "dash": {
+    "reassessRiskProfile": "ਜੋਖਮ ਪ੍ਰੋਫਾਈਲ ਦਾ ਮੁੜ ਮੁਲਾਂਕਣ ਕਰੋ"
+  }
 }

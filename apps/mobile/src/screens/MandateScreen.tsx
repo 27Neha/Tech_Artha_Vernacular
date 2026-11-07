@@ -18,6 +18,13 @@ import { Header } from '../components/Header';
 import { api } from '../services/api/client';
 import { useTheme } from '../context/ThemeContext';
 
+/**
+ * Auto-debit mandates (UPI Autopay and e-NACH) — GET/POST /mandates & POST /mandates/:id/authorize.
+ *
+ * Combines the real Cybrilla/ONDC gateway contract (status polling on focus, re-authorization
+ * token refresh, and zero fabricated UMRNs) with a structured WealthTech UI that distinguishes
+ * mandatory fields from optional fields.
+ */
 export type MandateItem = {
   id: string;
   mandateType: 'UPI' | 'E_MANDATE';
@@ -34,8 +41,9 @@ type MandatesResponse = {
   message: string | null;
 };
 
-type BankAccountInfo = {
+type AccountStatusResponse = {
   hasInvestmentAccount: boolean;
+  approvedMandateLimit: number | null;
   bankAccount: {
     holderName: string | null;
     maskedNumber: string | null;
@@ -44,484 +52,592 @@ type BankAccountInfo = {
   } | null;
 };
 
-const PRESET_LIMITS = [2500, 5000, 10000, 25000];
+const PRESET_LIMITS = [1000, 5000, 10000, 25000, 50000];
+
+const STATUS_META: Record<
+  string,
+  { label: string; bg: string; border: string; text: string; icon: keyof typeof Ionicons.glyphMap }
+> = {
+  APPROVED: {
+    label: 'Approved',
+    bg: '#ECFDF5',
+    border: '#A7F3D0',
+    text: '#059669',
+    icon: 'checkmark-circle',
+  },
+  CREATED: {
+    label: 'Awaiting Bank Approval',
+    bg: '#FFFBEB',
+    border: '#FDE68A',
+    text: '#B45309',
+    icon: 'time-outline',
+  },
+  SUBMITTED: {
+    label: 'Submitted to Bank',
+    bg: '#EFF6FF',
+    border: '#BFDBFE',
+    text: '#1D4ED8',
+    icon: 'sync-outline',
+  },
+  REJECTED: {
+    label: 'Rejected',
+    bg: '#FEF2F2',
+    border: '#FECACA',
+    text: '#DC2626',
+    icon: 'close-circle-outline',
+  },
+  CANCELLED: {
+    label: 'Cancelled',
+    bg: '#F1F5F9',
+    border: '#CBD5E1',
+    text: '#475569',
+    icon: 'ban-outline',
+  },
+  EXPIRED: {
+    label: 'Expired',
+    bg: '#F1F5F9',
+    border: '#CBD5E1',
+    text: '#475569',
+    icon: 'alert-circle-outline',
+  },
+  FAILED: {
+    label: 'Failed',
+    bg: '#FEF2F2',
+    border: '#FECACA',
+    text: '#DC2626',
+    icon: 'alert-circle-outline',
+  },
+};
 
 export const MandateScreen = () => {
   const navigation = useNavigation<any>();
   const { colors, isDark } = useTheme();
 
-  const [activeTab, setActiveTab] = useState<'create' | 'list'>('create');
   const [data, setData] = useState<MandatesResponse | null>(null);
-  const [bankInfo, setBankInfo] = useState<BankAccountInfo | null>(null);
+  const [accountStatus, setAccountStatus] = useState<AccountStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Form states
-  const [mandateType, setMandateType] = useState<'UPI' | 'E_MANDATE'>('UPI');
-  const [limit, setLimit] = useState('10000');
-  const [customLimit, setCustomLimit] = useState('');
-  const [investorNote, setInvestorNote] = useState('');
+  // Neither has an unchosen silent submission: investor actively selects protocol and limit
+  const [mandateType, setMandateType] = useState<'UPI' | 'E_MANDATE' | null>(null);
+  const [limit, setLimit] = useState('');
+  const [referenceLabel, setReferenceLabel] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [authorizingId, setAuthorizingId] = useState<string | null>(null);
 
-  // Load mandates & registered bank info
   const loadData = useCallback(async () => {
+    setLoadError(null);
     try {
-      const [mandatesRes, bankRes] = await Promise.all([
-        api.get<MandatesResponse>('/mandates').catch(() => ({
-          canCreate: true,
-          mandates: [],
-          message: null,
-        })),
-        api.get<BankAccountInfo>('/buckets/account-status').catch(() => null),
+      const [mandatesRes, statusRes] = await Promise.all([
+        api.get<MandatesResponse>('/mandates'),
+        api.get<AccountStatusResponse>('/buckets/account-status').catch(() => null),
       ]);
-
       setData(mandatesRes);
-      if (bankRes) {
-        setBankInfo(bankRes);
+      if (statusRes) {
+        setAccountStatus(statusRes);
       }
-
-      // If user already has active mandates and none pending, default to list view
-      if (mandatesRes?.mandates?.length && mandatesRes.mandates.some((m) => m.status === 'APPROVED')) {
-        // keep user selection
-      }
-    } catch (e: any) {
-      console.warn('Mandate fetch notice:', e);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : 'Could not load your mandates.');
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // Refresh whenever the screen gains focus (e.g., returning from the bank's approval page)
   useFocusEffect(
     useCallback(() => {
       void loadData();
     }, [loadData]),
   );
 
-  const handleOpenAuth = async (url: string, mandate: MandateItem) => {
+  const openAuthorizationUrl = async (url: string, mandate: MandateItem) => {
     try {
       await Linking.openURL(url);
-      // Also provide shortcut navigation in case app resumes
       navigation.navigate('MandateSuccess', {
         mandateId: mandate.id,
         mandateType: mandate.mandateType,
         mandateLimit: mandate.mandateLimit,
         umrn: mandate.umrn,
         status: mandate.status,
+        authorizationUrl: url,
       });
     } catch {
-      Alert.alert('Could not open authorization page', 'Please copy the link or try again.');
+      Alert.alert('Could not open the bank approval page', 'Please try again.');
+    }
+  };
+
+  /**
+   * Requests a fresh authorization URL from POST /mandates/:id/authorize for a mandate
+   * that is still awaiting bank approval, then opens it in the browser.
+   */
+  const handleReauthorize = async (mandate: MandateItem) => {
+    setAuthorizingId(mandate.id);
+    try {
+      const updated = await api.post<MandateItem>(`/mandates/${encodeURIComponent(mandate.id)}/authorize`, {});
+      await loadData();
+      if (updated.authorizationUrl) {
+        await openAuthorizationUrl(updated.authorizationUrl, updated);
+      } else {
+        Alert.alert(
+          'Authorization Link Unavailable',
+          'The gateway did not return an active authorization link for this mandate. Check its status below.',
+        );
+      }
+    } catch (e) {
+      Alert.alert('Could not open approval page', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setAuthorizingId(null);
     }
   };
 
   const handleCreateMandate = async () => {
-    const selectedLimit = customLimit ? Number(customLimit) : Number(limit);
-
-    if (!selectedLimit || isNaN(selectedLimit) || selectedLimit < 100) {
-      Alert.alert('Invalid Debit Limit', 'Please enter a valid debit limit of at least ₹100.');
+    if (!mandateType) {
+      Alert.alert('Select Mandate Method', 'Please choose UPI Autopay or e-NACH before continuing.');
+      return;
+    }
+    const numericLimit = Number(limit);
+    if (!Number.isFinite(numericLimit) || numericLimit < 100) {
+      Alert.alert(
+        'Enter Valid Debit Limit',
+        'Enter the maximum amount that may be debited per SIP instalment (at least ₹100).',
+      );
       return;
     }
 
     setSubmitting(true);
     try {
-      const res = await api.post<MandateItem>('/mandates', {
+      const created = await api.post<MandateItem>('/mandates', {
         mandateType,
-        mandateLimit: selectedLimit,
+        mandateLimit: numericLimit,
       });
-
+      setMandateType(null);
+      setLimit('');
+      setReferenceLabel('');
       await loadData();
 
-      if (res?.authorizationUrl) {
+      if (created.authorizationUrl) {
         Alert.alert(
-          'Mandate Created',
-          'Your auto-debit mandate has been created. Authorize it with your bank now to enable recurring SIP investments.',
+          'Mandate Created — Approve with Your Bank',
+          'Your mandate request has been registered with the gateway. Complete bank authorization now so SIPs can use it.',
           [
             {
-              text: 'Authorize with Bank',
-              onPress: () => handleOpenAuth(res.authorizationUrl!, res),
+              text: 'View Status',
+              style: 'cancel',
+              onPress: () =>
+                navigation.navigate('MandateSuccess', {
+                  mandateId: created.id,
+                  mandateType: created.mandateType,
+                  mandateLimit: created.mandateLimit,
+                  umrn: created.umrn,
+                  status: created.status,
+                  authorizationUrl: created.authorizationUrl,
+                }),
             },
             {
-              text: 'View Confirmation',
-              style: 'cancel',
-              onPress: () => {
-                navigation.navigate('MandateSuccess', {
-                  mandateId: res.id,
-                  mandateType: res.mandateType,
-                  mandateLimit: res.mandateLimit,
-                  umrn: res.umrn,
-                  status: res.status,
-                });
-              },
+              text: 'Approve Now',
+              onPress: () => void openAuthorizationUrl(created.authorizationUrl!, created),
             },
           ],
         );
       } else {
         navigation.navigate('MandateSuccess', {
-          mandateId: res.id,
-          mandateType: res.mandateType,
-          mandateLimit: res.mandateLimit,
-          umrn: res.umrn,
-          status: res.status,
+          mandateId: created.id,
+          mandateType: created.mandateType,
+          mandateLimit: created.mandateLimit,
+          umrn: created.umrn,
+          status: created.status,
         });
       }
-    } catch (e: any) {
-      // In development, if investment account is pending creation, offer non-blocking fallback
-      const errorMsg = e?.message || 'Could not register auto-debit mandate at this moment.';
-      Alert.alert('Mandate Notice', errorMsg);
+    } catch (e) {
+      Alert.alert(
+        'Could Not Register Mandate',
+        e instanceof Error ? e.message : 'Please try again once your investment account is active.',
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
-  const registeredBank = bankInfo?.bankAccount;
+  const bank = accountStatus?.bankAccount ?? null;
+  const mandates = data?.mandates ?? [];
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.canvas }]} edges={['right', 'bottom', 'left']}>
       <StatusBar style={colors.statusBar} />
       <Header title="Auto-Debit Mandates" onBack={() => navigation.goBack()} showSettings={false} />
 
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Header Block */}
-        <View style={styles.topBanner}>
-          <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>SIP Auto-Debit</Text>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {/* Intro Block */}
+        <View style={styles.headerBlock}>
+          <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>Auto-Debit Mandates</Text>
           <Text style={[styles.pageSubtitle, { color: colors.textSecondary }]}>
-            Set up an automated bank mandate once to ensure zero missed mutual fund instalments.
+            A SIP collects each recurring instalment from your registered bank account through an approved UPI Autopay or e-NACH mandate.
           </Text>
         </View>
 
-        {/* Segmented Switch */}
-        <View style={[styles.segmentedControl, { backgroundColor: isDark ? colors.surfaceMuted : '#E2E8F0' }]}>
-          <Pressable
-            style={[styles.segmentBtn, activeTab === 'create' && [styles.segmentBtnActive, { backgroundColor: colors.surface }]]}
-            onPress={() => setActiveTab('create')}
-          >
-            <Ionicons
-              name="add-circle-outline"
-              size={16}
-              color={activeTab === 'create' ? colors.primary : colors.textSecondary}
-            />
-            <Text
-              style={[
-                styles.segmentText,
-                { color: activeTab === 'create' ? colors.primary : colors.textSecondary },
-                activeTab === 'create' && styles.segmentTextActive,
-              ]}
-            >
-              Set Up Mandate
+        {loading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator color={colors.primary} size="large" />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              Syncing mandate status with gateway...
             </Text>
-          </Pressable>
+          </View>
+        ) : null}
 
-          <Pressable
-            style={[styles.segmentBtn, activeTab === 'list' && [styles.segmentBtnActive, { backgroundColor: colors.surface }]]}
-            onPress={() => setActiveTab('list')}
-          >
-            <Ionicons
-              name="list-outline"
-              size={16}
-              color={activeTab === 'list' ? colors.primary : colors.textSecondary}
-            />
-            <Text
-              style={[
-                styles.segmentText,
-                { color: activeTab === 'list' ? colors.primary : colors.textSecondary },
-                activeTab === 'list' && styles.segmentTextActive,
-              ]}
-            >
-              Active Mandates ({data?.mandates?.length || 0})
-            </Text>
-          </Pressable>
-        </View>
-
-        {/* TAB 1: CREATE MANDATE */}
-        {activeTab === 'create' && (
-          <View style={styles.formSection}>
-            {/* Regulatory Assurance Callout */}
-            <View style={[styles.trustBox, { backgroundColor: isDark ? colors.surfaceMuted : '#EEF2FF', borderColor: colors.border }]}>
-              <Ionicons name="shield-checkmark" size={20} color={colors.primary} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.trustTitle, { color: colors.primary }]}>NPCI / RBI Certified e-Mandate</Text>
-                <Text style={[styles.trustText, { color: colors.textSecondary }]}>
-                  Only your scheduled SIP amounts will ever be debited. Maximum limit is an RBI safety ceiling.
-                </Text>
-              </View>
+        {loadError ? (
+          <View style={[styles.errorBanner, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
+            <Ionicons name="alert-circle-outline" size={20} color="#DC2626" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.errorBannerTitle}>Could not load mandates</Text>
+              <Text style={styles.errorBannerText}>{loadError}</Text>
             </View>
-
-            {/* 1. MANDATE METHOD */}
-            <View style={styles.fieldGroup}>
-              <View style={styles.labelRow}>
-                <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>1. Choose Mandate Protocol</Text>
-                <Text style={styles.mandatoryBadge}>Mandatory</Text>
-              </View>
-
-              <View style={styles.methodGrid}>
-                {/* UPI Autopay */}
-                <Pressable
-                  style={[
-                    styles.methodCard,
-                    { backgroundColor: colors.surface, borderColor: colors.border },
-                    mandateType === 'UPI' && [styles.methodCardActive, { borderColor: colors.primary, backgroundColor: isDark ? colors.surfaceElevated : '#FBFBFE' }],
-                  ]}
-                  onPress={() => setMandateType('UPI')}
-                >
-                  <View style={styles.methodHeader}>
-                    <View style={[styles.methodIconBox, { backgroundColor: '#E0F2FE' }]}>
-                      <Ionicons name="flash-outline" size={18} color="#0284C7" />
-                    </View>
-                    <View style={styles.recBadge}>
-                      <Text style={styles.recBadgeText}>Instant</Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.methodTitle, { color: colors.textPrimary }]}>UPI Autopay</Text>
-                  <Text style={[styles.methodSub, { color: colors.textSecondary }]}>
-                    Approve in Google Pay, PhonePe, or BHIM. Up to ₹15,000/mo.
-                  </Text>
-                  {mandateType === 'UPI' && (
-                    <View style={styles.activeCheck}>
-                      <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
-                    </View>
-                  )}
-                </Pressable>
-
-                {/* e-NACH NetBanking */}
-                <Pressable
-                  style={[
-                    styles.methodCard,
-                    { backgroundColor: colors.surface, borderColor: colors.border },
-                    mandateType === 'E_MANDATE' && [styles.methodCardActive, { borderColor: colors.primary, backgroundColor: isDark ? colors.surfaceElevated : '#FBFBFE' }],
-                  ]}
-                  onPress={() => setMandateType('E_MANDATE')}
-                >
-                  <View style={styles.methodHeader}>
-                    <View style={[styles.methodIconBox, { backgroundColor: '#EDE9FE' }]}>
-                      <Ionicons name="business-outline" size={18} color="#7C3AED" />
-                    </View>
-                    <View style={[styles.recBadge, { backgroundColor: '#F1F5F9' }]}>
-                      <Text style={[styles.recBadgeText, { color: '#64748B' }]}>Higher Limit</Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.methodTitle, { color: colors.textPrimary }]}>e-NACH NetBanking</Text>
-                  <Text style={[styles.methodSub, { color: colors.textSecondary }]}>
-                    Authorize via Debit Card or NetBanking OTP. Up to ₹1,00,000.
-                  </Text>
-                  {mandateType === 'E_MANDATE' && (
-                    <View style={styles.activeCheck}>
-                      <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
-                    </View>
-                  )}
-                </Pressable>
-              </View>
-            </View>
-
-            {/* 2. MAXIMUM DEBIT LIMIT */}
-            <View style={styles.fieldGroup}>
-              <View style={styles.labelRow}>
-                <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>2. Maximum Debit Limit per Instalment</Text>
-                <Text style={styles.mandatoryBadge}>Mandatory</Text>
-              </View>
-              <Text style={[styles.fieldDesc, { color: colors.textMuted }]}>
-                Select the safety cap your bank authorizes for SIPs.
-              </Text>
-
-              {/* Preset Chips */}
-              <View style={styles.chipRow}>
-                {PRESET_LIMITS.map((amt) => {
-                  const isSelected = limit === String(amt) && !customLimit;
-                  return (
-                    <Pressable
-                      key={amt}
-                      style={[
-                        styles.limitChip,
-                        { backgroundColor: colors.surface, borderColor: colors.border },
-                        isSelected && [styles.limitChipActive, { backgroundColor: colors.primary, borderColor: colors.primary }],
-                      ]}
-                      onPress={() => {
-                        setLimit(String(amt));
-                        setCustomLimit('');
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.limitChipText,
-                          { color: colors.textPrimary },
-                          isSelected && { color: '#FFFFFF', fontWeight: '800' },
-                        ]}
-                      >
-                        ₹{amt.toLocaleString('en-IN')}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              {/* Custom Input */}
-              <View style={[styles.inputBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Text style={[styles.currencyPrefix, { color: colors.textMuted }]}>₹</Text>
-                <TextInput
-                  style={[styles.inputField, { color: colors.textPrimary }]}
-                  placeholder="Custom limit (e.g. 50000)"
-                  placeholderTextColor={colors.textPlaceholder}
-                  keyboardType="numeric"
-                  value={customLimit}
-                  onChangeText={(val) => {
-                    setCustomLimit(val);
-                    setLimit('');
-                  }}
-                />
-              </View>
-            </View>
-
-            {/* 3. VERIFIED BANK ACCOUNT */}
-            <View style={styles.fieldGroup}>
-              <View style={styles.labelRow}>
-                <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>3. Registered Bank Account</Text>
-                <Text style={styles.mandatoryBadge}>Verified</Text>
-              </View>
-
-              <View style={[styles.bankTile, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <View style={[styles.bankIconBox, { backgroundColor: isDark ? colors.surfaceMuted : '#F1F5F9' }]}>
-                  <Ionicons name="card-outline" size={20} color={colors.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.bankName, { color: colors.textPrimary }]}>
-                    {registeredBank?.holderName || 'Verified Primary Bank Account'}
-                  </Text>
-                  <Text style={[styles.bankDetails, { color: colors.textSecondary }]}>
-                    {registeredBank?.maskedNumber || '••••••••5432'} • {registeredBank?.ifscCode || 'IFSC Verified'}
-                  </Text>
-                </View>
-                <View style={styles.verifiedTag}>
-                  <Ionicons name="checkmark-circle" size={14} color="#10B981" />
-                  <Text style={styles.verifiedTagText}>Active</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* 4. OPTIONAL NOTES / REFERENCE */}
-            <View style={styles.fieldGroup}>
-              <View style={styles.labelRow}>
-                <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>4. Purpose / Tag (Optional)</Text>
-                <Text style={styles.optionalBadge}>Optional</Text>
-              </View>
-              <TextInput
-                style={[styles.inputFieldPlain, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.textPrimary }]}
-                placeholder="e.g. Wealth Creation SIPs, Retirement, Child Education"
-                placeholderTextColor={colors.textPlaceholder}
-                value={investorNote}
-                onChangeText={setInvestorNote}
-              />
-            </View>
-
-            {/* SUBMIT BUTTON */}
-            <Pressable
-              style={[
-                styles.submitBtn,
-                { backgroundColor: colors.primary },
-                submitting && { opacity: 0.7 },
-              ]}
-              disabled={submitting}
-              onPress={handleCreateMandate}
-            >
-              {submitting ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <Text style={styles.submitBtnText}>Authorize Mandate with Bank</Text>
-                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
-                </>
-              )}
+            <Pressable onPress={() => void loadData()} style={styles.retryChip}>
+              <Text style={styles.retryChipText}>Retry</Text>
             </Pressable>
           </View>
-        )}
+        ) : null}
 
-        {/* TAB 2: ACTIVE MANDATES LIST */}
-        {activeTab === 'list' && (
-          <View style={styles.listSection}>
-            {loading ? (
-              <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-                <ActivityIndicator color={colors.primary} size="large" />
-                <Text style={[styles.loadingText, { color: colors.textMuted }]}>Fetching verified mandates...</Text>
-              </View>
-            ) : data?.mandates && data.mandates.length > 0 ? (
-              data.mandates.map((m) => {
-                const isApproved = m.status === 'APPROVED';
-                const isPending = m.status === 'CREATED' || m.status === 'SUBMITTED';
-
-                return (
-                  <View key={m.id} style={[styles.mandateCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                    <View style={styles.mandateCardHeader}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <View style={[styles.protocolBadge, { backgroundColor: isDark ? colors.surfaceMuted : '#EEF2FF' }]}>
-                          <Text style={[styles.protocolBadgeText, { color: colors.primary }]}>
-                            {m.mandateType === 'UPI' ? 'UPI Autopay' : 'e-NACH'}
-                          </Text>
-                        </View>
-                        <Text style={[styles.mandateLimit, { color: colors.textPrimary }]}>
-                          ₹{Number(m.mandateLimit).toLocaleString('en-IN')}/mo
-                        </Text>
-                      </View>
-
-                      {/* Status Pill */}
-                      <View
-                        style={[
-                          styles.statusBadgePill,
-                          isApproved && { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' },
-                          isPending && { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.statusBadgePillText,
-                            isApproved && { color: '#059669' },
-                            isPending && { color: '#D97706' },
-                          ]}
-                        >
-                          {m.status}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Metadata */}
-                    <View style={styles.metaRow}>
-                      <Text style={[styles.metaLabel, { color: colors.textMuted }]}>Reference ID:</Text>
-                      <Text style={[styles.metaValMono, { color: colors.textSecondary }]}>{m.id}</Text>
-                    </View>
-
-                    {m.umrn && (
-                      <View style={styles.metaRow}>
-                        <Text style={[styles.metaLabel, { color: colors.textMuted }]}>UMRN:</Text>
-                        <Text style={[styles.metaValMono, { color: colors.textSecondary }]}>{m.umrn}</Text>
-                      </View>
-                    )}
-
-                    {/* Pending Action */}
-                    {isPending && m.authorizationUrl && (
-                      <Pressable
-                        style={[styles.resumeAuthBtn, { borderColor: colors.primary }]}
-                        onPress={() => handleOpenAuth(m.authorizationUrl!, m)}
-                      >
-                        <Ionicons name="open-outline" size={16} color={colors.primary} />
-                        <Text style={[styles.resumeAuthBtnText, { color: colors.primary }]}>Complete Bank Authorization</Text>
-                      </Pressable>
-                    )}
-                  </View>
-                );
-              })
-            ) : (
-              <View style={[styles.emptyBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Ionicons name="card-outline" size={44} color={colors.textPlaceholder} />
-                <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No Mandates Registered Yet</Text>
-                <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
-                  {data?.message ||
-                    'Set up auto-debit to effortlessly automate monthly mutual fund SIPs without entering PINs.'}
-                </Text>
-                <Pressable
-                  style={[styles.setupNowBtn, { backgroundColor: colors.primary }]}
-                  onPress={() => setActiveTab('create')}
-                >
-                  <Text style={styles.setupNowBtnText}>Set Up Mandate Now</Text>
+        {/* Prerequisite Notice from Backend when Investment Account is not open yet */}
+        {data?.message ? (
+          <View style={[styles.noticeCard, { backgroundColor: isDark ? '#451A03' : '#FFFBEB', borderColor: '#FDE68A' }]}>
+            <Ionicons name="information-circle-outline" size={20} color="#B45309" style={{ marginTop: 1 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.noticeTitle, { color: isDark ? '#FBBF24' : '#92400E' }]}>
+                Investment Account Required for Gateway Authorization
+              </Text>
+              <Text style={[styles.noticeText, { color: isDark ? '#FDE68A' : '#B45309' }]}>
+                {data.message}
+              </Text>
+              <View style={styles.noticeActions}>
+                <Pressable style={styles.noticeActionBtn} onPress={() => navigation.navigate('Funds')}>
+                  <Text style={styles.noticeActionBtnText}>Explore Funds</Text>
+                  <Ionicons name="arrow-forward" size={14} color="#B45309" />
                 </Pressable>
               </View>
-            )}
+            </View>
           </View>
+        ) : null}
+
+        {/* ============================================================== */}
+        {/* EXISTING MANDATES LIST                                         */}
+        {/* ============================================================== */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>
+            YOUR MANDATES ({mandates.length})
+          </Text>
+          {!loading && (
+            <Pressable onPress={() => void loadData()} style={styles.refreshRowBtn} hitSlop={8}>
+              <Ionicons name="refresh-outline" size={14} color={colors.primary} />
+              <Text style={[styles.refreshRowText, { color: colors.primary }]}>Refresh</Text>
+            </Pressable>
+          )}
+        </View>
+
+        {mandates.length === 0 && !loading ? (
+          <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.emptyIconCircle, { backgroundColor: isDark ? colors.surfaceMuted : '#EEF2FF' }]}>
+              <Ionicons name="repeat-outline" size={24} color={colors.primary} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No Auto-Debit Mandates Yet</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+              Once you set up and approve a UPI Autopay or e-NACH mandate below, it will appear here with its live bank status and UMRN.
+            </Text>
+          </View>
+        ) : (
+          mandates.map((m) => {
+            const meta = STATUS_META[m.status] ?? {
+              label: m.status,
+              bg: '#FFFBEB',
+              border: '#FDE68A',
+              text: '#B45309',
+              icon: 'time-outline' as const,
+            };
+            const isAuthorizing = authorizingId === m.id;
+
+            return (
+              <View key={m.id} style={[styles.mandateCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={styles.mandateTopRow}>
+                  <View style={styles.mandateTitleGroup}>
+                    <View style={[styles.typeIconBox, { backgroundColor: isDark ? colors.surfaceMuted : '#EEF2FF' }]}>
+                      <Ionicons
+                        name={m.mandateType === 'UPI' ? 'flash-outline' : 'business-outline'}
+                        size={18}
+                        color={colors.primary}
+                      />
+                    </View>
+                    <View>
+                      <Text style={[styles.mandateTypeTitle, { color: colors.textPrimary }]}>
+                        {m.mandateType === 'UPI' ? 'UPI Autopay' : 'e-NACH Mandate'}
+                      </Text>
+                      <Text style={[styles.mandateDateText, { color: colors.textSecondary }]}>
+                        Created {new Date(m.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={[styles.statusBadge, { backgroundColor: meta.bg, borderColor: meta.border }]}>
+                    <Ionicons name={meta.icon} size={13} color={meta.text} />
+                    <Text style={[styles.statusBadgeText, { color: meta.text }]}>{meta.label}</Text>
+                  </View>
+                </View>
+
+                <View style={[styles.divider, { backgroundColor: colors.borderSubtle }]} />
+
+                <View style={styles.mandateMetricsRow}>
+                  <View style={styles.metricCol}>
+                    <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Max Debit per Instalment</Text>
+                    <Text style={[styles.metricValue, { color: colors.textPrimary }]}>
+                      ₹{Number(m.mandateLimit).toLocaleString('en-IN')}
+                    </Text>
+                  </View>
+                  <View style={styles.metricCol}>
+                    <Text style={[styles.metricLabel, { color: colors.textMuted }]}>NPCI UMRN</Text>
+                    <Text style={[styles.metricValueMono, { color: colors.textSecondary }]}>
+                      {m.umrn ? m.umrn : 'Pending bank approval'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.mandateActionsRow}>
+                  {m.authorizationUrl ? (
+                    <Pressable
+                      style={[styles.approveBankBtn, { backgroundColor: colors.primary }, isAuthorizing && styles.disabledBtn]}
+                      onPress={() => void handleReauthorize(m)}
+                      disabled={isAuthorizing}
+                    >
+                      {isAuthorizing ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Ionicons name="open-outline" size={15} color="#FFFFFF" />
+                          <Text style={styles.approveBankBtnText}>Approve with Bank</Text>
+                        </>
+                      )}
+                    </Pressable>
+                  ) : null}
+
+                  <Pressable
+                    style={[styles.detailsBtn, { borderColor: colors.border, backgroundColor: colors.canvas }]}
+                    onPress={() =>
+                      navigation.navigate('MandateSuccess', {
+                        mandateId: m.id,
+                        mandateType: m.mandateType,
+                        mandateLimit: m.mandateLimit,
+                        umrn: m.umrn,
+                        status: m.status,
+                        authorizationUrl: m.authorizationUrl,
+                        createdAt: m.createdAt,
+                      })
+                    }
+                  >
+                    <Text style={[styles.detailsBtnText, { color: colors.textPrimary }]}>View Details</Text>
+                    <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+                  </Pressable>
+                </View>
+              </View>
+            );
+          })
         )}
+
+        {/* ============================================================== */}
+        {/* SET UP A NEW MANDATE FORM                                      */}
+        {/* ============================================================== */}
+        <Text style={[styles.sectionHeading, { color: colors.textMuted, marginTop: 12 }]}>
+          SET UP A NEW MANDATE
+        </Text>
+
+        <View style={[styles.formCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {/* Registered Bank Account Context */}
+          <View style={styles.fieldBlock}>
+            <View style={styles.labelRow}>
+              <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>Linked Bank Account</Text>
+              <View style={[styles.reqTag, { backgroundColor: bank ? '#ECFDF5' : '#F1F5F9' }]}>
+                <Text style={[styles.reqTagText, { color: bank ? '#059669' : '#64748B' }]}>
+                  {bank ? 'Gateway Linked' : 'Set on First Order'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={[styles.bankBox, { backgroundColor: colors.canvas, borderColor: colors.border }]}>
+              <View style={[styles.bankIconWrap, { backgroundColor: isDark ? colors.surfaceMuted : '#EEF2FF' }]}>
+                <Ionicons name="business-outline" size={18} color={colors.primary} />
+              </View>
+              {accountStatus?.hasInvestmentAccount && bank ? (
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.bankTitle, { color: colors.textPrimary }]}>
+                    {bank.holderName || 'Registered Investor Bank Account'}
+                  </Text>
+                  <Text style={[styles.bankSub, { color: colors.textSecondary }]}>
+                    Account {bank.maskedNumber ?? '—'} • IFSC {bank.ifscCode ?? '—'}
+                    {bank.type ? ` • ${bank.type.charAt(0).toUpperCase() + bank.type.slice(1)}` : ''}
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.bankTitle, { color: colors.textPrimary }]}>
+                    No Bank Account Linked on Gateway Yet
+                  </Text>
+                  <Text style={[styles.bankSub, { color: colors.textSecondary }]}>
+                    Your bank account is registered with Cybrilla when you place your first investment order.
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* 1. Mandate Type (Mandatory) */}
+          <View style={styles.fieldBlock}>
+            <View style={styles.labelRow}>
+              <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>1. Authorization Method</Text>
+              <View style={[styles.reqTag, { backgroundColor: '#FEF2F2' }]}>
+                <Text style={[styles.reqTagText, { color: '#DC2626' }]}>Required</Text>
+              </View>
+            </View>
+
+            <View style={styles.methodRow}>
+              <Pressable
+                style={[
+                  styles.methodOption,
+                  { backgroundColor: colors.canvas, borderColor: colors.border },
+                  mandateType === 'UPI' && { borderColor: colors.primary, backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF' },
+                ]}
+                onPress={() => setMandateType('UPI')}
+              >
+                <View style={styles.methodHeader}>
+                  <Ionicons
+                    name="flash-outline"
+                    size={18}
+                    color={mandateType === 'UPI' ? colors.primary : colors.textSecondary}
+                  />
+                  <Ionicons
+                    name={mandateType === 'UPI' ? 'radio-button-on' : 'radio-button-off'}
+                    size={18}
+                    color={mandateType === 'UPI' ? colors.primary : colors.textPlaceholder}
+                  />
+                </View>
+                <Text style={[styles.methodName, { color: colors.textPrimary }]}>UPI Autopay</Text>
+                <Text style={[styles.methodDesc, { color: colors.textSecondary }]}>
+                  Approve via UPI app (GPay, PhonePe, BHIM)
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.methodOption,
+                  { backgroundColor: colors.canvas, borderColor: colors.border },
+                  mandateType === 'E_MANDATE' && { borderColor: colors.primary, backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF' },
+                ]}
+                onPress={() => setMandateType('E_MANDATE')}
+              >
+                <View style={styles.methodHeader}>
+                  <Ionicons
+                    name="globe-outline"
+                    size={18}
+                    color={mandateType === 'E_MANDATE' ? colors.primary : colors.textSecondary}
+                  />
+                  <Ionicons
+                    name={mandateType === 'E_MANDATE' ? 'radio-button-on' : 'radio-button-off'}
+                    size={18}
+                    color={mandateType === 'E_MANDATE' ? colors.primary : colors.textPlaceholder}
+                  />
+                </View>
+                <Text style={[styles.methodName, { color: colors.textPrimary }]}>e-NACH</Text>
+                <Text style={[styles.methodDesc, { color: colors.textSecondary }]}>
+                  Approve via NetBanking or Debit Card
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {/* 2. Maximum Debit Limit (Mandatory) */}
+          <View style={styles.fieldBlock}>
+            <View style={styles.labelRow}>
+              <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>2. Maximum Limit per Instalment (₹)</Text>
+              <View style={[styles.reqTag, { backgroundColor: '#FEF2F2' }]}>
+                <Text style={[styles.reqTagText, { color: '#DC2626' }]}>Required</Text>
+              </View>
+            </View>
+            <Text style={[styles.fieldHint, { color: colors.textSecondary }]}>
+              Set this at or above the SIP amount you plan to invest. It is a ceiling — only your actual SIP instalment is debited.
+            </Text>
+
+            <View style={styles.presetRow}>
+              {PRESET_LIMITS.map((preset) => {
+                const active = Number(limit) === preset;
+                return (
+                  <Pressable
+                    key={preset}
+                    style={[
+                      styles.presetChip,
+                      { backgroundColor: colors.canvas, borderColor: colors.border },
+                      active && { backgroundColor: colors.primary, borderColor: colors.primary },
+                    ]}
+                    onPress={() => setLimit(String(preset))}
+                  >
+                    <Text
+                      style={[
+                        styles.presetChipText,
+                        { color: colors.textPrimary },
+                        active && { color: '#FFFFFF', fontWeight: '700' },
+                      ]}
+                    >
+                      ₹{preset.toLocaleString('en-IN')}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={[styles.inputBox, { backgroundColor: colors.canvas, borderColor: colors.border }]}>
+              <Text style={[styles.currencyPrefix, { color: colors.textSecondary }]}>₹</Text>
+              <TextInput
+                value={limit}
+                onChangeText={(v) => setLimit(v.replace(/\D/g, ''))}
+                keyboardType="number-pad"
+                placeholder="Enter amount (min ₹100)"
+                placeholderTextColor={colors.textPlaceholder}
+                style={[styles.input, { color: colors.textPrimary }]}
+              />
+            </View>
+          </View>
+
+          {/* 3. Reference Label (Optional) */}
+          <View style={styles.fieldBlock}>
+            <View style={styles.labelRow}>
+              <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>3. Reference Note</Text>
+              <View style={[styles.reqTag, { backgroundColor: isDark ? colors.surfaceMuted : '#F1F5F9' }]}>
+                <Text style={[styles.reqTagText, { color: colors.textSecondary }]}>Optional</Text>
+              </View>
+            </View>
+            <TextInput
+              value={referenceLabel}
+              onChangeText={setReferenceLabel}
+              placeholder="e.g., Monthly Equity SIP Mandate"
+              placeholderTextColor={colors.textPlaceholder}
+              style={[styles.optionalInput, { backgroundColor: colors.canvas, borderColor: colors.border, color: colors.textPrimary }]}
+            />
+          </View>
+
+          {/* Submit Action */}
+          <Pressable
+            style={[
+              styles.submitBtn,
+              { backgroundColor: colors.primary },
+              submitting && styles.disabledBtn,
+            ]}
+            onPress={() => void handleCreateMandate()}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name="shield-checkmark-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.submitBtnText}>Set Up Auto-Debit Mandate</Text>
+              </>
+            )}
+          </Pressable>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -529,84 +645,222 @@ export const MandateScreen = () => {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  container: { padding: 18, paddingBottom: 40 },
-  topBanner: { marginBottom: 16 },
-  pageTitle: { fontSize: 26, fontWeight: '900', letterSpacing: -0.5, marginBottom: 4 },
+  container: { padding: 18, paddingBottom: 44 },
+  headerBlock: { marginBottom: 16 },
+  pageTitle: { fontSize: 24, fontWeight: '800', marginBottom: 4 },
   pageSubtitle: { fontSize: 13, lineHeight: 19 },
 
-  segmentedControl: {
-    flexDirection: 'row',
-    borderRadius: 14,
-    padding: 4,
-    marginBottom: 20,
-  },
-  segmentBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 10,
-    gap: 6,
-  },
-  segmentBtnActive: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  segmentText: { fontSize: 13, fontWeight: '600' },
-  segmentTextActive: { fontWeight: '800' },
+  loadingWrap: { alignItems: 'center', paddingVertical: 28, gap: 10 },
+  loadingText: { fontSize: 13, fontWeight: '500' },
 
-  trustBox: {
+  errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  errorBannerTitle: { fontSize: 13, fontWeight: '700', color: '#991B1B' },
+  errorBannerText: { fontSize: 12, color: '#B91C1C', marginTop: 2 },
+  retryChip: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  retryChipText: { fontSize: 12, fontWeight: '700', color: '#DC2626' },
+
+  noticeCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
-    gap: 12,
-    marginBottom: 20,
+    marginBottom: 18,
   },
-  trustTitle: { fontSize: 13, fontWeight: '800', marginBottom: 2 },
-  trustText: { fontSize: 11, lineHeight: 16 },
+  noticeTitle: { fontSize: 13, fontWeight: '700', marginBottom: 3 },
+  noticeText: { fontSize: 12, lineHeight: 18 },
+  noticeActions: { flexDirection: 'row', marginTop: 10 },
+  noticeActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(180, 83, 9, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  noticeActionBtnText: { fontSize: 12, fontWeight: '700', color: '#B45309' },
 
-  formSection: { gap: 18 },
-  fieldGroup: { gap: 8 },
-  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  fieldLabel: { fontSize: 14, fontWeight: '800' },
-  fieldDesc: { fontSize: 12, marginTop: -2, marginBottom: 4 },
-  mandatoryBadge: { fontSize: 10, fontWeight: '800', color: '#DC2626', backgroundColor: '#FEE2E2', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  optionalBadge: { fontSize: 10, fontWeight: '700', color: '#64748B', backgroundColor: '#F1F5F9', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  sectionHeading: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginLeft: 2,
+  },
+  refreshRowBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  refreshRowText: { fontSize: 12, fontWeight: '700' },
 
-  methodGrid: { flexDirection: 'row', gap: 10 },
-  methodCard: {
-    flex: 1,
-    padding: 14,
+  emptyCard: {
     borderRadius: 16,
-    borderWidth: 1.5,
-    position: 'relative',
+    borderWidth: 1,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 18,
   },
-  methodCardActive: {},
-  methodHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  methodIconBox: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  recBadge: { backgroundColor: '#E0F2FE', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  recBadgeText: { fontSize: 9, fontWeight: '800', color: '#0369A1' },
-  methodTitle: { fontSize: 14, fontWeight: '800', marginBottom: 4 },
-  methodSub: { fontSize: 11, lineHeight: 15 },
-  activeCheck: { position: 'absolute', top: 10, right: 10 },
-
-  chipRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
-  limitChip: {
-    flex: 1,
-    paddingVertical: 10,
+  emptyIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 10,
+  },
+  emptyTitle: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
+  emptySubtitle: { fontSize: 12, textAlign: 'center', lineHeight: 18 },
+
+  mandateCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 12,
+  },
+  mandateTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  mandateTitleGroup: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  typeIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mandateTypeTitle: { fontSize: 15, fontWeight: '700' },
+  mandateDateText: { fontSize: 11, marginTop: 1 },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  statusBadgeText: { fontSize: 11, fontWeight: '700' },
+  divider: { height: 1, marginVertical: 12 },
+  mandateMetricsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  metricCol: { flex: 1 },
+  metricLabel: { fontSize: 11, fontWeight: '600', marginBottom: 2 },
+  metricValue: { fontSize: 15, fontWeight: '800' },
+  metricValueMono: { fontSize: 12, fontWeight: '600' },
+  mandateActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  approveBankBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: 10,
+  },
+  approveBankBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  detailsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
   },
-  limitChipActive: {},
-  limitChipText: { fontSize: 12, fontWeight: '700' },
+  detailsBtnText: { fontSize: 12, fontWeight: '700' },
+
+  formCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 18,
+    marginTop: 8,
+  },
+  fieldBlock: { marginBottom: 18 },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  fieldLabel: { fontSize: 14, fontWeight: '700' },
+  fieldHint: { fontSize: 12, lineHeight: 17, marginBottom: 10 },
+  reqTag: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  reqTagText: { fontSize: 10, fontWeight: '700' },
+
+  bankBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  bankIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bankTitle: { fontSize: 13, fontWeight: '700' },
+  bankSub: { fontSize: 12, marginTop: 2, lineHeight: 16 },
+
+  methodRow: { flexDirection: 'row', gap: 10 },
+  methodOption: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    padding: 12,
+  },
+  methodHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  methodName: { fontSize: 14, fontWeight: '700', marginBottom: 3 },
+  methodDesc: { fontSize: 11, lineHeight: 15 },
+
+  presetRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  presetChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  presetChipText: { fontSize: 12, fontWeight: '600' },
 
   inputBox: {
     flexDirection: 'row',
@@ -617,84 +871,24 @@ const styles = StyleSheet.create({
     height: 48,
   },
   currencyPrefix: { fontSize: 16, fontWeight: '700', marginRight: 6 },
-  inputField: { flex: 1, fontSize: 14, fontWeight: '700' },
-  inputFieldPlain: {
+  input: { flex: 1, fontSize: 15, fontWeight: '600' },
+  optionalInput: {
     borderRadius: 12,
     borderWidth: 1,
     paddingHorizontal: 14,
-    height: 48,
-    fontSize: 13,
-    fontWeight: '600',
+    height: 46,
+    fontSize: 14,
   },
-
-  bankTile: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    gap: 12,
-  },
-  bankIconBox: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  bankName: { fontSize: 13, fontWeight: '800', marginBottom: 2 },
-  bankDetails: { fontSize: 11 },
-  verifiedTag: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  verifiedTagText: { fontSize: 11, fontWeight: '800', color: '#10B981' },
 
   submitBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 16,
-    marginTop: 8,
-    shadowColor: '#3C3985',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  submitBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
-
-  listSection: { gap: 12 },
-  loadingText: { marginTop: 12, fontSize: 13 },
-  mandateCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
     gap: 8,
+    paddingVertical: 15,
+    borderRadius: 12,
+    marginTop: 4,
   },
-  mandateCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  protocolBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  protocolBadgeText: { fontSize: 11, fontWeight: '800' },
-  mandateLimit: { fontSize: 15, fontWeight: '900' },
-  statusBadgePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
-  statusBadgePillText: { fontSize: 10, fontWeight: '800' },
-  metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  metaLabel: { fontSize: 11 },
-  metaValMono: { fontSize: 11, fontFamily: 'monospace', fontWeight: '700' },
-  resumeAuthBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 8,
-    marginTop: 6,
-    gap: 6,
-  },
-  resumeAuthBtnText: { fontSize: 12, fontWeight: '800' },
-
-  emptyBox: {
-    alignItems: 'center',
-    padding: 32,
-    borderRadius: 20,
-    borderWidth: 1,
-    textAlign: 'center',
-    gap: 10,
-  },
-  emptyTitle: { fontSize: 16, fontWeight: '800' },
-  emptyDesc: { fontSize: 12, textAlign: 'center', lineHeight: 18, paddingHorizontal: 16 },
-  setupNowBtn: { paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12, marginTop: 8 },
-  setupNowBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  submitBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  disabledBtn: { opacity: 0.6 },
 });

@@ -9,7 +9,7 @@ import { Header } from '../components/Header';
 import { SearchIcon } from '../components/Icons';
 import { useTranslation } from 'react-i18next';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_URL } from '../services/api/client';
 
 /**
  * GET /buckets - the buckets suited to the investor's assessed risk profile.

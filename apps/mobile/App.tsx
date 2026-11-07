@@ -1,11 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import './src/i18n/i18n';
-import { ActivityIndicator, View, Text, Linking } from 'react-native';
+import { ActivityIndicator, View, Text, Linking, Platform, StyleSheet } from 'react-native';
 import { NavigationContainer, createNavigationContainerRef, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { HomeIcon, TrendingIcon, WalletIcon, BookIcon, UserIcon, HeadsetIcon } from './src/components/Icons';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
@@ -66,7 +66,7 @@ import { AppLockGate } from './src/components/AppLockGate';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_URL } from './src/services/api/client';
 
 export const navigationRef = createNavigationContainerRef();
 
@@ -100,6 +100,12 @@ const linking = {
 function MainTabs({ route }: any) {
   const { name } = route?.params || {};
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+
+  // Responsive safe-area bottom padding for both Android (3-button / gesture) and iOS
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 10 : 12);
+  const tabHeight = 56 + bottomInset;
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -108,18 +114,18 @@ function MainTabs({ route }: any) {
         tabBarInactiveTintColor: colors.textPlaceholder,
         tabBarShowLabel: false,
         tabBarStyle: {
-          height: 85,
-          paddingHorizontal: 16,
-          paddingTop: 12,
-          paddingBottom: 24,
+          height: tabHeight,
+          paddingHorizontal: 4,
+          paddingTop: 6,
+          paddingBottom: bottomInset,
           backgroundColor: colors.surface,
-          borderTopWidth: 1,
+          borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: colors.border,
-          elevation: 10,
+          elevation: 12,
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.05,
-          shadowRadius: 10
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.06,
+          shadowRadius: 8,
         },
         tabBarIcon: ({ focused }) => {
           let IconComponent;
@@ -132,14 +138,19 @@ function MainTabs({ route }: any) {
           else IconComponent = HomeIcon;
 
           return (
-            <View style={{ alignItems: 'center', justifyContent: 'center', width: 64 }}>
-              <IconComponent color={focused ? colors.primary : colors.textPlaceholder} size={24} />
-              <Text style={{ 
-                marginTop: 4, 
-                fontSize: 11, 
-                fontWeight: focused ? '800' : '600', 
-                color: focused ? colors.primary : colors.textPlaceholder 
-              }}>
+            <View style={{ alignItems: 'center', justifyContent: 'center', width: '100%', minWidth: 48, paddingHorizontal: 2 }}>
+              <IconComponent color={focused ? colors.primary : colors.textPlaceholder} size={22} />
+              <Text 
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                style={{ 
+                  marginTop: 3, 
+                  fontSize: 10, 
+                  fontWeight: focused ? '800' : '600', 
+                  color: focused ? colors.primary : colors.textPlaceholder,
+                  textAlign: 'center',
+                }}
+              >
                 {label}
               </Text>
             </View>

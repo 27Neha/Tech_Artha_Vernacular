@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Linking, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +11,7 @@ import { Header } from '../components/Header';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_URL } from '../services/api/client';
 
 type Tab = 'overview' | 'goals' | 'holdings' | 'transactions' | 'sips' | 'statements';
 
@@ -52,6 +52,7 @@ export const PortfolioScreen = () => {
   const navigation = useNavigation<any>();
 
   const [tab, setTab] = useState<Tab>('overview');
+  const [activeMenuHolding, setActiveMenuHolding] = useState<Holding | null>(null);
   
   const [investorProfile, setInvestorProfile] = useState('');
   const [investor, setInvestor] = useState<{ name?: string; pan?: string; email?: string; mobile?: string }>({});
@@ -382,6 +383,32 @@ export const PortfolioScreen = () => {
                   </View>
                 </View>
               )}
+
+              {/* Invest More Action - Exclusively on Portfolio Overview */}
+              <View style={styles.overviewInvestContainer}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.investMoreBtn,
+                    pressed && styles.investMoreBtnPressed,
+                  ]}
+                  onPress={() => navigation.navigate('Funds')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Invest More in Mutual Funds"
+                >
+                  <View style={styles.investIconBox}>
+                    <Ionicons name="trending-up" size={20} color="#FFFFFF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.investMoreTitle}>Invest More</Text>
+                    <Text style={styles.investMoreSubtitle}>
+                      Explore top-performing funds tailored to your goals
+                    </Text>
+                  </View>
+                  <View style={styles.investMoreArrow}>
+                    <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                  </View>
+                </Pressable>
+              </View>
             </View>
           )}
 
@@ -398,8 +425,21 @@ export const PortfolioScreen = () => {
               ) : (
                 holdings.map((h) => (
                   <View key={`${h.folioNumber}-${h.schemeIsin}`} style={styles.goalCard}>
-                    <Text style={styles.goalName}>{h.schemeName ?? h.schemeIsin}</Text>
-                    <Text style={styles.goalTime}>Folio {h.folioNumber}</Text>
+                    <View style={styles.holdingHeaderRow}>
+                      <View style={{ flex: 1, paddingRight: 8 }}>
+                        <Text style={styles.goalName}>{h.schemeName ?? h.schemeIsin}</Text>
+                        <Text style={styles.goalTime}>Folio {h.folioNumber}</Text>
+                      </View>
+                      <Pressable
+                        style={({ pressed }) => [styles.threeDotBtn, pressed && styles.threeDotBtnPressed]}
+                        onPress={() => setActiveMenuHolding(h)}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Options for ${h.schemeName ?? h.folioNumber}`}
+                      >
+                        <Ionicons name="ellipsis-vertical" size={18} color="#64748B" />
+                      </Pressable>
+                    </View>
                     <View style={styles.goalMetrics}>
                       <View style={styles.metric}>
                         <Text style={styles.metricLabel}>Units</Text>
@@ -456,7 +496,7 @@ export const PortfolioScreen = () => {
                     </View>
                     <Text style={styles.metricValue}>{rupees(o.amount, 2)}</Text>
                     {o.paymentUrl ? (
-                      <Pressable style={styles.primaryBtn} onPress={() => openPayment(o.paymentUrl!)}>
+                      <Pressable style={styles.primaryBtn} onPress={() => navigation.navigate('Payment', { orderId: o.id, amount: o.amount, schemeName: o.fundName, paymentUrl: o.paymentUrl, statusLabel: o.statusLabel, mode: 'lumpsum' })}>
                         <Text style={styles.primaryBtnText}>Pay now</Text>
                       </Pressable>
                     ) : null}
@@ -491,7 +531,7 @@ export const PortfolioScreen = () => {
                       </View>
                     </View>
                     {p.paymentUrl ? (
-                      <Pressable style={styles.primaryBtn} onPress={() => openPayment(p.paymentUrl!)}>
+                      <Pressable style={styles.primaryBtn} onPress={() => navigation.navigate('Payment', { orderId: p.id, planId: p.id, amount: p.amount, schemeName: p.fundName, paymentUrl: p.paymentUrl, statusLabel: p.statusLabel, mode: 'sip' })}>
                         <Text style={styles.primaryBtnText}>Pay first instalment</Text>
                       </Pressable>
                     ) : null}
@@ -590,13 +630,123 @@ export const PortfolioScreen = () => {
           )}
         </View>
 
-        {/* Withdrawing has to be reachable from where holdings are shown. The screen
-            itself reports honestly when there is nothing to sell, so this does not need
-            to be conditional on holdings we may not have loaded. */}
-        <Pressable style={styles.outlineBtn} onPress={() => navigation.navigate('Redeem')}>
-          <Text style={styles.outlineBtnText}>Withdraw money</Text>
+        </ScrollView>
+
+      {/* Contextual Action Sheet Modal for Selected Holding */}
+      <Modal
+        visible={activeMenuHolding !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setActiveMenuHolding(null)}
+      >
+        <Pressable style={styles.menuOverlay} onPress={() => setActiveMenuHolding(null)}>
+          <Pressable style={styles.menuSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.menuHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.menuSchemeName} numberOfLines={1}>
+                  {activeMenuHolding?.schemeName ?? activeMenuHolding?.schemeIsin}
+                </Text>
+                <Text style={styles.menuFolioText}>
+                  Folio {activeMenuHolding?.folioNumber} • {activeMenuHolding?.units?.toFixed(3)} units
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setActiveMenuHolding(null)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={styles.menuCloseBtn}
+              >
+                <Ionicons name="close" size={20} color="#64748B" />
+              </Pressable>
+            </View>
+
+            <View style={styles.menuItemsList}>
+              {/* 1. Invest in Lumpsum */}
+              <Pressable
+                style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
+                onPress={() => {
+                  const holding = activeMenuHolding;
+                  setActiveMenuHolding(null);
+                  if (holding?.schemeIsin) {
+                    navigation.navigate('Invest', {
+                      schemeCode: holding.schemeIsin,
+                      fundName: holding.schemeName ?? holding.schemeIsin,
+                      mode: 'lumpsum',
+                    });
+                  } else {
+                    navigation.navigate('Funds');
+                  }
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Invest in Lumpsum"
+              >
+                <View style={[styles.menuItemIconBox, { backgroundColor: '#EBEBFA' }]}>
+                  <Ionicons name="wallet-outline" size={18} color="#36358D" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.menuItemTitle}>Invest in Lumpsum</Text>
+                  <Text style={styles.menuItemSubtitle}>One-time investment in this scheme</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="#A0AEC0" />
+              </Pressable>
+
+              {/* 2. Start SIP */}
+              <Pressable
+                style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
+                onPress={() => {
+                  const holding = activeMenuHolding;
+                  setActiveMenuHolding(null);
+                  if (holding?.schemeIsin) {
+                    navigation.navigate('Invest', {
+                      schemeCode: holding.schemeIsin,
+                      fundName: holding.schemeName ?? holding.schemeIsin,
+                      mode: 'sip',
+                    });
+                  } else {
+                    navigation.navigate('Funds');
+                  }
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Start SIP"
+              >
+                <View style={[styles.menuItemIconBox, { backgroundColor: '#ECFDF5' }]}>
+                  <Ionicons name="calendar-outline" size={18} color="#059669" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.menuItemTitle}>Start SIP</Text>
+                  <Text style={styles.menuItemSubtitle}>Automated monthly systematic investment</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="#A0AEC0" />
+              </Pressable>
+
+              <View style={styles.menuDivider} />
+
+              {/* 3. Redemption */}
+              <Pressable
+                style={({ pressed }) => [styles.menuItem, styles.redeemMenuItem, pressed && styles.menuItemPressed]}
+                onPress={() => {
+                  const holding = activeMenuHolding;
+                  setActiveMenuHolding(null);
+                  navigation.navigate('Redeem', {
+                    folioNumber: holding?.folioNumber,
+                    schemeIsin: holding?.schemeIsin,
+                  });
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Redemption"
+              >
+                <View style={[styles.menuItemIconBox, { backgroundColor: '#FEF2F2' }]}>
+                  <Ionicons name="arrow-redo-outline" size={18} color="#DC2626" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.menuItemTitle, { color: '#B91C1C' }]}>Redemption</Text>
+                  <Text style={styles.menuItemSubtitle}>Withdraw units to your verified bank account</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="#FCA5A5" />
+              </Pressable>
+            </View>
+          </Pressable>
         </Pressable>
-      </ScrollView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -610,6 +760,160 @@ const styles = StyleSheet.create({
   fixedSummaryContainer: { paddingHorizontal: 24, paddingBottom: 24, backgroundColor: '#F8F9FB' },
   
   // Custom Hero Card based on User Uploaded Image
+  holdingHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  threeDotBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F1F5F9',
+  },
+  threeDotBtnPressed: {
+    backgroundColor: '#E2E8F0',
+  },
+  overviewInvestContainer: {
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  investMoreContainer: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  investMoreBtn: {
+    backgroundColor: '#36358D',
+    borderRadius: 18,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    shadowColor: '#36358D',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  investMoreBtnPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.99 }],
+  },
+  investIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  investMoreTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  investMoreSubtitle: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  investMoreArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  menuSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 36,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  menuHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  menuSchemeName: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#102A54',
+  },
+  menuFolioText: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  menuCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuItemsList: {
+    marginTop: 12,
+    gap: 8,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    gap: 12,
+  },
+  menuItemPressed: {
+    backgroundColor: '#F8FAFC',
+  },
+  redeemMenuItem: {
+    marginTop: 4,
+  },
+  menuItemIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuItemTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#102A54',
+  },
+  menuItemSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 4,
+  },
   heroCard: { backgroundColor: '#3A3F7A', borderRadius: 24, padding: 24, shadowColor: '#3C3985', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 6 },
   heroTitle: { color: '#fff', fontSize: 16, fontWeight: '900', marginBottom: 24 },
   heroRow: { flexDirection: 'row', alignItems: 'center' },

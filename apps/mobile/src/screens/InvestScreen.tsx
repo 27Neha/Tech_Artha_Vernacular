@@ -168,7 +168,14 @@ export const InvestScreen = () => {
   // Purchases and SIPs both need a second factor before any money moves.
   const [pendingAuth, setPendingAuth] = useState<TransactionPayload | null>(null);
 
-  const [mode, setMode] = useState<Mode>('lumpsum');
+  const initialMode = route.params?.mode === 'sip' ? 'sip' : 'lumpsum';
+  const [mode, setMode] = useState<Mode>(initialMode);
+
+  React.useEffect(() => {
+    if (route.params?.mode) {
+      setMode(route.params.mode === 'sip' ? 'sip' : 'lumpsum');
+    }
+  }, [route.params?.mode]);
   const [frequency, setFrequency] = useState(FREQUENCIES[0].value);
   const [installmentDay, setInstallmentDay] = useState<number | null>(null);
   const [numberOfInstallments, setNumberOfInstallments] = useState('');
@@ -412,12 +419,15 @@ export const InvestScreen = () => {
 
         // Hand off directly to TechArtha's dedicated checkout & payment page
         navigation.navigate('Payment', {
-          orderId: sip?.planId || `SIP-${Date.now().toString().slice(-6)}`,
-          amount: Number(amount),
-          schemeName: targetName,
-          paymentUrl: sip?.paymentUrl,
-          mode: 'sip',
+          orderId: sip?.planId,
           planId: sip?.planId,
+          amount: sip?.amount ?? Number(amount),
+          schemeName: sip?.fundName || targetName,
+          paymentUrl: sip?.paymentUrl,
+          status: sip?.status,
+          statusLabel: sip?.statusLabel,
+          message: sip?.message,
+          mode: 'sip',
           bankAccountNumber,
           bankAccountHolderName,
           ifscCode,
@@ -434,10 +444,13 @@ export const InvestScreen = () => {
 
       // Hand off directly to TechArtha's dedicated checkout & payment page
       navigation.navigate('Payment', {
-        orderId: result?.orderId || `ORD-${Date.now().toString().slice(-6)}`,
-        amount: Number(amount),
-        schemeName: targetName,
+        orderId: result?.orderId,
+        amount: result?.amount ?? Number(amount),
+        schemeName: result?.fundName || targetName,
         paymentUrl: result?.paymentUrl,
+        status: result?.status,
+        statusLabel: result?.statusLabel,
+        message: result?.message,
         mode: 'lumpsum',
         bankAccountNumber,
         bankAccountHolderName,

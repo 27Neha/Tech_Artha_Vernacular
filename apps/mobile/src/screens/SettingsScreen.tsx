@@ -16,7 +16,6 @@ import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { api, API_URL } from '../services/api/client';
 import { useAuth } from '../store/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -26,48 +25,24 @@ export const SettingsScreen = () => {
   const { signOut } = useAuth();
   const { colors, isDark, preference } = useTheme();
 
-  // Connection & Profile Status
-  const [apiStatus, setApiStatus] = useState<'online' | 'offline' | 'checking'>('checking');
-  const [profileName, setProfileName] = useState<string>('Investor Account');
-  const [profileContact, setProfileContact] = useState<string>('');
-  const [isPanLinked, setIsPanLinked] = useState<boolean>(false);
-  const [isKycDone, setIsKycDone] = useState<boolean>(false);
-
-  // Settings Quick Indicators
+  // Real Settings Status Indicators
   const [pinActive, setPinActive] = useState<boolean>(false);
+  const [preferred2faChannel, setPreferred2faChannel] = useState<string>('WHATSAPP');
   const [allowedPermsCount, setAllowedPermsCount] = useState<number>(0);
 
-  // Check backend connectivity
-  const checkApiHealth = async () => {
-    try {
-      const res = await fetch(`${API_URL}/`, { method: 'GET' });
-      setApiStatus(res.ok ? 'online' : 'offline');
-    } catch {
-      setApiStatus('offline');
-    }
-  };
-
-  // Load user profile & quick statuses
   const loadScreenData = useCallback(async () => {
     try {
       // 1. PIN Lock status
       const hasPin = await AsyncStorage.getItem('techartha_pin_enabled');
       setPinActive(hasPin === 'true');
 
-      // 2. Profile details
-      const profile = await api.get<any>('/auth/profile').catch(() => null);
-      if (profile) {
-        if (profile?.profile?.fullName) {
-          setProfileName(profile.profile.fullName);
-        } else if (profile?.email) {
-          setProfileName(profile.email.split('@')[0]);
-        }
-        setProfileContact(profile?.mobile ? `+91 ${profile.mobile}` : (profile?.email || ''));
-        setIsPanLinked(Boolean(profile?.profile?.pan));
-        setIsKycDone(Boolean(profile?.profile?.kycStatus === 'VERIFIED' || profile?.profile?.pan));
+      // 2. Preferred 2FA Delivery Channel
+      const savedChannel = await AsyncStorage.getItem('techartha_2fa_preferred_channel');
+      if (savedChannel === 'SMS' || savedChannel === 'EMAIL' || savedChannel === 'WHATSAPP') {
+        setPreferred2faChannel(savedChannel);
       }
 
-      // 3. Quick Permissions count (Android check)
+      // 3. Real OS Permissions count (Android check)
       if (Platform.OS === 'android') {
         let granted = 0;
         const permsToCheck = [
@@ -93,9 +68,8 @@ export const SettingsScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
-      checkApiHealth();
       loadScreenData();
-    }, [loadScreenData])
+    }, [loadScreenData]),
   );
 
   const handleLogout = () => {
@@ -119,7 +93,7 @@ export const SettingsScreen = () => {
             });
           },
         },
-      ]
+      ],
     );
   };
 
@@ -146,144 +120,69 @@ export const SettingsScreen = () => {
     return 'System Default';
   };
 
+  const get2faChannelLabel = () => {
+    if (preferred2faChannel === 'SMS') return 'SMS OTP';
+    if (preferred2faChannel === 'EMAIL') return 'Email OTP';
+    return 'WhatsApp OTP';
+  };
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.canvas }]} edges={['right', 'bottom', 'left']}>
       <StatusBar style={colors.statusBar} />
       <Header title="Settings" onBack={() => navigation.goBack()} showSettings={false} />
 
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Profile Card Header */}
-        <View style={[styles.profileHeaderCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.profileAvatarBox}>
-            <Text style={styles.avatarInitials}>
-              {profileName.trim().slice(0, 2).toUpperCase()}
-            </Text>
-          </View>
-          <View style={styles.profileInfoBox}>
-            <View style={styles.profileNameRow}>
-              <Text style={[styles.profileNameText, { color: colors.textPrimary }]} numberOfLines={1}>
-                {profileName}
-              </Text>
-              {isKycDone && (
-                <View style={styles.verifiedKycBadge}>
-                  <Ionicons name="checkmark-circle" size={12} color="#059669" />
-                  <Text style={styles.verifiedKycText}>KYC</Text>
-                </View>
-              )}
-            </View>
-            <Text style={[styles.profileContactText, { color: colors.textSecondary }]} numberOfLines={1}>
-              {profileContact || 'Investor Account'}
-            </Text>
-          </View>
-          <Pressable
-            style={[styles.editProfileBtn, { backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF' }]}
-            onPress={() => navigation.navigate('EditProfile')}
-          >
-            <Text style={styles.editProfileBtnText}>Edit</Text>
-          </Pressable>
+        {/* Top Intro Banner */}
+        <View style={styles.introBlock}>
+          <Text style={[styles.introTitle, { color: colors.textPrimary }]}>Application & Security Settings</Text>
+          <Text style={[styles.introSub, { color: colors.textSecondary }]}>
+            Manage device security, transaction authentication, language, appearance, notifications, and regulatory disclosures.
+          </Text>
         </View>
 
         {/* ============================================================== */}
-        {/* 1. ACCOUNT & INVESTMENT SETTINGS                               */}
-        {/* ============================================================== */}
-        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>Account & Investment Profile</Text>
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          {/* Personal Profile */}
-          <Pressable
-            style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
-            onPress={() => navigation.navigate('EditProfile')}
-          >
-            <View style={[styles.iconBox, { backgroundColor: isDark ? '#1E1B4B' : '#E0E7FF' }]}>
-              <Ionicons name="person-outline" size={20} color={isDark ? '#818CF8' : '#3730A3'} />
-            </View>
-            <View style={styles.textCol}>
-              <View style={styles.rowTitleWrap}>
-                <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Personal & KYC Profile</Text>
-                {isPanLinked && (
-                  <View style={[styles.tagGreen, { backgroundColor: isDark ? '#064E3B' : '#ECFDF5' }]}>
-                    <Text style={[styles.tagGreenText, { color: isDark ? '#34D399' : '#059669' }]}>PAN Linked</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>PAN, verified email, address & tax status</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
-          </Pressable>
-
-          {/* Linked Bank Accounts */}
-          <Pressable
-            style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
-            onPress={() => navigation.navigate('BankAccounts')}
-          >
-            <View style={[styles.iconBox, { backgroundColor: isDark ? '#064E3B' : '#ECFDF5' }]}>
-              <Ionicons name="card-outline" size={20} color={isDark ? '#34D399' : '#059669'} />
-            </View>
-            <View style={styles.textCol}>
-              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Linked Bank Accounts</Text>
-              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>Primary verified bank for payouts & redemption credits</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
-          </Pressable>
-
-          {/* Nominee Declarations */}
-          <Pressable
-            style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
-            onPress={() => navigation.navigate('NomineeDetails')}
-          >
-            <View style={[styles.iconBox, { backgroundColor: isDark ? '#451A03' : '#FEF3C7' }]}>
-              <Ionicons name="people-outline" size={20} color={isDark ? '#FBBF24' : '#B45309'} />
-            </View>
-            <View style={styles.textCol}>
-              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Nominee Details</Text>
-              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>SEBI mandatory portfolio nomination declaration</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
-          </Pressable>
-
-          {/* Auto-Debit Mandates */}
-          <Pressable
-            style={[styles.row, { borderBottomWidth: 0 }]}
-            onPress={() => navigation.navigate('ActiveMandates')}
-          >
-            <View style={[styles.iconBox, { backgroundColor: isDark ? '#2E1065' : '#EDE9FE' }]}>
-              <Ionicons name="repeat-outline" size={20} color={isDark ? '#A78BFA' : '#5B21B6'} />
-            </View>
-            <View style={styles.textCol}>
-              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Auto-Debit Mandates</Text>
-              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>Manage UPI Autopay & e-NACH mandates for SIPs</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
-          </Pressable>
-        </View>
-
-        {/* ============================================================== */}
-        {/* 2. SECURITY & LOGIN                                            */}
+        {/* 1. SECURITY & LOGIN                                            */}
         {/* ============================================================== */}
         <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>Security & Login</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          {/* App Lock & PIN */}
+          {/* App Lock, PIN & Password */}
           <Pressable
             style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
             onPress={() => navigation.navigate('SecuritySettings')}
           >
-            <View style={[styles.iconBox, { backgroundColor: pinActive ? (isDark ? '#052E16' : '#DCFCE7') : (isDark ? '#451A03' : '#FEF3C7') }]}>
+            <View
+              style={[
+                styles.iconBox,
+                {
+                  backgroundColor: pinActive
+                    ? isDark
+                      ? '#052E16'
+                      : '#DCFCE7'
+                    : isDark
+                      ? '#451A03'
+                      : '#FEF3C7',
+                },
+              ]}
+            >
               <Ionicons
-                name={pinActive ? 'shield-checkmark' : 'lock-open-outline'}
+                name={pinActive ? 'shield-checkmark-outline' : 'lock-closed-outline'}
                 size={20}
-                color={pinActive ? (isDark ? '#4ADE80' : '#15803D') : (isDark ? '#FBBF24' : '#B45309')}
+                color={pinActive ? (isDark ? '#4ADE80' : '#15803D') : isDark ? '#FBBF24' : '#B45309'}
               />
             </View>
             <View style={styles.textCol}>
               <View style={styles.rowTitleWrap}>
-                <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Device PIN & App Lock</Text>
+                <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>App Lock, PIN & Password</Text>
                 <View style={[styles.tagPill, pinActive ? styles.tagGreen : styles.tagAmber]}>
                   <Text style={[styles.tagPillText, pinActive ? styles.tagGreenText : styles.tagAmberText]}>
-                    {pinActive ? 'Active' : 'Disabled'}
+                    {pinActive ? 'PIN Active' : 'PIN Off'}
                   </Text>
                 </View>
               </View>
               <Text style={[styles.rowSub, { color: colors.textSecondary }]}>
-                {pinActive ? '4-digit PIN required on app open & resume' : 'Enable 4-digit PIN protection'}
+                {pinActive
+                  ? '4-digit PIN required on app launch & account password settings'
+                  : 'Configure 4-digit app PIN lock and account password'}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
@@ -301,11 +200,11 @@ export const SettingsScreen = () => {
               <View style={styles.rowTitleWrap}>
                 <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Two-Factor Authentication (2FA)</Text>
                 <View style={[styles.tagPill, styles.tagGreen]}>
-                  <Text style={[styles.tagPillText, styles.tagGreenText]}>Enforced</Text>
+                  <Text style={[styles.tagPillText, styles.tagGreenText]}>{get2faChannelLabel()}</Text>
                 </View>
               </View>
               <Text style={[styles.rowSub, { color: colors.textSecondary }]}>
-                Mandatory WhatsApp, SMS & Email OTP verification
+                SEBI mandatory OTP verification channel for orders & redemptions
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
@@ -313,7 +212,7 @@ export const SettingsScreen = () => {
         </View>
 
         {/* ============================================================== */}
-        {/* 3. APP PREFERENCES & APPEARANCE                                */}
+        {/* 2. LANGUAGE & APPEARANCE                                       */}
         {/* ============================================================== */}
         <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>Language & Appearance</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -326,7 +225,7 @@ export const SettingsScreen = () => {
               <Ionicons name="language-outline" size={20} color={isDark ? '#FBBF24' : '#B45309'} />
             </View>
             <View style={styles.textCol}>
-              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Language Selection</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>App Language</Text>
               <Text style={[styles.rowSub, { color: colors.textSecondary }]}>
                 {getLanguageDisplayName(i18n.language || 'en')}
               </Text>
@@ -336,15 +235,38 @@ export const SettingsScreen = () => {
 
           {/* Theme & Display */}
           <Pressable
-            style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
+            style={[styles.row, { borderBottomWidth: 0 }]}
             onPress={() => navigation.navigate('ThemeSettings')}
           >
             <View style={[styles.iconBox, { backgroundColor: isDark ? '#500724' : '#FCE7F3' }]}>
-              <Ionicons name="color-palette-outline" size={20} color={isDark ? '#F472B6' : '#BE185D'} />
+              <Ionicons name="contrast-outline" size={20} color={isDark ? '#F472B6' : '#BE185D'} />
             </View>
             <View style={styles.textCol}>
               <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Display Theme</Text>
               <Text style={[styles.rowSub, { color: colors.textSecondary }]}>{getThemeDisplayName()}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
+          </Pressable>
+        </View>
+
+        {/* ============================================================== */}
+        {/* 3. APP PREFERENCES & NOTIFICATIONS                             */}
+        {/* ============================================================== */}
+        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>App Preferences & Notifications</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {/* Notification Preferences */}
+          <Pressable
+            style={[styles.row, { borderBottomColor: colors.borderSubtle }]}
+            onPress={() => navigation.navigate('NotificationPreferences')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: isDark ? '#082F49' : '#E0F2FE' }]}>
+              <Ionicons name="notifications-outline" size={20} color={isDark ? '#38BDF8' : '#0369A1'} />
+            </View>
+            <View style={styles.textCol}>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Notification Preferences</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>
+                SIP debit reminders, order execution & WhatsApp/email alerts
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
@@ -358,35 +280,17 @@ export const SettingsScreen = () => {
               <Ionicons name="server-outline" size={20} color={isDark ? '#A78BFA' : '#5B21B6'} />
             </View>
             <View style={styles.textCol}>
-              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Storage & Cache</Text>
-              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>Clear temporary factsheets & document cache</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Storage & Local Cache</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>
+                Manage cached scheme factsheets & temporary app storage
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
         </View>
 
         {/* ============================================================== */}
-        {/* 4. NOTIFICATIONS                                              */}
-        {/* ============================================================== */}
-        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>Notifications</Text>
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Pressable
-            style={[styles.row, { borderBottomWidth: 0 }]}
-            onPress={() => navigation.navigate('NotificationPreferences')}
-          >
-            <View style={[styles.iconBox, { backgroundColor: isDark ? '#082F49' : '#E0F2FE' }]}>
-              <Ionicons name="notifications-outline" size={20} color={isDark ? '#38BDF8' : '#0369A1'} />
-            </View>
-            <View style={styles.textCol}>
-              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Notification Preferences</Text>
-              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>SIP debit alerts, order confirmations & WhatsApp updates</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
-          </Pressable>
-        </View>
-
-        {/* ============================================================== */}
-        {/* 5. PRIVACY & PERMISSIONS                                      */}
+        {/* 4. PRIVACY & PERMISSIONS                                       */}
         {/* ============================================================== */}
         <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>Privacy & Permissions</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -400,12 +304,14 @@ export const SettingsScreen = () => {
             </View>
             <View style={styles.textCol}>
               <View style={styles.rowTitleWrap}>
-                <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>App Permissions Center</Text>
+                <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Device Permissions</Text>
                 <View style={[styles.tagPill, styles.tagBlue]}>
-                  <Text style={[styles.tagPillText, styles.tagBlueText]}>{allowedPermsCount} Active</Text>
+                  <Text style={[styles.tagPillText, styles.tagBlueText]}>{allowedPermsCount} Allowed</Text>
                 </View>
               </View>
-              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>Microphone, Camera, Files, KYC Location</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>
+                Camera, microphone, notifications & KYC location access
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
@@ -416,20 +322,22 @@ export const SettingsScreen = () => {
             onPress={() => navigation.navigate('PrivacyPolicy')}
           >
             <View style={[styles.iconBox, { backgroundColor: isDark ? '#082F49' : '#E0F2FE' }]}>
-              <Ionicons name="shield-checkmark-outline" size={20} color={isDark ? '#38BDF8' : '#0369A1'} />
+              <Ionicons name="lock-open-outline" size={20} color={isDark ? '#38BDF8' : '#0369A1'} />
             </View>
             <View style={styles.textCol}>
-              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Privacy Policy</Text>
-              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>AES-256 data protection & KYC privacy covenants</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Data & Privacy Policy</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>
+                AES-256 encryption, KYC data retention & DPDP compliance
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
         </View>
 
         {/* ============================================================== */}
-        {/* 6. HELP & SUPPORT                                             */}
+        {/* 5. HELP & SUPPORT                                              */}
         {/* ============================================================== */}
-        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>Help & Support</Text>
+        <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>Help & Investor Support</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           {/* FAQs */}
           <Pressable
@@ -440,30 +348,34 @@ export const SettingsScreen = () => {
               <Ionicons name="help-circle-outline" size={20} color={isDark ? '#38BDF8' : '#0369A1'} />
             </View>
             <View style={styles.textCol}>
-              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Frequently Asked Questions (FAQs)</Text>
-              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>SIP cutoffs, NAV timing, taxes & mandate rules</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Investor FAQs & Guides</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>
+                SIP cutoffs, NAV allotment timelines, taxation & mandate rules
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
 
-          {/* Contact Support */}
+          {/* Grievance & Helpdesk */}
           <Pressable
             style={[styles.row, { borderBottomWidth: 0 }]}
             onPress={() => navigation.navigate('HelpSupport')}
           >
             <View style={[styles.iconBox, { backgroundColor: isDark ? '#052E16' : '#DCFCE7' }]}>
-              <Ionicons name="headset-outline" size={20} color={isDark ? '#4ADE80' : '#15803D'} />
+              <Ionicons name="call-outline" size={20} color={isDark ? '#4ADE80' : '#15803D'} />
             </View>
             <View style={styles.textCol}>
-              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Contact Support & Helpdesk</Text>
-              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>Direct WhatsApp, Grievance email & Ticket support</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Grievance Redressal & Helpdesk</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>
+                Escalation matrix, compliance officer & support contact channels
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
         </View>
 
         {/* ============================================================== */}
-        {/* 7. LEGAL & REGULATORY INFORMATION                             */}
+        {/* 6. LEGAL & REGULATORY INFORMATION                              */}
         {/* ============================================================== */}
         <Text style={[styles.sectionHeading, { color: colors.textMuted }]}>Legal & Regulatory Information</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -477,7 +389,9 @@ export const SettingsScreen = () => {
             </View>
             <View style={styles.textCol}>
               <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Terms & Conditions</Text>
-              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>Execution agreement, e-mandates & user covenants</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>
+                Order execution agreement, e-mandates & investor covenants
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
@@ -492,7 +406,9 @@ export const SettingsScreen = () => {
             </View>
             <View style={styles.textCol}>
               <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Statutory Risk Disclosures</Text>
-              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>SEBI market risks, Risk-o-Meter & NAV timelines</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>
+                SEBI Risk-o-Meter levels, market risks & scheme cut-off rules
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
@@ -506,8 +422,10 @@ export const SettingsScreen = () => {
               <Ionicons name="ribbon-outline" size={20} color={isDark ? '#34D399' : '#059669'} />
             </View>
             <View style={styles.textCol}>
-              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Platform Compliance Center</Text>
-              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>AMFI registration (ARN-284912), SCORES & SMART ODR</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Regulatory & Compliance Center</Text>
+              <Text style={[styles.rowSub, { color: colors.textSecondary }]}>
+                AMFI distributor disclosures, SEBI SCORES & SMART ODR portal
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
@@ -518,7 +436,13 @@ export const SettingsScreen = () => {
         {/* ============================================================== */}
         <View style={styles.footerSection}>
           <Pressable
-            style={[styles.logoutBtn, { backgroundColor: isDark ? '#450A0A' : '#FEF2F2', borderColor: isDark ? '#991B1B' : '#FECACA' }]}
+            style={[
+              styles.logoutBtn,
+              {
+                backgroundColor: isDark ? '#450A0A' : '#FEF2F2',
+                borderColor: isDark ? '#991B1B' : '#FECACA',
+              },
+            ]}
             onPress={handleLogout}
           >
             <Ionicons name="log-out-outline" size={19} color="#DC2626" style={{ marginRight: 8 }} />
@@ -526,8 +450,7 @@ export const SettingsScreen = () => {
           </Pressable>
 
           <Text style={[styles.sebiDisclosureText, { color: colors.textMuted }]}>
-            AMFI Registered Mutual Fund Distributor • ARN-284912{'\n'}
-            Mutual fund investments are subject to market risks. Please read all scheme-related documents carefully.
+            Mutual fund investments are subject to market risks. Please read all scheme-related documents carefully before investing.
           </Text>
         </View>
       </ScrollView>
@@ -539,72 +462,18 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   container: { padding: 16, paddingBottom: 40 },
 
-  profileHeaderCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
+  introBlock: {
+    marginBottom: 18,
+    paddingHorizontal: 4,
   },
-  profileAvatarBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#3C3985',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  avatarInitials: {
-    color: '#FFFFFF',
-    fontSize: 16,
+  introTitle: {
+    fontSize: 22,
     fontWeight: '800',
+    marginBottom: 4,
   },
-  profileInfoBox: {
-    flex: 1,
-  },
-  profileNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  profileNameText: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  verifiedKycBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    gap: 2,
-  },
-  verifiedKycText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#059669',
-  },
-  profileContactText: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  editProfileBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  editProfileBtnText: {
-    color: '#3C3985',
-    fontSize: 12,
-    fontWeight: '700',
+  introSub: {
+    fontSize: 13,
+    lineHeight: 18,
   },
 
   sectionHeading: {

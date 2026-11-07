@@ -12,8 +12,9 @@ import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { authStore } from '../store/auth';
-import { api } from '../services/api/client';
+import { api, API_URL } from '../services/api/client';
 import { HeadsetIcon, UserIcon, EditIcon } from '../components/Icons';
+import { Ionicons } from '@expo/vector-icons';
 
 const FALLBACK_QUESTIONS = [
   { id: 'net_worth', question: "Current market value of net worth (Assets - Liabilities)", options: [{ label: "Negative/0", score: 1 }, { label: "< 10L", score: 2 }, { label: "10L-50L", score: 3 }, { label: "> 50L", score: 4 }, { label: "> 1Cr", score: 5 }] },
@@ -30,7 +31,7 @@ const FALLBACK_QUESTIONS = [
   { id: 'market_view', question: "What is your overall attitude towards the stock market?", options: [{ label: "It is a casino, highly dangerous", score: 1 }, { label: "A place for experts only", score: 2 }, { label: "A good place to invest, with some caution", score: 3 }, { label: "An excellent wealth-building opportunity", score: 4 }, { label: "The only place to beat inflation and maximize returns", score: 5 }] },
 ];
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+// Uses unified API_URL imported from ../services/api/client
 
 interface QuestionItem {
   id: string | number;
@@ -46,7 +47,7 @@ export const RiskAssessmentScreen = () => {
   const [history, setHistory] = useState<{ questionIndex: number; selectedScore: number; selectedLabel: string }[]>([]);
   const [isBotTyping, setIsBotTyping] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<any>(null);
 
   useEffect(() => {
     let active = true;
@@ -302,7 +303,15 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F8F9FB' },
   loadingContainer: { flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', padding: 24 },
   loadingText: { color: '#3C3985', fontWeight: '700', fontSize: 16, marginTop: 16, textAlign: 'center' },
-  header: { backgroundColor: '#3C3985', paddingTop: 12, paddingBottom: 16, paddingHorizontal: 20 },
+  header: { backgroundColor: '#36358D', paddingTop: 12, paddingBottom: 16, paddingHorizontal: 20 },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   headerBotInfo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },

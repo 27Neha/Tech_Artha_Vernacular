@@ -49,8 +49,7 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  // Returned by the server only outside production with AUTH_DEV_BYPASS on. Carried so
-  // the OTP screen can prefill it while real SMS and WhatsApp delivery is unreliable.
+  // Returned by the server only outside production for development SMS mock OTP.
   const [devOtp, setDevOtp] = useState<string | null>(null);
   // Held between OTP verification (which creates the account) and the password step.
   const [signupSession, setSignupSession] = useState<{
@@ -107,7 +106,7 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
         body: JSON.stringify(channel === 'EMAIL' ? { email, channel } : { mobile, channel })
       });
       const data = await safeFetchJson(res);
-      setDevOtp(data?.devOtp ?? null);
+      setDevOtp(channel === 'SMS' ? (data?.devOtp ?? null) : null);
       if (res.status === 409) {
         throw new Error(channel === 'EMAIL' ? t('signup.emailExists', { defaultValue: 'This email is already registered. Please log in instead.' }) : t('signup.mobileExists', { defaultValue: 'This mobile number is already registered. Please log in instead.' }));
       }
@@ -255,71 +254,6 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
 
             {error ? <Text style={localStyles.errorText}>{error}</Text> : null}
 
-            {authChannel === 'EMAIL' ? (
-              <View>
-                <Pressable 
-                  style={[styles.primaryButton, (loading && authChannel === 'EMAIL') && styles.primaryDisabled, localStyles.mt24]} 
-                  onPress={() => handleContinue('EMAIL')} 
-                  disabled={loading}
-                >
-                  <Text style={styles.primaryText}>
-                    {(loading && authChannel === 'EMAIL') ? t('common.loading', { defaultValue: 'Loading...' }) : t('signup.continueWithEmail', { defaultValue: 'Continue with Email' })}
-                  </Text>
-                  {!(loading && authChannel === 'EMAIL') && <Text style={styles.primaryText}>→</Text>}
-                </Pressable>
-
-                <Pressable 
-                  style={[localStyles.secondaryBoxBtn, { marginTop: 16 }]} 
-                  onPress={() => { setAuthChannel('SMS'); setError(''); setTermsWarning(''); }}
-                >
-                  <Ionicons name="phone-portrait-outline" size={20} color="#3C3985" style={{ marginRight: 8 }} />
-                  <Text style={localStyles.secondaryBoxText}>
-                    {t('signup.useMobileInstead', { defaultValue: 'Use mobile instead' })}
-                  </Text>
-                </Pressable>
-              </View>
-            ) : (
-              <View>
-                <Pressable 
-                  style={[styles.primaryButton, (loading && authChannel === 'SMS') && styles.primaryDisabled, localStyles.mt24]} 
-                  onPress={() => handleContinue('SMS')} 
-                  disabled={loading}
-                >
-                  <Text style={styles.primaryText}>
-                    {(loading && authChannel === 'SMS') ? t('common.loading', { defaultValue: 'Loading...' }) : t('signup.continueWithSms', { defaultValue: 'Continue with SMS' })}
-                  </Text>
-                  {!(loading && authChannel === 'SMS') && <Text style={styles.primaryText}>→</Text>}
-                </Pressable>
-                
-                <View style={localStyles.divider}>
-                  <View style={localStyles.line} />
-                  <Text style={localStyles.orText}>{t('signup.or', { defaultValue: 'or' })}</Text>
-                  <View style={localStyles.line} />
-                </View>
-
-                <Pressable 
-                  style={[localStyles.waButton, (loading && authChannel === 'WHATSAPP') && styles.primaryDisabled]} 
-                  onPress={() => handleContinue('WHATSAPP')} 
-                  disabled={loading}
-                >
-                  <Ionicons name="logo-whatsapp" size={20} color="#25D366" style={{ marginRight: 8 }} />
-                  <Text style={localStyles.waText}>
-                    {(loading && authChannel === 'WHATSAPP') ? t('common.loading', { defaultValue: 'Loading...' }) : t('signup.continueWithWa', { defaultValue: 'Continue with WhatsApp' })}
-                  </Text>
-                </Pressable>
-
-                <Pressable 
-                  style={localStyles.secondaryBoxBtn} 
-                  onPress={() => { setAuthChannel('EMAIL'); setError(''); setTermsWarning(''); }}
-                >
-                  <Ionicons name="mail-outline" size={20} color="#3C3985" style={{ marginRight: 8 }} />
-                  <Text style={localStyles.secondaryBoxText}>
-                    {t('signup.useEmailInstead', { defaultValue: 'Use email instead' })}
-                  </Text>
-                </Pressable>
-              </View>
-            )}
-
             <View style={localStyles.termsWrapper}>
               <View style={localStyles.consentRow}>
                 <Pressable 
@@ -369,6 +303,71 @@ export const SignupScreen = ({ apiUrl }: SignupScreenProps) => {
                 </Text>
               </View>
             </View>
+
+            {authChannel === 'EMAIL' ? (
+              <View>
+                <Pressable 
+                  style={[styles.primaryButton, (loading && authChannel === 'EMAIL') && styles.primaryDisabled]} 
+                  onPress={() => handleContinue('EMAIL')} 
+                  disabled={loading}
+                >
+                  <Text style={styles.primaryText}>
+                    {(loading && authChannel === 'EMAIL') ? t('common.loading', { defaultValue: 'Loading...' }) : t('signup.continueWithEmail', { defaultValue: 'Continue with Email' })}
+                  </Text>
+                  {!(loading && authChannel === 'EMAIL') && <Text style={styles.primaryText}>→</Text>}
+                </Pressable>
+
+                <Pressable 
+                  style={[localStyles.secondaryBoxBtn, { marginTop: 16 }]} 
+                  onPress={() => { setAuthChannel('SMS'); setError(''); setTermsWarning(''); }}
+                >
+                  <Ionicons name="phone-portrait-outline" size={20} color="#3C3985" style={{ marginRight: 8 }} />
+                  <Text style={localStyles.secondaryBoxText}>
+                    {t('signup.useMobileInstead', { defaultValue: 'Use mobile instead' })}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View>
+                <Pressable 
+                  style={[styles.primaryButton, (loading && authChannel === 'SMS') && styles.primaryDisabled]} 
+                  onPress={() => handleContinue('SMS')} 
+                  disabled={loading}
+                >
+                  <Text style={styles.primaryText}>
+                    {(loading && authChannel === 'SMS') ? t('common.loading', { defaultValue: 'Loading...' }) : t('signup.continueWithSms', { defaultValue: 'Continue with SMS' })}
+                  </Text>
+                  {!(loading && authChannel === 'SMS') && <Text style={styles.primaryText}>→</Text>}
+                </Pressable>
+                
+                <View style={localStyles.divider}>
+                  <View style={localStyles.line} />
+                  <Text style={localStyles.orText}>{t('signup.or', { defaultValue: 'or' })}</Text>
+                  <View style={localStyles.line} />
+                </View>
+
+                <Pressable 
+                  style={[localStyles.waButton, (loading && authChannel === 'WHATSAPP') && styles.primaryDisabled]} 
+                  onPress={() => handleContinue('WHATSAPP')} 
+                  disabled={loading}
+                >
+                  <Ionicons name="logo-whatsapp" size={20} color="#25D366" style={{ marginRight: 8 }} />
+                  <Text style={localStyles.waText}>
+                    {(loading && authChannel === 'WHATSAPP') ? t('common.loading', { defaultValue: 'Loading...' }) : t('signup.continueWithWa', { defaultValue: 'Continue with WhatsApp' })}
+                  </Text>
+                </Pressable>
+
+                <Pressable 
+                  style={localStyles.secondaryBoxBtn} 
+                  onPress={() => { setAuthChannel('EMAIL'); setError(''); setTermsWarning(''); }}
+                >
+                  <Ionicons name="mail-outline" size={20} color="#3C3985" style={{ marginRight: 8 }} />
+                  <Text style={localStyles.secondaryBoxText}>
+                    {t('signup.useEmailInstead', { defaultValue: 'Use email instead' })}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
             
             <View style={localStyles.footer}>
               <Text style={localStyles.footerText}>{t('signup.haveAccount', { defaultValue: 'Already have an account?' })} </Text>
@@ -542,7 +541,7 @@ const localStyles = StyleSheet.create({
     marginBottom: 16,
   },
   secondaryBoxText: { fontSize: 16, fontWeight: '700', color: '#102A54' },
-  termsWrapper: { marginTop: 12, marginBottom: 8 },
+  termsWrapper: { marginTop: 8, marginBottom: 16 },
   consentRow: { flexDirection: 'row', alignItems: 'flex-start' },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: '#CBD5E0', marginRight: 10, marginTop: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
   checkboxChecked: { backgroundColor: '#3C3985', borderColor: '#3C3985' },

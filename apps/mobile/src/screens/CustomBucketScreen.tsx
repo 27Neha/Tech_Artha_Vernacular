@@ -7,7 +7,7 @@ import { authStore } from '../store/auth';
 import { Header } from '../components/Header';
 import { SearchIcon } from '../components/Icons';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_URL } from '../services/api/client';
 
 const CATEGORY_FUNDS: Record<string, any[]> = {
   Conservative: [

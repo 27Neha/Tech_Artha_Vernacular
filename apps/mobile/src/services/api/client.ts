@@ -9,7 +9,76 @@
  * passed down as a prop, so screens never handle credentials themselves.
  */
 
-export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import Constants from 'expo-constants';
+
+const DEFAULT_API_PORT = process.env.EXPO_PUBLIC_API_PORT?.trim() || '3000';
+
+/**
+ * Extracts the Metro bundler host (IPv4 or hostname) from Expo runtime metadata.
+ * When running in LAN mode over Wi-Fi or a mobile hotspot, Expo Go / dev client
+ * populates `hostUri` with `<developer-machine-ip>:<metro-port>` (e.g. `192.168.1.10:8081`).
+ */
+export function getMetroHost(): string | null {
+  try {
+    const rawHostUri =
+      Constants?.expoConfig?.hostUri ||
+      (Constants as any)?.manifest2?.extra?.expoGo?.debuggerHost ||
+      (Constants as any)?.manifest?.debuggerHost ||
+      (Constants as any)?.linkingUri;
+
+    if (!rawHostUri || typeof rawHostUri !== 'string') return null;
+
+    const withoutProtocol = rawHostUri.replace(/^[a-zA-Z0-9+.-]+:\/\//, '');
+    const hostPort = withoutProtocol.split('/')[0] ?? '';
+    const host = hostPort.split(':')[0]?.trim();
+
+    return host || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Checks whether a Metro host belongs to a public tunnel service (e.g. `.exp.direct`).
+ * Expo's `--tunnel` only tunnels the Metro bundler (port 8081), NOT the NestJS API (port 3000),
+ * so we must not blindly append `:3000` to an Expo tunnel hostname.
+ */
+export function isTunnelHost(host: string): boolean {
+  const lower = host.toLowerCase();
+  return (
+    lower.endsWith('.exp.direct') ||
+    lower.endsWith('.ngrok.io') ||
+    lower.endsWith('.ngrok-free.app') ||
+    lower.endsWith('.ngrok.app') ||
+    lower.endsWith('.loca.lt') ||
+    lower.endsWith('.trycloudflare.com') ||
+    lower.endsWith('.devtunnels.ms')
+  );
+}
+
+/**
+ * Resolves the backend API base URL in priority order:
+ * 1. Explicit `EXPO_PUBLIC_API_URL` (when set to a concrete URL other than `'auto'`).
+ *    Used for production, staging, or an explicit API tunnel / remote server URL.
+ * 2. Automatic LAN / Hotspot host detection from Expo's active Metro host (`hostUri`),
+ *    allowing developers to switch Wi-Fi networks or mobile hotspots without editing `.env`.
+ * 3. `http://localhost:3000` fallback for local simulators, web, and unit tests.
+ */
+export function resolveApiUrl(): string {
+  const configured = process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (configured && configured.toLowerCase() !== 'auto') {
+    return configured.replace(/\/+$/, '');
+  }
+
+  const metroHost = getMetroHost();
+  if (metroHost && !isTunnelHost(metroHost)) {
+    return `http://${metroHost}:${DEFAULT_API_PORT}`;
+  }
+
+  return `http://localhost:${DEFAULT_API_PORT}`;
+}
+
+export const API_URL = resolveApiUrl();
 
 const DEFAULT_TIMEOUT_MS = 20000;
 

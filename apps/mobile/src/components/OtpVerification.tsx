@@ -7,8 +7,7 @@ import { styles as globalStyles } from '../theme/styles';
 interface OtpVerificationProps {
   /**
    * The code the server returned in its own response, which it only does outside
-   * production and only when AUTH_DEV_BYPASS is on. Prefilled here so testing does not
-   * depend on SMS or WhatsApp actually arriving.
+   * production for development SMS mock OTP.
    */
   devOtp?: string | null;
   identifierType: 'MOBILE' | 'EMAIL';
@@ -39,8 +38,12 @@ export const OtpVerification = ({
   const [activeChannel, setActiveChannel] = useState(initialChannel);
   const [timer, setTimer] = useState(0);
 
-  // Auto-reading state for SMS and WhatsApp (strictly disabled for EMAIL for security)
-  const isAutoReadAllowed = identifierType === 'MOBILE' && (activeChannel === 'SMS' || activeChannel === 'WHATSAPP');
+  useEffect(() => {
+    setActiveChannel(initialChannel);
+  }, [initialChannel]);
+
+  // Mock OTP auto-reading is strictly allowed ONLY for SMS in development (never for WhatsApp or Email)
+  const isAutoReadAllowed = __DEV__ && identifierType === 'MOBILE' && activeChannel === 'SMS';
   const [autoReadStatus, setAutoReadStatus] = useState<'reading' | 'detected' | 'idle'>(
     isAutoReadAllowed ? 'reading' : 'idle'
   );
@@ -58,9 +61,8 @@ export const OtpVerification = ({
     setTimer(120);
   }, []);
 
-  // Professional auto-reading effect for SMS and WhatsApp
+  // Auto-reading effect strictly for development SMS mock OTP ('1234')
   useEffect(() => {
-    // SECURITY GUARD: Never auto-read or auto-fill OTP for email addresses
     if (!isAutoReadAllowed) {
       setAutoReadStatus('idle');
       setDetectedOtp(null);
@@ -70,7 +72,6 @@ export const OtpVerification = ({
     setAutoReadStatus('reading');
     const otpToFetch = devOtp || '1234';
 
-    // Simulate realistic OS/SMS/WhatsApp auto-read verification retrieval
     const timerId = setTimeout(() => {
       setDetectedOtp(otpToFetch);
       setAutoReadStatus('detected');
@@ -116,26 +117,30 @@ export const OtpVerification = ({
           {t('login.enterOtpSentTo', { defaultValue: 'Enter the verification code sent to' })} <Text style={{fontWeight: '800', color: '#102A54'}}>{displayIdentifier}</Text>
         </Text>
         <Pressable onPress={onChangeIdentifier} hitSlop={10}>
-          <Text style={{color: '#3C3985', fontWeight: '800', fontSize: 14, textDecorationLine: 'underline'}}>{t('login.changeNumber', { defaultValue: 'Change' })}</Text>
+          <Text style={{color: '#3C3985', fontWeight: '800', fontSize: 14, textDecorationLine: 'underline'}}>
+            {identifierType === 'EMAIL'
+              ? t('login.changeEmail', { defaultValue: 'Change Email' })
+              : t('login.changeNumber', { defaultValue: 'Change Number' })}
+          </Text>
         </Pressable>
       </View>
 
       <Text style={[globalStyles.label, { marginTop: 24 }]}>{t('login.otpLabel', { defaultValue: 'Verification Code' })}</Text>
       
-      {/* Auto-read helper for SMS and WhatsApp (strictly never shown for email) */}
+      {/* Auto-read helper strictly for SMS in development (never shown for WhatsApp or Email) */}
       {isAutoReadAllowed && (
         <View style={styles.autoReadContainer}>
           {autoReadStatus === 'reading' && (
             <View style={styles.autoReadRow}>
               <ActivityIndicator size="small" color="#3C3985" style={{ marginRight: 8 }} />
               <Ionicons 
-                name={activeChannel === 'WHATSAPP' ? 'logo-whatsapp' : 'chatbubble-ellipses-outline'} 
+                name="chatbubble-ellipses-outline" 
                 size={16} 
-                color={activeChannel === 'WHATSAPP' ? '#25D366' : '#3C3985'} 
+                color="#3C3985" 
                 style={{ marginRight: 6 }} 
               />
               <Text style={styles.autoReadText}>
-                {t('login.autoDetectingOtp', { defaultValue: `Auto-detecting OTP from ${activeChannel === 'WHATSAPP' ? 'WhatsApp' : 'SMS'}...` })}
+                {t('login.autoDetectingOtp', { defaultValue: 'Auto-detecting OTP from SMS...' })}
               </Text>
             </View>
           )}
@@ -147,13 +152,13 @@ export const OtpVerification = ({
             >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Ionicons 
-                  name={activeChannel === 'WHATSAPP' ? 'logo-whatsapp' : 'checkmark-circle'} 
+                  name="checkmark-circle" 
                   size={16} 
-                  color={activeChannel === 'WHATSAPP' ? '#25D366' : '#10B981'} 
+                  color="#10B981" 
                   style={{ marginRight: 6 }} 
                 />
                 <Text style={styles.autoFilledText}>
-                  {t('login.autoFilledCode', { defaultValue: `Auto-filled from ${activeChannel === 'WHATSAPP' ? 'WhatsApp' : 'SMS'}` })}:
+                  {t('login.autoFilledCode', { defaultValue: 'Auto-filled from SMS' })}:
                 </Text>
                 <Text style={styles.autoFilledCode}>{detectedOtp}</Text>
               </View>

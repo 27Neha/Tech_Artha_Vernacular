@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { TermsModal } from '../components/TermsModal';
 import { PrivacyPolicyModal } from '../components/PrivacyPolicyModal';
 
-const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_URL as DEFAULT_API_URL } from '../services/api/client';
 
 interface LoginScreenProps {
   apiUrl?: string;
@@ -36,8 +36,7 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  // Returned by the server only outside production with AUTH_DEV_BYPASS on. Carried so
-  // the OTP screen can prefill it while real SMS and WhatsApp delivery is unreliable.
+  // Returned by the server only outside production for development SMS mock OTP.
   const [devOtp, setDevOtp] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -122,7 +121,7 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
       const data = await safeFetchJson(res);
       if (!res.ok) throw new Error(data.message || t('login.failedToSendOtp', { defaultValue: 'Failed to send OTP' }));
 
-      setDevOtp(data?.devOtp ?? null);
+      setDevOtp(channel === 'SMS' ? (data?.devOtp ?? null) : null);
       setStep(2);
     } catch (e: any) {
       const msg = e?.message === 'Network request failed'
@@ -200,6 +199,58 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
       setLoading(false);
     }
   };
+
+  const renderTermsSection = () => (
+    <View style={localStyles.termsWrapper}>
+      <View style={localStyles.consentRow}>
+        <Pressable 
+          onPress={() => { 
+            setAcceptedTerms(!acceptedTerms); 
+            if (!acceptedTerms) setTermsWarning(''); 
+          }}
+          hitSlop={8}
+        >
+          <View style={[localStyles.checkbox, acceptedTerms && localStyles.checkboxChecked, !!termsWarning && localStyles.checkboxError]}>
+            {acceptedTerms && <Text style={localStyles.checkMark}>✓</Text>}
+          </View>
+        </Pressable>
+
+        <Text style={localStyles.consentText}>
+          <Text onPress={() => {
+            setAcceptedTerms(!acceptedTerms); 
+            if (!acceptedTerms) setTermsWarning(''); 
+          }}>
+            {t('signup.termsPrefix', { defaultValue: 'I agree to the ' })}
+          </Text>
+          <Text 
+            onPress={() => setTermsModalVisible(true)} 
+            style={{ textDecorationLine: 'underline', color: '#102A54', fontWeight: '600' }}
+          >
+            {t('signup.termsOfService', { defaultValue: 'Terms of Service' })}
+          </Text>
+          <Text onPress={() => {
+            setAcceptedTerms(!acceptedTerms); 
+            if (!acceptedTerms) setTermsWarning(''); 
+          }}>
+            {` ${t('signup.and', { defaultValue: 'and' })} `}
+          </Text>
+          <Text 
+            onPress={() => setPrivacyModalVisible(true)} 
+            style={{ textDecorationLine: 'underline', color: '#102A54', fontWeight: '600' }}
+          >
+            {t('signup.privacyPolicy', { defaultValue: 'Privacy Policy' })}
+          </Text>
+          <Text> </Text>
+          <Text 
+            onPress={() => setTermsModalVisible(true)} 
+            style={localStyles.learnMoreText}
+          >
+            {t('signup.learnMore', { defaultValue: 'Learn more' })}
+          </Text>
+        </Text>
+      </View>
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
@@ -283,6 +334,7 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
                     <Text style={localStyles.switchText}>{showPassword ? t('signup.hidePassword', { defaultValue: 'Hide Password' }) : t('signup.showPassword', { defaultValue: 'Show Password' })}</Text>
                   </Pressable>
                 </View>
+                {renderTermsSection()}
                 <Pressable style={[styles.primaryButton, loading && styles.primaryDisabled]} onPress={() => handleContinue('PASSWORD')} disabled={loading || !password}>
                   <Text style={styles.primaryText}>{loading ? t('common.loading', { defaultValue: 'Loading...' }) : t('login.login', { defaultValue: 'Login' })}</Text>
                   {!loading && <Text style={styles.primaryText}>→</Text>}
@@ -290,6 +342,7 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
               </View>
             ) : (
               <View>
+                {renderTermsSection()}
                 {identifierType === 'EMAIL' ? (
                   <View>
                     <Pressable style={[styles.primaryButton, (loading && authChannel === 'EMAIL') && styles.primaryDisabled]} onPress={() => handleContinue('EMAIL')} disabled={loading}>
@@ -344,56 +397,6 @@ export const LoginScreen = ({ apiUrl = DEFAULT_API_URL, phone: initialPhone, set
                 )}
               </View>
             )}
-
-            <View style={localStyles.termsWrapper}>
-              <View style={localStyles.consentRow}>
-                <Pressable 
-                  onPress={() => { 
-                    setAcceptedTerms(!acceptedTerms); 
-                    if (!acceptedTerms) setTermsWarning(''); 
-                  }}
-                  hitSlop={8}
-                >
-                  <View style={[localStyles.checkbox, acceptedTerms && localStyles.checkboxChecked, !!termsWarning && localStyles.checkboxError]}>
-                    {acceptedTerms && <Text style={localStyles.checkMark}>✓</Text>}
-                  </View>
-                </Pressable>
-
-                <Text style={localStyles.consentText}>
-                  <Text onPress={() => {
-                    setAcceptedTerms(!acceptedTerms); 
-                    if (!acceptedTerms) setTermsWarning(''); 
-                  }}>
-                    {t('signup.termsPrefix', { defaultValue: 'I agree to the ' })}
-                  </Text>
-                  <Text 
-                    onPress={() => setTermsModalVisible(true)} 
-                    style={{ textDecorationLine: 'underline', color: '#102A54', fontWeight: '600' }}
-                  >
-                    {t('signup.termsOfService', { defaultValue: 'Terms of Service' })}
-                  </Text>
-                  <Text onPress={() => {
-                    setAcceptedTerms(!acceptedTerms); 
-                    if (!acceptedTerms) setTermsWarning(''); 
-                  }}>
-                    {` ${t('signup.and', { defaultValue: 'and' })} `}
-                  </Text>
-                  <Text 
-                    onPress={() => setPrivacyModalVisible(true)} 
-                    style={{ textDecorationLine: 'underline', color: '#102A54', fontWeight: '600' }}
-                  >
-                    {t('signup.privacyPolicy', { defaultValue: 'Privacy Policy' })}
-                  </Text>
-                  <Text> </Text>
-                  <Text 
-                    onPress={() => setTermsModalVisible(true)} 
-                    style={localStyles.learnMoreText}
-                  >
-                    {t('signup.learnMore', { defaultValue: 'Learn more' })}
-                  </Text>
-                </Text>
-              </View>
-            </View>
             
             <View style={localStyles.footer}>
               <Text style={localStyles.footerText}>{t('login.noAccount', { defaultValue: 'Not have an account?' })} </Text>
@@ -431,7 +434,7 @@ const localStyles = StyleSheet.create({
   content: { paddingBottom: 40 },
   inputGroup: { marginBottom: 16 },
   errorText: { color: '#E53E3E', fontSize: 14, marginBottom: 16, fontWeight: '500' },
-  toggleContainer: { flexDirection: 'row', backgroundColor: '#F8F9FB', padding: 4, borderRadius: 12, marginBottom: 24, borderWidth: 1, borderColor: '#E2E8F0' },
+  toggleContainer: { flexDirection: 'row', backgroundColor: '#F8F9FB', padding: 4, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: '#E2E8F0' },
   toggleBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
   toggleActive: { backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   toggleText: { fontSize: 14, fontWeight: '700', color: '#718096' },
@@ -465,7 +468,7 @@ const localStyles = StyleSheet.create({
     marginBottom: 16,
   },
   secondaryBoxText: { fontSize: 16, fontWeight: '700', color: '#102A54' },
-  termsWrapper: { marginTop: 12, marginBottom: 8 },
+  termsWrapper: { marginTop: 4, marginBottom: 16 },
   consentRow: { flexDirection: 'row', alignItems: 'flex-start' },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: '#CBD5E0', marginRight: 10, marginTop: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
   checkboxChecked: { backgroundColor: '#3C3985', borderColor: '#3C3985' },

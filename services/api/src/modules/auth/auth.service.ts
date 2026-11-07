@@ -67,8 +67,12 @@ export class AuthService {
     const requests = await this.prisma.otpVerification.count({ where: { mobile: normalizedMobile, createdAt: { gte: requestedSince } } });
     if (requests >= OTP_RATE_LIMIT_COUNT) throw new HttpException('Too many OTP requests. Please wait before trying again.', HttpStatus.TOO_MANY_REQUESTS);
 
+    const isDevSmsMock =
+      process.env.NODE_ENV !== 'production' &&
+      (process.env.OTP_SMS_MODE ?? 'mock').toLowerCase() === 'mock';
+
     let code = randomInt(1000, 10000).toString();
-    if (channel === 'SMS' && process.env.OTP_SMS_MODE === 'mock') {
+    if (channel === 'SMS' && isDevSmsMock) {
       code = '1234';
     }
     await this.prisma.otpVerification.updateMany({
@@ -85,7 +89,7 @@ export class AuthService {
       channel,
       delivery: this.otpProvider.mode,
       expiresInSeconds: OTP_TTL_MS / 1000,
-      devOtp: process.env.NODE_ENV !== 'production' && process.env.AUTH_DEV_BYPASS === 'true' ? code : undefined,
+      devOtp: channel === 'SMS' && isDevSmsMock ? code : undefined,
     };
   }
 
@@ -160,30 +164,14 @@ export class AuthService {
       },
     });
 
-    const devBypass = process.env.NODE_ENV !== 'production' && process.env.AUTH_DEV_BYPASS === 'true';
-
-    try {
-      // EmailOtpProvider takes the recipient in its `mobile` field - the name is wrong,
-      // the behaviour is right.
-      await new EmailOtpProvider().send({ mobile: normalizedEmail, code, channel: 'EMAIL' });
-    } catch (e) {
-      // In production a failed send must fail the request: the code is unreachable, and
-      // reporting SENT would leave the investor waiting for an email that never arrives.
-      if (!devBypass) throw e;
-      // Under the dev bypass the code comes back in the response instead, so an invalid
-      // or unconfigured ZeptoMail token does not block testing the rest of the flow.
-      this.logger.warn(
-        `Email OTP delivery to ${normalizedEmail} failed; returning the code inline because AUTH_DEV_BYPASS is on. ${
-          e instanceof Error ? e.message : e
-        }`,
-      );
-    }
+    // EmailOtpProvider takes the recipient in its `mobile` field - the name is wrong,
+    // the behaviour is right. Always send via ZeptoMail and do not fall back to mock/devOtp.
+    await new EmailOtpProvider().send({ mobile: normalizedEmail, code, channel: 'EMAIL' });
 
     return {
       status: 'SENT',
       channel: 'EMAIL',
       expiresInSeconds: OTP_TTL_MS / 1000,
-      devOtp: devBypass ? code : undefined,
     };
   }
 
@@ -311,19 +299,62 @@ export class AuthService {
     }
   }
 
-  async signup(input: { mobile: string; password?: string; clientType?: string; referralCode?: string }, deviceId?: string) {
-    const normalizedMobile = this.normalizeMobile(input.mobile);
-    const existing = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile } });
-    if (existing) throw new BadRequestException('An account with this mobile number already exists.');
-    
-    const user = await this.prisma.user.create({
-      data: {
-        mobile: normalizedMobile,
-        passwordHash: input.password ? this.hash(input.password) : null,
-        clientType: input.clientType,
-        referralCode: input.referralCode,
+  async signup(input: { mobile?: string; email?: string; password?: string; clientType?: string; referralCode?: string }, deviceId?: string) {
+    const rawIdentifier = input.email || input.mobile || '';
+    const isEmail = rawIdentifier.includes('@');
+
+    if (isEmail) {
+      const normalizedEmail = this.normalizeEmail(rawIdentifier);
+      const existing = await this.prisma.user.findFirst({ where: { email: normalizedEmail } });
+      if (existing && existing.passwordHash) {
+        throw new BadRequestException('An account with this email already exists.');
       }
-    });
+      const user = existing
+        ? await this.prisma.user.update({
+            where: { id: existing.id },
+            data: {
+              passwordHash: input.password ? this.hash(input.password) : existing.passwordHash,
+              ...(input.clientType ? { clientType: input.clientType } : {}),
+              ...(input.referralCode ? { referralCode: input.referralCode } : {}),
+            },
+          })
+        : await this.prisma.user.create({
+            data: {
+              email: normalizedEmail,
+              passwordHash: input.password ? this.hash(input.password) : null,
+              clientType: input.clientType,
+              referralCode: input.referralCode,
+            },
+          });
+      if (deviceId) {
+        await this.prisma.device.upsert({ where: { deviceId }, update: { userId: user.id, lastActiveAt: new Date() }, create: { userId: user.id, deviceId } });
+      }
+      return this.createSession(user, deviceId);
+    }
+
+    const normalizedMobile = this.normalizeMobile(rawIdentifier);
+    const existing = await this.prisma.user.findUnique({ where: { mobile: normalizedMobile } });
+    if (existing && existing.passwordHash) {
+      throw new BadRequestException('An account with this mobile number already exists.');
+    }
+    
+    const user = existing
+      ? await this.prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            passwordHash: input.password ? this.hash(input.password) : existing.passwordHash,
+            ...(input.clientType ? { clientType: input.clientType } : {}),
+            ...(input.referralCode ? { referralCode: input.referralCode } : {}),
+          },
+        })
+      : await this.prisma.user.create({
+          data: {
+            mobile: normalizedMobile,
+            passwordHash: input.password ? this.hash(input.password) : null,
+            clientType: input.clientType,
+            referralCode: input.referralCode,
+          }
+        });
     
     if (deviceId) {
       await this.prisma.device.upsert({ where: { deviceId }, update: { userId: user.id, lastActiveAt: new Date() }, create: { userId: user.id, deviceId } });

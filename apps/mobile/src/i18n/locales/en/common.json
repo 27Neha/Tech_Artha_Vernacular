@@ -898,5 +898,8 @@
   "signup.learnMore": "Learn more",
   "risk.learnHow": "Learn How",
   "learn.riskScoreCalculation.title": "Learn How Your Risk Score Is Calculated",
-  "learn.riskScoreCalculation.desc": "Understand how your 12-question suitability responses and SEBI asset-allocation tiers are evaluated."
+  "learn.riskScoreCalculation.desc": "Understand how your 12-question suitability responses and SEBI asset-allocation tiers are evaluated.",
+  "dash": {
+    "reassessRiskProfile": "Reassess Risk Profile"
+  }
 }

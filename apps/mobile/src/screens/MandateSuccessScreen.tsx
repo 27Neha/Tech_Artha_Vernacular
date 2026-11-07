@@ -1,135 +1,303 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
+  ActivityIndicator,
+  Alert,
+  Linking,
   Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { Header } from '../components/Header';
+import { api } from '../services/api/client';
 import { useTheme } from '../context/ThemeContext';
+import type { MandateItem } from './MandateScreen';
+
+type MandatesResponse = {
+  canCreate: boolean;
+  mandates: MandateItem[];
+  message: string | null;
+};
+
+type AccountStatusResponse = {
+  hasInvestmentAccount: boolean;
+  bankAccount: {
+    holderName: string | null;
+    maskedNumber: string | null;
+    ifscCode: string | null;
+    type: string | null;
+  } | null;
+};
 
 export const MandateSuccessScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { colors, isDark } = useTheme();
 
-  const mandateId = route.params?.mandateId || 'MND-' + Math.floor(100000 + Math.random() * 900000);
-  const mandateType = route.params?.mandateType || 'UPI';
-  const mandateLimit = route.params?.mandateLimit || 10000;
-  const umrn = route.params?.umrn || 'NACH' + Math.floor(1000000000 + Math.random() * 9000000000);
-  const status = route.params?.status || 'APPROVED';
-  const bankName = route.params?.bankName || 'Verified Investor Bank';
-  const accountEnding = route.params?.accountEnding || '••••4321';
+  const paramMandateId: string | undefined = route.params?.mandateId;
+
+  const [mandate, setMandate] = useState<MandateItem | null>(() => {
+    if (!paramMandateId && !route.params?.status) return null;
+    return {
+      id: paramMandateId ?? '',
+      mandateType: route.params?.mandateType ?? 'UPI',
+      mandateLimit: Number(route.params?.mandateLimit ?? 0),
+      status: route.params?.status ?? 'CREATED',
+      umrn: route.params?.umrn ?? null,
+      authorizationUrl: route.params?.authorizationUrl ?? null,
+      createdAt: route.params?.createdAt ?? new Date().toISOString(),
+    };
+  });
+  const [bankAccount, setBankAccount] = useState<AccountStatusResponse['bankAccount']>(null);
+  const [refreshing, setRefreshing] = useState(true);
+  const [reauthorizing, setReauthorizing] = useState(false);
+
+  const syncMandateStatus = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const [mandatesRes, statusRes] = await Promise.all([
+        api.get<MandatesResponse>('/mandates').catch(() => null),
+        api.get<AccountStatusResponse>('/buckets/account-status').catch(() => null),
+      ]);
+
+      if (statusRes?.bankAccount) {
+        setBankAccount(statusRes.bankAccount);
+      }
+
+      const list = mandatesRes?.mandates ?? [];
+      if (list.length > 0) {
+        const matched = paramMandateId
+          ? list.find((m) => m.id === paramMandateId) ?? list[0]
+          : list[0];
+        setMandate(matched);
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }, [paramMandateId]);
+
+  useEffect(() => {
+    void syncMandateStatus();
+  }, [syncMandateStatus]);
+
+  const handleOpenBankAuthorization = async () => {
+    if (!mandate?.id) return;
+    setReauthorizing(true);
+    try {
+      const updated = await api.post<MandateItem>(`/mandates/${encodeURIComponent(mandate.id)}/authorize`, {});
+      setMandate(updated);
+      if (updated.authorizationUrl) {
+        await Linking.openURL(updated.authorizationUrl);
+      } else {
+        Alert.alert('Status Updated', `Current mandate status: ${updated.status}`);
+      }
+    } catch (e) {
+      if (mandate.authorizationUrl) {
+        await Linking.openURL(mandate.authorizationUrl).catch(() => {
+          Alert.alert('Could not open approval page', 'Please try again from the Mandates screen.');
+        });
+      } else {
+        Alert.alert('Could not open approval page', e instanceof Error ? e.message : 'Please try again.');
+      }
+    } finally {
+      setReauthorizing(false);
+    }
+  };
+
+  const status = (mandate?.status ?? 'PENDING_VERIFICATION').toUpperCase();
+  const isApproved = status === 'APPROVED';
+  const isFailed = ['REJECTED', 'FAILED', 'CANCELLED', 'EXPIRED'].includes(status);
+  const isPending = !isApproved && !isFailed;
+
+  const heroTone = isApproved
+    ? {
+        ringOuter: 'rgba(16, 185, 129, 0.14)',
+        ringInner: '#059669',
+        icon: 'checkmark-sharp' as const,
+        pillBg: '#ECFDF5',
+        pillBorder: '#A7F3D0',
+        pillText: '#059669',
+        pillLabel: 'Approved by Bank & NPCI',
+        title: 'Mandate Approved',
+        subtitle:
+          'Your bank has approved this auto-debit mandate. You can now use it to collect recurring SIP instalments automatically.',
+      }
+    : isFailed
+      ? {
+          ringOuter: 'rgba(220, 38, 38, 0.14)',
+          ringInner: '#DC2626',
+          icon: 'close-sharp' as const,
+          pillBg: '#FEF2F2',
+          pillBorder: '#FECACA',
+          pillText: '#DC2626',
+          pillLabel: `Mandate ${status.charAt(0) + status.slice(1).toLowerCase()}`,
+          title: 'Mandate Not Approved',
+          subtitle:
+            'Your bank or clearing house did not approve this mandate request. You can set up a fresh mandate from the Mandates page.',
+        }
+      : {
+          ringOuter: 'rgba(217, 119, 6, 0.14)',
+          ringInner: '#D97706',
+          icon: 'time-outline' as const,
+          pillBg: '#FFFBEB',
+          pillBorder: '#FDE68A',
+          pillText: '#B45309',
+          pillLabel: status === 'SUBMITTED' ? 'Submitted to Bank' : 'Awaiting Bank Confirmation',
+          title: 'Mandate Authorization in Progress',
+          subtitle:
+            'Return here after approving the mandate with your bank. Bank and NPCI confirmation can take a few minutes to reflect.',
+        };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.canvas }]} edges={['top', 'right', 'bottom', 'left']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.canvas }]} edges={['right', 'bottom', 'left']}>
       <StatusBar style={colors.statusBar} />
+      <Header title="Mandate Status" onBack={() => navigation.navigate('Mandates')} showSettings={false} />
+
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Animated Badge & Success Illustration */}
+        {/* Hero Status Block */}
         <View style={styles.heroSection}>
-          <View style={styles.iconRingOuter}>
-            <View style={styles.iconRingInner}>
-              <Ionicons name="checkmark-sharp" size={44} color="#FFFFFF" />
+          <View style={[styles.iconRingOuter, { backgroundColor: heroTone.ringOuter }]}>
+            <View style={[styles.iconRingInner, { backgroundColor: heroTone.ringInner }]}>
+              <Ionicons name={heroTone.icon} size={40} color="#FFFFFF" />
             </View>
           </View>
-          <View style={[styles.statusPill, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
-            <View style={styles.liveDot} />
-            <Text style={styles.statusPillText}>Mandate Successfully Registered</Text>
+
+          <View style={[styles.statusPill, { backgroundColor: heroTone.pillBg, borderColor: heroTone.pillBorder }]}>
+            <Text style={[styles.statusPillText, { color: heroTone.pillText }]}>{heroTone.pillLabel}</Text>
           </View>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>Auto-Debit Configured</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Your bank has approved the recurring mandate. You can now start automated SIP investments without manual UPI PIN entry each month.
-          </Text>
+
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{heroTone.title}</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{heroTone.subtitle}</Text>
         </View>
 
-        {/* Mandate Receipt Card */}
+        {/* Mandate Details Card */}
         <View style={[styles.receiptCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.receiptHeader}>
-            <Text style={[styles.receiptTitle, { color: colors.textPrimary }]}>Mandate Authorization Summary</Text>
-            <View style={[styles.verifiedTag, { backgroundColor: isDark ? '#064E3B' : '#ECFDF5' }]}>
-              <Ionicons name="shield-checkmark" size={13} color={isDark ? '#34D399' : '#059669'} />
-              <Text style={[styles.verifiedTagText, { color: isDark ? '#34D399' : '#059669' }]}>NPCI / RBI Active</Text>
-            </View>
+            <Text style={[styles.receiptTitle, { color: colors.textPrimary }]}>Mandate Details</Text>
+            {refreshing ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Pressable onPress={() => void syncMandateStatus()} style={styles.syncChip} hitSlop={8}>
+                <Ionicons name="refresh-outline" size={14} color={colors.primary} />
+                <Text style={[styles.syncChipText, { color: colors.primary }]}>Refresh</Text>
+              </Pressable>
+            )}
           </View>
 
           <View style={[styles.divider, { backgroundColor: colors.borderSubtle }]} />
 
-          {/* Key-Value Rows */}
           <View style={styles.row}>
             <Text style={[styles.rowLabel, { color: colors.textMuted }]}>Mandate Reference ID</Text>
-            <Text style={[styles.rowValMono, { color: colors.textPrimary }]}>{mandateId}</Text>
+            <Text style={[styles.rowValMono, { color: colors.textPrimary }]}>
+              {mandate?.id || '—'}
+            </Text>
           </View>
 
           <View style={styles.row}>
             <Text style={[styles.rowLabel, { color: colors.textMuted }]}>NPCI UMRN</Text>
-            <Text style={[styles.rowValMono, { color: colors.textPrimary }]}>{umrn}</Text>
+            <Text style={[styles.rowValMono, { color: colors.textPrimary }]}>
+              {mandate?.umrn ? mandate.umrn : 'Assigned upon bank approval'}
+            </Text>
           </View>
 
           <View style={styles.row}>
-            <Text style={[styles.rowLabel, { color: colors.textMuted }]}>Debit Type</Text>
+            <Text style={[styles.rowLabel, { color: colors.textMuted }]}>Mandate Method</Text>
             <Text style={[styles.rowVal, { color: colors.textPrimary }]}>
-              {mandateType === 'UPI' ? 'UPI Autopay' : 'e-NACH NetBanking'}
+              {mandate
+                ? mandate.mandateType === 'UPI'
+                  ? 'UPI Autopay'
+                  : 'e-NACH'
+                : '—'}
             </Text>
           </View>
 
           <View style={styles.row}>
-            <Text style={[styles.rowLabel, { color: colors.textMuted }]}>Authorized Bank</Text>
-            <Text style={[styles.rowVal, { color: colors.textPrimary }]}>{bankName} ({accountEnding})</Text>
+            <Text style={[styles.rowLabel, { color: colors.textMuted }]}>Linked Bank Account</Text>
+            <Text style={[styles.rowVal, { color: colors.textPrimary }]}>
+              {bankAccount?.maskedNumber
+                ? `${bankAccount.holderName ? `${bankAccount.holderName} • ` : ''}${bankAccount.maskedNumber}`
+                : 'Registered investment account'}
+            </Text>
           </View>
 
           <View style={styles.row}>
-            <Text style={[styles.rowLabel, { color: colors.textMuted }]}>Maximum Limit per Debit</Text>
+            <Text style={[styles.rowLabel, { color: colors.textMuted }]}>Max Limit per Instalment</Text>
             <Text style={[styles.rowValHighlight, { color: colors.primary }]}>
-              ₹{Number(mandateLimit).toLocaleString('en-IN')}
+              {mandate?.mandateLimit ? `₹${Number(mandate.mandateLimit).toLocaleString('en-IN')}` : '—'}
             </Text>
           </View>
 
           <View style={styles.row}>
-            <Text style={[styles.rowLabel, { color: colors.textMuted }]}>Authorization Status</Text>
-            <View style={styles.statusRowBadge}>
-              <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-              <Text style={styles.statusSuccessText}>{status}</Text>
-            </View>
+            <Text style={[styles.rowLabel, { color: colors.textMuted }]}>Gateway Status</Text>
+            <Text style={[styles.rowVal, { color: heroTone.pillText, fontWeight: '800' }]}>
+              {mandate?.status ?? 'Awaiting Mandate'}
+            </Text>
           </View>
         </View>
 
-        {/* Security & Regulatory Callout */}
+        {/* Regulatory Note */}
         <View style={[styles.infoBox, { backgroundColor: isDark ? colors.surfaceMuted : '#EEF2FF', borderColor: colors.border }]}>
-          <Ionicons name="information-circle" size={22} color={colors.primary} style={{ marginTop: 2 }} />
+          <Ionicons name="shield-checkmark-outline" size={20} color={colors.primary} style={{ marginTop: 1 }} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.infoBoxTitle, { color: colors.primary }]}>Zero Unauthorized Deductions</Text>
+            <Text style={[styles.infoBoxTitle, { color: colors.primary }]}>How Auto-Debit Works</Text>
             <Text style={[styles.infoBoxText, { color: colors.textSecondary }]}>
-              Money is only deducted when you have an active, confirmed SIP order on its scheduled instalment date. You will receive an SMS reminder 48 hours prior to any deduction.
+              A mandate only sets the ceiling your bank allows per instalment. Money is debited only when you have an active SIP on its scheduled instalment date.
             </Text>
           </View>
         </View>
 
         {/* Actions */}
         <View style={styles.actionContainer}>
-          <Pressable
-            style={[styles.primaryButton, { backgroundColor: colors.primary }]}
-            onPress={() => navigation.navigate('Funds')}
-          >
-            <Ionicons name="compass-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-            <Text style={styles.primaryButtonText}>Explore Funds & Start SIP</Text>
-          </Pressable>
+          {isPending && mandate?.id ? (
+            <>
+              <Pressable
+                style={[styles.primaryButton, { backgroundColor: colors.primary }, refreshing && styles.disabledBtn]}
+                onPress={() => void syncMandateStatus()}
+                disabled={refreshing}
+              >
+                <Ionicons name="refresh-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.primaryButtonText}>
+                  {refreshing ? 'Checking with Bank...' : 'Check Approval Status'}
+                </Text>
+              </Pressable>
+
+              {mandate.authorizationUrl ? (
+                <Pressable
+                  style={[styles.secondaryButton, { backgroundColor: colors.surface, borderColor: colors.primary }]}
+                  onPress={() => void handleOpenBankAuthorization()}
+                  disabled={reauthorizing}
+                >
+                  <Ionicons name="open-outline" size={17} color={colors.primary} />
+                  <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>
+                    {reauthorizing ? 'Opening Bank Page...' : 'Open Bank Approval Page'}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </>
+          ) : null}
+
+          {isApproved ? (
+            <Pressable
+              style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+              onPress={() => navigation.navigate('Funds')}
+            >
+              <Ionicons name="trending-up-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.primaryButtonText}>Explore Funds & Start a SIP</Text>
+            </Pressable>
+          ) : null}
 
           <Pressable
             style={[styles.secondaryButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => navigation.navigate('ActiveMandates')}
+            onPress={() => navigation.navigate('Mandates')}
           >
-            <Text style={[styles.secondaryButtonText, { color: colors.textPrimary }]}>View All Mandates</Text>
-          </Pressable>
-
-          <Pressable
-            style={styles.tertiaryButton}
-            onPress={() => navigation.navigate('MainTabs', { screen: 'Portfolio' })}
-          >
-            <Text style={[styles.tertiaryButtonText, { color: colors.textMuted }]}>Return to Portfolio</Text>
+            <Text style={[styles.secondaryButtonText, { color: colors.textPrimary }]}>
+              Back to Auto-Debit Mandates
+            </Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -139,102 +307,92 @@ export const MandateSuccessScreen = () => {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  container: { padding: 20, paddingBottom: 40 },
-  heroSection: { alignItems: 'center', marginVertical: 16, textAlign: 'center' },
+  container: { padding: 20, paddingBottom: 44 },
+
+  heroSection: { alignItems: 'center', marginTop: 8, marginBottom: 22 },
   iconRingOuter: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: '#D1FAE5',
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   iconRingInner: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#10B981',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
   statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 5,
-    borderRadius: 20,
+    borderRadius: 16,
     borderWidth: 1,
-    gap: 6,
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  liveDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#059669' },
-  statusPillText: { fontSize: 11, fontWeight: '800', color: '#059669', textTransform: 'uppercase' },
-  title: { fontSize: 24, fontWeight: '900', marginBottom: 8, textAlign: 'center' },
-  subtitle: { fontSize: 13, lineHeight: 20, textAlign: 'center', paddingHorizontal: 10, marginBottom: 12 },
+  statusPillText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
+  title: { fontSize: 22, fontWeight: '800', textAlign: 'center', marginBottom: 6 },
+  subtitle: { fontSize: 13, textAlign: 'center', lineHeight: 19, paddingHorizontal: 8 },
 
   receiptCard: {
-    borderRadius: 20,
-    padding: 18,
+    borderRadius: 16,
     borderWidth: 1,
+    padding: 18,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
   },
-  receiptHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  receiptTitle: { fontSize: 14, fontWeight: '800' },
-  verifiedTag: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  verifiedTagText: { fontSize: 10, fontWeight: '800' },
+  receiptHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  receiptTitle: { fontSize: 15, fontWeight: '700' },
+  syncChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  syncChipText: { fontSize: 12, fontWeight: '700' },
   divider: { height: 1, marginVertical: 14 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 },
-  rowLabel: { fontSize: 12, fontWeight: '500' },
-  rowVal: { fontSize: 13, fontWeight: '700' },
-  rowValMono: { fontSize: 12, fontWeight: '700', fontFamily: 'monospace' },
-  rowValHighlight: { fontSize: 15, fontWeight: '900' },
-  statusRowBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  statusSuccessText: { fontSize: 13, fontWeight: '800', color: '#10B981' },
+
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  rowLabel: { fontSize: 12, fontWeight: '600', flex: 1 },
+  rowVal: { fontSize: 13, fontWeight: '700', textAlign: 'right', flex: 1 },
+  rowValMono: { fontSize: 12, fontWeight: '600', textAlign: 'right', flex: 1 },
+  rowValHighlight: { fontSize: 15, fontWeight: '800', textAlign: 'right' },
 
   infoBox: {
     flexDirection: 'row',
+    gap: 10,
     padding: 14,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    gap: 12,
-    marginBottom: 24,
+    marginBottom: 22,
   },
-  infoBoxTitle: { fontSize: 13, fontWeight: '800', marginBottom: 2 },
-  infoBoxText: { fontSize: 11, lineHeight: 17 },
+  infoBoxTitle: { fontSize: 13, fontWeight: '700', marginBottom: 2 },
+  infoBoxText: { fontSize: 12, lineHeight: 18 },
 
   actionContainer: { gap: 10 },
   primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 16,
-    shadowColor: '#3C3985',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
+    gap: 8,
+    paddingVertical: 15,
+    borderRadius: 12,
   },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
   secondaryButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
     paddingVertical: 14,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
   },
   secondaryButtonText: { fontSize: 14, fontWeight: '700' },
-  tertiaryButton: { alignItems: 'center', paddingVertical: 10 },
-  tertiaryButtonText: { fontSize: 13, fontWeight: '600' },
+  disabledBtn: { opacity: 0.6 },
 });

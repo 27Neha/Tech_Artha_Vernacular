@@ -47,9 +47,10 @@ export class AuthController {
   }
 
   @Post('signup')
-  async signup(@Body() body: { mobile?: string; password?: string; clientType?: string; referralCode?: string; deviceId?: string }) {
+  async signup(@Body() body: { mobile?: string; email?: string; password?: string; clientType?: string; referralCode?: string; deviceId?: string }) {
     return this.authService.signup({
-      mobile: body.mobile ?? '',
+      mobile: body.mobile,
+      email: body.email,
       password: body.password,
       clientType: body.clientType,
       referralCode: body.referralCode
@@ -156,4 +157,3 @@ export class AuthController {
   }
 
 }
-

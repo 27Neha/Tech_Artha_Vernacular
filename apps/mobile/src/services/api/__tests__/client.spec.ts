@@ -1,4 +1,5 @@
-import { ApiError, api, configureApi } from '../client';
+import Constants from 'expo-constants';
+import { ApiError, api, configureApi, isTunnelHost, resolveApiUrl } from '../client';
 
 /**
  * The client is the single network path for the whole app, so its error handling is what
@@ -108,5 +109,38 @@ describe('api client', () => {
   it('falls back to a generic message when the body carries none', async () => {
     globalThis.fetch = respond(500, {}) as any;
     await expect(api.get('/health')).rejects.toThrow(/Request failed \(500\)/);
+  });
+
+  describe('resolveApiUrl network detection', () => {
+    const originalEnv = process.env.EXPO_PUBLIC_API_URL;
+    const originalHostUri = Constants?.expoConfig?.hostUri;
+
+    afterEach(() => {
+      process.env.EXPO_PUBLIC_API_URL = originalEnv;
+      if (Constants?.expoConfig) {
+        Constants.expoConfig.hostUri = originalHostUri;
+      }
+    });
+
+    it('uses explicit EXPO_PUBLIC_API_URL when configured', () => {
+      process.env.EXPO_PUBLIC_API_URL = 'https://api.techartha.com/';
+      expect(resolveApiUrl()).toBe('https://api.techartha.com');
+    });
+
+    it('resolves LAN or Hotspot IP from Metro hostUri when EXPO_PUBLIC_API_URL is auto', () => {
+      process.env.EXPO_PUBLIC_API_URL = 'auto';
+      (Constants as any).expoConfig = { ...(Constants?.expoConfig || {}), hostUri: '172.20.10.2:8081' };
+      expect(resolveApiUrl()).toBe('http://172.20.10.2:3000');
+    });
+
+    it('does not append :3000 to an Expo .exp.direct tunnel host', () => {
+      process.env.EXPO_PUBLIC_API_URL = 'auto';
+      (Constants as any).expoConfig = {
+        ...(Constants?.expoConfig || {}),
+        hostUri: 'abc123.anonymous.8081.exp.direct:80',
+      };
+      expect(isTunnelHost('abc123.anonymous.8081.exp.direct')).toBe(true);
+      expect(resolveApiUrl()).toBe('http://localhost:3000');
+    });
   });
 });

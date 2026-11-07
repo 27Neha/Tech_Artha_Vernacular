@@ -6,6 +6,7 @@ import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { BookIcon, WalletIcon, TrendingIcon, FileIcon } from '../components/Icons';
+import { Ionicons } from '@expo/vector-icons';
 
 export const ARTICLES = [
   { slug: 'risk-score-calculation', title: 'Learn How Your Risk Score Is Calculated', desc: 'Understand how your 12-question suitability responses and SEBI asset-allocation tiers are evaluated.', time: '4 min read', tag: 'Suitability' },
@@ -225,13 +226,45 @@ const styles = StyleSheet.create({
   notFound: { fontSize: 18, color: '#718096' },
   scrollView: { flex: 1 },
   headerArea: { backgroundColor: '#F8F9FB', padding: 24, paddingBottom: 40, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, marginBottom: 24 },
-  tagWrapper: { backgroundColor: '#EBEBFA', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, alignSelf: 'flex-start', marginBottom: 16 },
-  tagText: { color: '#3C3985', fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 },
+  tagWrapper: { backgroundColor: '#F0EFFB', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, alignSelf: 'flex-start', marginBottom: 16 },
+  tagText: { color: '#36358D', fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 },
   title: { fontSize: 32, fontWeight: '800', color: '#102A54', lineHeight: 40, marginBottom: 16 },
   metaRow: { flexDirection: 'row', alignItems: 'center' },
-  metaText: { color: '#3C3985', fontWeight: '700', fontSize: 14 },
-  metaDot: { color: '#3C3985', marginHorizontal: 8, fontWeight: '700' },
+  metaText: { color: '#36358D', fontWeight: '700', fontSize: 14 },
+  metaDot: { color: '#36358D', marginHorizontal: 8, fontWeight: '700' },
   contentArea: { padding: 24, paddingBottom: 60, marginHorizontal: 12 },
+  headingWrapper: {
+    marginTop: 18,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#36358D',
+    paddingLeft: 10,
+  },
+  headingText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#102A54',
+    letterSpacing: -0.2,
+  },
+  calloutCard: {
+    backgroundColor: '#F0EFFB',
+    padding: 14,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginVertical: 14,
+    borderWidth: 1,
+    borderColor: '#DEDBF7',
+  },
+  calloutText: {
+    fontSize: 14,
+    color: '#36358D',
+    flex: 1,
+    lineHeight: 20,
+    fontStyle: 'italic',
+    fontWeight: '600',
+  },
   paragraph: { fontSize: 16, lineHeight: 26, color: '#4A5568', marginBottom: 24 },
   bold: { fontWeight: '800', color: '#102A54' },
   italic: { fontStyle: 'italic', color: '#718096' }

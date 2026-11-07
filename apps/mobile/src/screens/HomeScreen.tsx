@@ -14,7 +14,7 @@ const LEARN_CARDS = [
   { icon: 'Chart', title: 'Reading Fund Performance', desc: 'Understand NAV, returns, and how to compare mutual funds.', time: '7 min read', slug: 'fund-performance' }
 ];
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_URL } from '../services/api/client';
 
 export const HomeScreen = ({ name }: { name: string }) => {
   const { t } = useTranslation('common');
@@ -83,7 +83,7 @@ export const HomeScreen = ({ name }: { name: string }) => {
   return (
     <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
       <StatusBar style="dark" />
-      <Header title="" />
+      <Header title="" showBack={false} />
       <ScrollView contentContainerStyle={styles.home} showsVerticalScrollIndicator={false}>
         <Text style={styles.eyebrow}>{t('dash.welcomeBack', { defaultValue: 'WELCOME BACK' })}</Text>
         <Text style={styles.homeTitle}>{t('dash.hello', { defaultValue: 'Hello {{name}}', name: greeting }).replace(/\\{\\{?name\\}\}?/g, greeting)} 👋</Text>
@@ -106,7 +106,7 @@ export const HomeScreen = ({ name }: { name: string }) => {
               </Text>
             </>
           )}
-          <View style={{ flexDirection: 'row', gap: 12, marginTop: 18 }}>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
             <Pressable style={[styles.lightButton, { marginTop: 0 }]} onPress={() => navigation.navigate('Funds')}>
               <Text style={styles.lightButtonText}>{t('dash.browseFunds', { defaultValue: 'Browse Funds' })}</Text>
             </Pressable>
@@ -198,20 +198,31 @@ export const HomeScreen = ({ name }: { name: string }) => {
         )}
 
         {/* Recommended Funds */}
-        <View style={[styles.sectionHeader, { marginTop: 24, alignItems: 'flex-start' }]}>
-  <View style={{ flex: 1 }}>
-    <Text style={styles.sectionTitle}>{t('dash.forYourRiskProfile', { defaultValue: 'For your risk profile' })}</Text>
-    <Text style={[styles.cardSubtitle, { marginTop: 4, fontWeight: '700' }]}>{t('dash.basedOnProfile', { defaultValue: 'Based on: {{profile}}', profile }).replace(/\{\{?profile\}\}?/g, profile)}</Text>
-  </View>
-  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-    <Pressable onPress={() => navigation.navigate('InvestmentBuckets')}>
-      <Text style={styles.linkText}>{t('dash.seeBuckets', { defaultValue: 'See Buckets' })}</Text>
-    </Pressable>
-    <Pressable onPress={() => navigation.navigate('RiskAssessment')}>
-      <Text style={styles.linkText}>{t('dash.retake', { defaultValue: 'Retake' })}</Text>
-    </Pressable>
-  </View>
-</View>
+        <View style={styles.riskSectionHeader}>
+          <View style={styles.riskHeaderTopRow}>
+            <Text style={styles.sectionTitle} numberOfLines={1}>
+              {t('dash.forYourRiskProfile', { defaultValue: 'For your risk profile' })}
+            </Text>
+            <View style={styles.riskActionRow}>
+              <Pressable
+                onPress={() => navigation.navigate('InvestmentBuckets')}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.linkText}>{t('dash.seeBuckets', { defaultValue: 'See Buckets' })}</Text>
+              </Pressable>
+              <Text style={styles.dotSeparator}>•</Text>
+              <Pressable
+                onPress={() => navigation.navigate('RiskAssessment')}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.linkText}>{t('dash.reassessRiskProfile', { defaultValue: 'Reassess Risk Profile' })}</Text>
+              </Pressable>
+            </View>
+          </View>
+          <Text style={styles.basedOnText}>
+            {t('dash.basedOnProfile', { defaultValue: 'Based on: {{profile}}', profile }).replace(/\{\{?profile\}\}?/g, profile)}
+          </Text>
+        </View>
 
         <View style={{ gap: 12 }}>
           {recommendedFunds.map(fund => (
@@ -267,7 +278,13 @@ export const HomeScreen = ({ name }: { name: string }) => {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F8F9FB' },
-  home: { paddingHorizontal: 24, paddingBottom: 24, paddingTop: 12 },
+  home: { paddingHorizontal: 18, paddingBottom: 36, paddingTop: 10 },
+  riskSectionHeader: { marginTop: 28, marginBottom: 12 },
+  riskHeaderTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  riskActionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  dotSeparator: { color: '#CBD5E0', fontSize: 14, fontWeight: '700' },
+  basedOnText: { fontSize: 12, color: '#718096', fontWeight: '700', marginTop: 4 },
+  fundCardRow: { flexDirection: 'row', alignItems: 'center' },
   eyebrow: { color: '#F7941E', fontSize: 14, letterSpacing: 1.5, fontWeight: '900', marginTop: 14 },
   homeTitle: { color: '#102A54', fontSize: 32, textTransform: 'capitalize', fontWeight: '800', marginTop: 7 },
   homeSub: { color: '#4A5568', fontSize: 15, marginTop: 7 },
@@ -277,7 +294,7 @@ const styles = StyleSheet.create({
   balanceSub: { color: '#EBEBFA', marginTop: 2 },
   lightButton: { backgroundColor: '#fff', borderRadius: 16, alignSelf: 'flex-start', paddingHorizontal: 15, paddingVertical: 11, marginTop: 18 },
   lightButtonText: { color: '#3C3985', fontWeight: '800' },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 32, marginBottom: 16 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 28, marginBottom: 14 },
   sectionTitle: { color: '#102A54', fontSize: 20, textTransform: 'capitalize', fontWeight: '800' },
   linkText: { color: '#3C3985', fontSize: 14, fontWeight: '700' },
   emptyCard: { backgroundColor: '#fff', padding: 24, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
