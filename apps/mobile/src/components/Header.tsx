@@ -9,12 +9,17 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 
-interface HeaderProps {
+export interface HeaderProps {
   title?: string;
   back?: Screen | boolean;
   onBack?: ((screen?: Screen) => void) | boolean;
   showSettings?: boolean;
   showBack?: boolean;
+  hideBack?: boolean;
+  showNotifications?: boolean;
+  showLanguage?: boolean;
+  onSettingsPress?: () => void;
+  route?: any;
 }
 
 const LANGUAGES = [
@@ -31,7 +36,7 @@ const LANGUAGES = [
   { code: 'as', label: 'Assamese', native: 'অসমীয়া' },
 ];
 
-export const Header = ({ title, back, onBack, showSettings = true, showBack }: HeaderProps) => {
+export const Header = ({ title, back, onBack, showSettings = true, showBack, hideBack = false, showNotifications = true, showLanguage = true, onSettingsPress, route }: HeaderProps) => {
   const { i18n } = useTranslation();
   const navigation = useNavigation<any>();
   let currentRouteName = '';
@@ -55,7 +60,9 @@ export const Header = ({ title, back, onBack, showSettings = true, showBack }: H
     currentRouteName === 'Language';
 
   const shouldShowBack =
-    showBack !== undefined
+    hideBack
+      ? false
+      : showBack !== undefined
       ? showBack
       : typeof onBack === 'function' ||
         Boolean(back) ||

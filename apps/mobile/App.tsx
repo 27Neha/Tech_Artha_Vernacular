@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import './src/i18n/i18n';
 import { ActivityIndicator, View, Text, Linking, Platform, StyleSheet } from 'react-native';
 import { NavigationContainer, createNavigationContainerRef, DefaultTheme, DarkTheme } from '@react-navigation/native';
-import { HomeIcon, TrendingIcon, WalletIcon, BookIcon, UserIcon, HeadsetIcon } from './src/components/Icons';
+import { HomeIcon, TrendingIcon, WalletIcon, BookIcon, UserIcon, HeadsetIcon, CompassIcon, TargetIcon } from './src/components/Icons';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,8 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { SignupScreen } from './src/screens/SignupScreen';
 import { KycScreen } from './src/screens/KycScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { ArthaVerseScreen } from './src/screens/ArthaVerseScreen';
+import { GoalsScreen } from './src/screens/GoalsScreen';
 import { FundsScreen } from './src/screens/FundsScreen';
 import { PortfolioScreen } from './src/screens/PortfolioScreen';
 import { ExpensesScreen } from './src/screens/ExpensesScreen';
@@ -281,6 +283,10 @@ function RootNavigator() {
       <Stack.Screen name="FamilyPortfolio" component={FamilyPortfolioScreen} />
       <Stack.Screen name="EditGoal" component={EditGoalScreen} />
       <Stack.Screen name="MainTabs" component={MainTabs} />
+      <Stack.Screen name="Explore" component={ArthaVerseScreen} />
+      <Stack.Screen name="ArthaVerse" component={ArthaVerseScreen} />
+      <Stack.Screen name="Goals" component={GoalsScreen} />
+      <Stack.Screen name="GoalConfiguration" component={GoalSelectionScreen} />
       <Stack.Screen name="Funds">
         {(props) => <FundsScreen {...props} apiUrl={API_URL} />}
       </Stack.Screen>

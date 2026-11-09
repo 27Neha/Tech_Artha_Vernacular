@@ -33,14 +33,7 @@
       "expo-secure-store",
       "expo-status-bar",
       "@react-native-community/datetimepicker",
-      "expo-sharing",
-      [
-        "expo-speech-recognition",
-        {
-          "microphonePermission": "Allow TechArtha to use the microphone for voice input and vernacular financial queries.",
-          "speechRecognitionPermission": "Allow TechArtha to transcribe your spoken voice into text."
-        }
-      ]
+      "expo-sharing"
     ],
     "scheme": "techartha"
   }

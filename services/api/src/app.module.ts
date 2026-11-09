@@ -33,6 +33,7 @@ import { TwoFactorModule } from './modules/twofactor/twofactor.module';
 import { MandatesModule } from './modules/mandates/mandates.module';
 import { HoldingsModule } from './modules/holdings/holdings.module';
 import { PostbackModule } from './modules/postback/postback.module';
+import { MarketModule } from './modules/market/market.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { PostbackModule } from './modules/postback/postback.module';
     MandatesModule,
     HoldingsModule,
     PostbackModule,
+    MarketModule,
     KycModule,
     FundsModule,
     AuthModule,

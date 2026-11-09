@@ -106,7 +106,7 @@ function main() {
   }
 
   const expoCliBin = resolveExpoCliBin();
-  const expoArgs = [expoCliBin, 'start'];
+  const expoArgs = [expoCliBin, 'start', '--go'];
   const hasExplicitHostFlag = rawArgs.some((a) =>
     ['--lan', '--tunnel', '--localhost', '--offline'].includes(a)
   );
