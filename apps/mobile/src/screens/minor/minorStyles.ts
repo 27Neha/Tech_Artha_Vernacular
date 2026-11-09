@@ -4,7 +4,7 @@ import { StyleSheet } from 'react-native';
 export const minorStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FB' },
   centre: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  header: { padding: 24, paddingTop: 60, paddingBottom: 12 },
+  header: { padding: 24, paddingTop: 16, paddingBottom: 12 },
   step: { color: '#F7941E', fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
   title: { color: '#102A54', fontSize: 24, fontWeight: '800', marginTop: 8 },
   subtitle: { color: '#4A5568', fontSize: 14, marginTop: 8, lineHeight: 20 },

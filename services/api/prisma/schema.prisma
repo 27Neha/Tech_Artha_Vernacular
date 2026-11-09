@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -27,7 +28,6 @@ model User {
   updatedAt          DateTime              @updatedAt
   auditLogs          AuditLog[]
   customBuckets      CustomBucket[]
-  bseClient          BseClient?
   consents           Consent[]
   devices            Device[]
   expenses           Expense[]
@@ -38,7 +38,6 @@ model User {
   nominees           Nominee[]
   txnChallenges      TransactionChallenge[]
   guardianConsents   GuardianConsent[]
-  minorAssessments   MinorRiskAssessment[]
   kycApplication     KYCApplication?
   kycRecords         KycRecord[]
   learningProgress   LearningProgress[]
@@ -96,6 +95,7 @@ model Session {
 model OtpVerification {
   id         String    @id @default(uuid())
   mobile     String?
+  email      String?
   otpHash    String
   expiresAt  DateTime
   attempts   Int       @default(0)
@@ -403,7 +403,7 @@ model Notification {
 model KYCApplication {
   id                    String             @id @default(uuid())
   userId                String             @unique
-  provider              String             @default("HYPERVERGE")
+  provider              String             @default("CYBRILLA")
   providerTransactionId String?            @unique
   workflowId            String?
   status                String             @default("NOT_STARTED")
@@ -453,17 +453,6 @@ model KYCProviderEvent {
   status        String
   createdAt     DateTime       @default(now())
   application   KYCApplication @relation(fields: [applicationId], references: [id])
-}
-
-model BseClient {
-  id         String   @id @default(uuid())
-  userId     String   @unique
-  clientCode String   @unique
-  status     String   @default("PENDING")
-  bseRemarks String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  user       User     @relation(fields: [userId], references: [id])
 }
 
 model FpInvestorProfile {
@@ -722,7 +711,6 @@ model FpPayment {
 
   @@index([userId])
 }
-
 model GuardianConsent {
   id                 String    @id @default(uuid())
   minorUserId        String
@@ -737,47 +725,134 @@ model GuardianConsent {
   minorUser          User      @relation(fields: [minorUserId], references: [id])
 }
 
-model MinorRiskAssessment {
-  id             String   @id @default(uuid())
-  userId         String
-  assessmentType String   @default("MINOR_INVESTOR_PROFILE")
-  version        String
-  answers        String
-  score          Int
-  profileType    String
-  riskCategory   String?
-  goal           String?
-  timeHorizon    String?
-  knowledgeLevel String?
-  riskComfort    String?
-  completedAt    DateTime @default(now())
-  user           User     @relation(fields: [userId], references: [id])
+model TechnicalAgent {
+  id                 String   @id @default(uuid())
+  fullName           String
+  email              String   @unique
+  phone              String?
+  role               String   @default("TECHNICAL_SUPPORT")
+  department         String   @default("Technical Support")
+  isActive           Boolean  @default(true)
+  notifyOnTickets    Boolean  @default(true)
+  notificationEmail  String?
+  notificationPhone  String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }
 
-model MinorInvestorProfileResult {
-  id                  String   @id @default(uuid())
-  userId              String   @unique
-  assessmentId        String?
-  assessmentVersion   String   @default("minor-v1")
-  
-  riskToleranceScore  Int
-  timeHorizonScore    Int
-  knowledgeScore      Int
-  financialHabitScore Int
-  
-  goalType            String
-  profileType         String
-  profileTitle        String
-  profileTagline      String
-  profileConsistency  String
-  
-  strengths           Json     @default("[]")
-  focusAreas          Json     @default("[]")
-  nextSteps           Json     @default("[]")
-  
-  calculatedAt        DateTime @default(now())
-  
-  user                User     @relation(fields: [userId], references: [id])
+model AdminUser {
+  id           String            @id @default(uuid())
+  email        String            @unique
+  name         String
+  passwordHash String?
+  role         String            @default("OPERATIONS")
+  roleId       String?
+  department   String            @default("Operations")
+  status       String            @default("ACTIVE")
+  isActive     Boolean           @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  assignedRole AdminRole?        @relation(fields: [roleId], references: [id])
+  invitationsSent AdminInvitation[] @relation("InvitedByAdmin")
+
+  @@index([email])
+  @@index([role])
+}
+
+model AdminRole {
+  id          String                @id @default(uuid())
+  name        String                @unique
+  displayName String
+  description String?
+  department  String?
+  isSystem    Boolean               @default(false)
+  status      String                @default("ACTIVE")
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  permissions AdminRolePermission[]
+  users       AdminUser[]
+  invitations AdminInvitation[]
+}
+
+model AdminPermission {
+  id          String                @id @default(uuid())
+  slug        String                @unique
+  module      String
+  action      String
+  description String?
+  createdAt   DateTime              @default(now())
+  roles       AdminRolePermission[]
+
+  @@index([module])
+}
+
+model AdminRolePermission {
+  id           String          @id @default(uuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime        @default(now())
+  role         AdminRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   AdminPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model AdminInvitation {
+  id              String     @id @default(uuid())
+  invitedEmail    String
+  invitedName     String
+  tokenHash       String     @unique
+  role            String     @default("SUPPORT")
+  roleId          String?
+  department      String?    @default("Support")
+  status          String     @default("INVITED")
+  message         String?
+  invitedByUserId String?
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  roleModel       AdminRole? @relation(fields: [roleId], references: [id])
+  invitedByUser   AdminUser? @relation("InvitedByAdmin", fields: [invitedByUserId], references: [id])
+
+  @@index([invitedEmail])
+  @@index([tokenHash])
+  @@index([status])
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  category    String
+  key         String   @unique
+  value       Json
+  description String?
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+}
+
+model AdminMember {
+  id                  String    @id @default(uuid())
+  email               String?   @unique
+  name                String?
+  role                String?
+  phone               String?
+  position            String?
+  department          String?
+  status              String?   @default("ACTIVE")
+  invitationToken     String?   @unique
+  passwordHash        String?
+  permissions         Json?
+  failedLoginAttempts Int?      @default(0)
+  sessionVersion      Int?      @default(1)
+  lastLoginAt         DateTime?
+  lastLoginIp         String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 }
 
 model SignupReminder {

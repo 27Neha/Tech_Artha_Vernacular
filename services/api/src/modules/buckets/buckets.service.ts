@@ -429,10 +429,14 @@ export class BucketsService {
       });
 
       // folio_defaults fields are references to separately-created contact resources, not inline values.
+      const emailToUse = user?.email || dto.email;
+      if (!emailToUse) {
+        throw new BadRequestException('A verified email address is required to create an investment account.');
+      }
       const [email, phone, address] = await Promise.all([
-        this.cybrilla.createEmailAddress(fpProfileId, user.email, user.emailBelongsTo),
-        this.cybrilla.createPhoneNumber(fpProfileId, '91', (user.mobile || '').replace(/^\+?91/, ''), user.mobileBelongsTo),
-        this.cybrilla.createAddress(fpProfileId, bankDetails.addressLine1.trim(), 'IN', bankDetails.postalCode.trim()),
+        this.cybrilla.createEmailAddress(fpProfileId, emailToUse, user?.emailBelongsTo),
+        this.cybrilla.createPhoneNumber(fpProfileId, '91', (user?.mobile || '').replace(/^\+?91/, ''), user?.mobileBelongsTo),
+        this.cybrilla.createAddress(fpProfileId, (bankDetails?.addressLine1 || dto?.addressLine1 || '').trim(), 'IN', (bankDetails?.postalCode || dto?.postalCode || '').trim()),
       ]);
 
       const cybrillaAccount = await this.cybrilla.createInvestmentAccount(fpProfileId, 'single', {
@@ -577,12 +581,16 @@ export class BucketsService {
     // never progresses until it is explicitly confirmed with the investor's consent.
     // Skipping this is why every order we placed ended up `failed` with
     // `confirmed_at: null`.
+    const emailForOrder = user?.email || dto.email;
+    if (!emailForOrder) {
+      throw new BadRequestException('A verified email address is required to place an investment order.');
+    }
     let confirmed = orderResult;
     try {
       confirmed = await this.cybrilla.confirmPurchaseOrder({
         fpOrderId: orderResult.id,
-        email: user.email!,
-        mobile: (user.mobile || '').replace(/^\+?91/, ''),
+        email: emailForOrder,
+        mobile: (user?.mobile ?? '').replace(/^\+?91/, ''),
       });
     } catch (e) {
       // The order exists either way; surface it as in-progress rather than losing the

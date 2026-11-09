@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { exitOnboarding } from '../utils/navigation';
@@ -65,7 +64,7 @@ export const InvestmentBucketsScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar style="dark" />
       <Header title="" />
       <View style={{ padding: 24, paddingBottom: 20 }}>
@@ -210,7 +209,7 @@ export const InvestmentBucketsScreen = () => {
         <Text style={styles.disclaimer}>{t('buckets.disclaimer', { defaultValue: 'Mutual Fund investments are subject to market risks.' })}</Text>
       </ScrollView>
 
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -235,3 +234,5 @@ const styles = StyleSheet.create({
   laterText: { color: '#3C3985', fontSize: 14, fontWeight: '700' },
   disclaimer: { fontSize: 10, color: '#A0AEC0', textAlign: 'center', marginTop: 8, marginBottom: 40 }
 });
+
+export default InvestmentBucketsScreen;

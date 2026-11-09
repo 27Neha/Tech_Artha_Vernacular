@@ -15,6 +15,10 @@ export class RiskService {
 
   async calculateRisk(userId: string, answers: Answers, consent = false) {
     if (!consent) throw new BadRequestException('Explicit consent is required before a risk assessment.');
+    const userProfile = await this.prisma.userProfile.findUnique({ where: { userId } });
+    if (userProfile?.investorType === 'MINOR') {
+      throw new BadRequestException('Minors cannot have an independent risk profile. A guardian must complete this assessment.');
+    }
     const normalized = this.normalizeAnswers(answers);
     const values = Object.values(normalized);
     if (values.length < 5) throw new BadRequestException('Answer at least five risk questions to receive a profile.');

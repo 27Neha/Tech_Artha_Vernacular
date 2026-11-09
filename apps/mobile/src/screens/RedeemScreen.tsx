@@ -1,3 +1,4 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -10,7 +11,6 @@ import {
   View,
   Modal,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../services/api/client';
@@ -219,11 +219,12 @@ export const RedeemScreen = () => {
           </View>
         </ScrollView>
       </SafeAreaView>
+
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title="Redeem Investment" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -463,7 +464,7 @@ export const RedeemScreen = () => {
         onCancel={() => setPendingAuth(null)}
         onAuthorised={placeAuthorised}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

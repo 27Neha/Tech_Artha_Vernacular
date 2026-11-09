@@ -24,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: `
           try {
-            function updateTheme() {
+            window.updateTheme = function() {
               var theme = localStorage.getItem('appTheme') || 'system';
               if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                 document.documentElement.classList.add('dark');
@@ -32,12 +32,31 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 document.documentElement.classList.remove('dark');
               }
             }
-            updateTheme();
+            window.updateTheme();
             window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
               if ((localStorage.getItem('appTheme') || 'system') === 'system') {
-                updateTheme();
+                window.updateTheme();
               }
             });
+
+            // CRITICAL FIX FOR NEXT.JS + GOOGLE TRANSLATE CRASHES
+            // Safely swallow NotFoundError for insertBefore and removeChild when extensions hijack the DOM
+            if (typeof Node === 'function' && Node.prototype) {
+              var originalInsertBefore = Node.prototype.insertBefore;
+              Node.prototype.insertBefore = function(newNode, referenceNode) {
+                if (referenceNode && referenceNode.parentNode !== this) {
+                  return newNode;
+                }
+                return originalInsertBefore.call(this, newNode, referenceNode);
+              };
+              var originalRemoveChild = Node.prototype.removeChild;
+              Node.prototype.removeChild = function(child) {
+                if (child && child.parentNode !== this) {
+                  return child;
+                }
+                return originalRemoveChild.call(this, child);
+              };
+            }
           } catch (e) {}
         `}} />
       </head>

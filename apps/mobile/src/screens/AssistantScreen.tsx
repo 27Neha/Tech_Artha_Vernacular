@@ -1,3 +1,4 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
@@ -13,7 +14,6 @@ import {
   Alert,
   AppState,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Header } from '../components/Header';
 import { HeadsetIcon } from '../components/Icons';
@@ -34,6 +34,7 @@ import {
   getSpeechRecognitionLocale,
 } from '../utils/speechRecognition';
 
+
 type Message = { id: string; from: 'bot' | 'user'; text: string };
 
 const GREETING: Message = {
@@ -42,7 +43,8 @@ const GREETING: Message = {
   text: "Hello! 👋 I'm your Client Assistant. I can help you with your investments, goals, KYC and account questions. How can I help you today?",
 };
 
-import { API_URL } from '../services/api/client';
+
+import { api, API_URL } from '../services/api/client';
 
 interface RiskHistoryItem {
   id: string;
@@ -59,7 +61,9 @@ export const AssistantScreen = () => {
   const { i18n } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([GREETING]);
   const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
   const scrollRef = useRef<any>(null);
+
 
   // Risk Assessment History state
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -155,20 +159,44 @@ export const AssistantScreen = () => {
     }
   };
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     const text = input.trim();
     if (!text || isRecording || isTranscribing) return;
+
     const userMsg: Message = { id: `u-${Date.now()}`, from: 'user', text };
-    const botMsg: Message = {
-      id: `b-${Date.now()}`,
-      from: 'bot',
-      text: 'Thanks for your message! Our assistant will be fully available soon.',
-    };
-    setMessages((prev) => [...prev, userMsg, botMsg]);
+    setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setVoiceReviewHint(false);
     setSpeechErrorMsg(null);
+
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+
+    try {
+      const res = await api.post<{ text: string }>('/assistant/messages', {
+        message: text,
+        locale: i18n.language || 'en',
+      });
+      const botReply = res?.text || "I'm here to help with your investments and financial questions.";
+      const botMsg: Message = {
+        id: `b-${Date.now()}`,
+        from: 'bot',
+        text: botReply,
+      };
+      setMessages((prev) => [...prev, botMsg]);
+    } catch (e: any) {
+      const errorReply = e?.status === 401
+        ? 'Please sign in to access personalized portfolio and assistant insights.'
+        : 'Unable to reach assistant service at the moment. Please try again.';
+      const botMsg: Message = {
+        id: `b-${Date.now()}`,
+        from: 'bot',
+        text: errorReply,
+      };
+      setMessages((prev) => [...prev, botMsg]);
+    } finally {
+      setSending(false);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+    }
   };
 
   // Voice Input Flow
@@ -335,7 +363,7 @@ export const AssistantScreen = () => {
   const currentAssessment = historyList[selectedAssessmentIndex];
 
   return (
-    <SafeAreaView style={s.safe} edges={['right', 'left']}>
+    <View style={s.safe}>
       <StatusBar style="dark" />
       <Header title="Client Assistant" />
 
@@ -462,6 +490,7 @@ export const AssistantScreen = () => {
             accessibilityLabel="Send message"
           >
             <Text style={s.sendText}>➤</Text>
+
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -498,6 +527,7 @@ export const AssistantScreen = () => {
       {/* Modal: My Risk Assessment History */}
       <Modal visible={showHistoryModal} animationType="slide" transparent={false} onRequestClose={() => setShowHistoryModal(false)}>
         <SafeAreaView style={s.modalSafe}>
+
           <View style={s.modalHeader}>
             <View>
               <Text style={s.modalTitle}>My Risk Assessment History</Text>
@@ -627,7 +657,7 @@ export const AssistantScreen = () => {
           )}
         </SafeAreaView>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 

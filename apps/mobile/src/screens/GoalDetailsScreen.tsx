@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, Dimensions, Alert, Switch } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { authStore } from '../store/auth';
@@ -66,10 +65,10 @@ export const GoalDetailsScreen = () => {
 
   if (loading && !goal) {
     return (
-      <SafeAreaView style={styles.container} edges={['right', 'bottom', 'left']}>
+      <View style={styles.container}>
         <Header title={t('port.myGoals', { defaultValue: 'My Goals' })} onBack={() => navigation.goBack()} />
         <View style={styles.center}><ActivityIndicator size="large" color="#3C3985" /></View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -80,7 +79,7 @@ export const GoalDetailsScreen = () => {
   const futureTarget = goal.inflationAdjustedAmount ? Math.round(goal.inflationAdjustedAmount) : goal.targetAmount;
 
   return (
-    <SafeAreaView style={styles.container} edges={['right', 'bottom', 'left']}>
+    <View style={styles.container}>
       <StatusBar style="dark" />
       <Header title={t('port.myGoals', { defaultValue: 'My Goals' })} onBack={() => navigation.goBack()} />
       <ScrollView style={styles.content}>
@@ -132,7 +131,7 @@ export const GoalDetailsScreen = () => {
 
       
         </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -31,7 +31,7 @@ export const OtpVerification = ({
   loading,
   error,
   setError,
-  devOtp
+  devOtp,
 }: OtpVerificationProps) => {
   const { t } = useTranslation('common');
   const [otp, setOtp] = useState('');
@@ -176,13 +176,18 @@ export const OtpVerification = ({
         }}
         keyboardType="number-pad"
         maxLength={4}
-        
+        placeholder="1234"
+        placeholderTextColor="#A0AEC0"
         style={globalStyles.field}
         editable={!loading}
         textContentType="oneTimeCode"
         autoComplete="sms-otp"
         importantForAutofill="yes"
       />
+
+      <Text style={{ fontSize: 12, color: '#64748B', marginTop: 6, fontWeight: '500' }}>
+        Development test code: <Text style={{ fontWeight: '800', color: '#36358D' }}>1234</Text>
+      </Text>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -208,6 +213,8 @@ export const OtpVerification = ({
 };
 
 const styles = StyleSheet.create({
+  devNotice: { backgroundColor: '#FFF8E1', borderWidth: 1, borderColor: '#F0D48A', borderRadius: 10, padding: 12, marginTop: 20 },
+  devNoticeText: { color: '#7A5B00', fontSize: 12, lineHeight: 18, fontWeight: '600' },
   container: { width: '100%' },
   changeBtn: { alignSelf: 'flex-start', marginTop: 4 },
   changeText: { color: '#3C3985', fontWeight: '600', fontSize: 14 },

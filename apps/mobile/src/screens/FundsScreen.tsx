@@ -1,30 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, Alert, ScrollView, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { SearchIcon, CloseIcon, ChevronIcon } from '../components/Icons';
+import { API_URL } from '../services/api/apiClient';
+import { api } from '../services/api/client';
 
 interface FundsScreenProps {
-  apiUrl: string;
+  apiUrl?: string;
 }
 
 const FILTERS = ['All', 'Conservative', 'Moderate', 'Aggressive'];
 
-export const FundsScreen = ({ apiUrl }: FundsScreenProps) => {
+export const FundsScreen = ({ apiUrl = API_URL }: FundsScreenProps) => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
-  const [query, setQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const route = useRoute<any>();
+  const initialQuery = route?.params?.query || '';
+  const [query, setQuery] = useState(initialQuery);
+  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
   const [filter, setFilter] = useState('All');
   
   const [funds, setFunds] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(query), 500);
+    if (route?.params?.query) {
+      setQuery(route.params.query);
+      setDebouncedQuery(route.params.query);
+    }
+  }, [route?.params?.query]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query), 400);
     return () => clearTimeout(timer);
   }, [query]);
 
@@ -43,10 +53,15 @@ export const FundsScreen = ({ apiUrl }: FundsScreenProps) => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${apiUrl}/funds/search?q=${encodeURIComponent(q)}`);
-      if (!response.ok) throw new Error('Search failed');
-      const data = await response.json();
-      setFunds(data?.items || data || []);
+      const data = await api.get<{ items?: any[] }>(
+        `/funds/search?q=${encodeURIComponent(q)}`,
+        { anonymous: true }
+      ).catch(async () => {
+        const response = await fetch(`${apiUrl}/funds/search?q=${encodeURIComponent(q)}`);
+        return await response.json();
+      });
+
+      setFunds(data?.items || (Array.isArray(data) ? data : []));
     } catch {
       setFunds([]);
     } finally {
@@ -55,7 +70,7 @@ export const FundsScreen = ({ apiUrl }: FundsScreenProps) => {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title="" onBack={() => navigation.goBack()} />
       
@@ -112,35 +127,39 @@ export const FundsScreen = ({ apiUrl }: FundsScreenProps) => {
         {loading && <Text style={styles.loadingText}>Loading funds...</Text>}
         
         {!loading && funds.map((f, i) => (
-          <Pressable key={f.schemeCode || i} style={styles.card} onPress={() => navigation.navigate('FundDetail', { schemeCode: f.schemeCode })}>
+          <Pressable 
+            key={f.schemeCode || i} 
+            style={styles.card} 
+            onPress={() => navigation.navigate('FundDetail', { schemeCode: f.schemeCode })}
+          >
             <View style={styles.cardMain}>
               <View style={styles.cardLeft}>
                 <Text style={styles.fundName} numberOfLines={2}>{f.schemeName}</Text>
                 <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{f.schemeCategory || f.schemeType || 'Mutual Fund'}</Text>
+                  <Text style={styles.badgeText}>{f.schemeCategory || f.schemeType || f.category || 'Mutual Fund'}</Text>
                 </View>
               </View>
               <View style={styles.cardRight}>
-                <Text style={styles.navText}>{f.nav ? `₹${f.nav}` : '₹--.--'}</Text>
+                <Text style={styles.navText}>{f.nav ? `₹${f.nav}` : (f.latestNav ? `₹${f.latestNav}` : '₹--.--')}</Text>
                 <ChevronIcon />
               </View>
             </View>
           </Pressable>
         ))}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F8F9FB' },
   headerBlock: {
-      backgroundColor: '#fff',
-      paddingHorizontal: 24,
-      paddingVertical: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: '#E2E8F0'
-    },
+    backgroundColor: '#fff',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0'
+  },
   headerTitle: { color: '#102A54', fontSize: 28, fontWeight: '800', marginBottom: 16 },
   searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8F9FB', borderRadius: 12, paddingHorizontal: 12, borderWidth: 1, borderColor: '#E2E8F0' },
   searchIcon: { marginRight: 8 },
@@ -272,3 +291,5 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   }
 });
+
+export default FundsScreen;

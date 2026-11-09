@@ -1,10 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import './src/i18n/i18n';
 import { ActivityIndicator, View, Text, Linking, Platform, StyleSheet } from 'react-native';
-import { NavigationContainer, createNavigationContainerRef, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import './src/i18n/i18n';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { HomeIcon, TrendingIcon, WalletIcon, BookIcon, UserIcon, HeadsetIcon, CompassIcon, TargetIcon } from './src/components/Icons';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
-
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -27,17 +26,20 @@ import { SettingsScreen } from './src/screens/SettingsScreen';
 import { RiskAssessmentScreen } from './src/screens/RiskAssessmentScreen';
 import { RiskResultScreen } from './src/screens/RiskResultScreen';
 import { GoalSelectionScreen } from './src/screens/GoalSelectionScreen';
+import { GoalDetailsScreen } from './src/screens/GoalDetailsScreen';
+import { EditGoalScreen } from './src/screens/EditGoalScreen';
 import { InvestmentBucketsScreen } from './src/screens/InvestmentBucketsScreen';
 import { CustomBucketScreen } from './src/screens/CustomBucketScreen';
 import { PlanSummaryScreen } from './src/screens/PlanSummaryScreen';
-import { GoalDetailsScreen } from './src/screens/GoalDetailsScreen';
-import { ArticleScreen } from './src/screens/ArticleScreen';
-import { FamilyPortfolioScreen } from './src/screens/FamilyPortfolioScreen';
-import { EditGoalScreen } from './src/screens/EditGoalScreen';
+import { PlanScreen } from './src/screens/PlanScreen';
 import { InvestScreen } from './src/screens/InvestScreen';
 import { RedeemScreen } from './src/screens/RedeemScreen';
 import { FundDetailScreen } from './src/screens/FundDetailScreen';
 import { EditProfileScreen } from './src/screens/EditProfileScreen';
+import { FamilyPortfolioScreen } from './src/screens/FamilyPortfolioScreen';
+import { ArticleScreen } from './src/screens/ArticleScreen';
+import { ProfileSetupScreen } from './src/screens/ProfileSetupScreen';
+import { ParentalApprovalScreen } from './src/screens/ParentalApprovalScreen';
 import { BankAccountsScreen } from './src/screens/BankAccountsScreen';
 import { NomineeDetailsScreen } from './src/screens/NomineeDetailsScreen';
 import { ActiveMandatesScreen } from './src/screens/ActiveMandatesScreen';
@@ -64,13 +66,18 @@ import { MinorConsentScreen } from './src/screens/minor/MinorConsentScreen';
 import { MinorReviewScreen } from './src/screens/minor/MinorReviewScreen';
 import { AuthProvider, useAuth } from './src/store/AuthContext';
 import { AppLockGate } from './src/components/AppLockGate';
+import {
+  navigationRef,
+  recordTabVisit,
+  initHardwareBackHandler,
+  resetNavigationHistory,
+} from './src/navigation/navigationService';
+export { navigationRef };
+import { API_URL } from './src/services/api/client';
+import { Header } from './src/components/Header';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
-
-import { API_URL } from './src/services/api/client';
-
-export const navigationRef = createNavigationContainerRef();
 
 const linking = {
   prefixes: ['techartha://', 'https://techartha.com', 'https://app.techartha.com'],
@@ -110,7 +117,13 @@ function MainTabs({ route }: any) {
 
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
+      backBehavior="history"
+      screenListeners={({ route: tabRoute }) => ({
+        focus: () => {
+          recordTabVisit(tabRoute.name);
+        },
+      })}
+      screenOptions={({ route: tabRoute }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textPlaceholder,
@@ -131,12 +144,12 @@ function MainTabs({ route }: any) {
         },
         tabBarIcon: ({ focused }) => {
           let IconComponent;
-          let label = route.name;
-          if (route.name === 'Home') IconComponent = HomeIcon;
-          else if (route.name === 'Portfolio') IconComponent = TrendingIcon;
-          else if (route.name === 'Expenses') IconComponent = WalletIcon;
-          else if (route.name === 'Assistant') IconComponent = HeadsetIcon;
-          else if (route.name === 'Profile') IconComponent = UserIcon;
+          const label = tabRoute.name;
+          if (tabRoute.name === 'Home') IconComponent = HomeIcon;
+          else if (tabRoute.name === 'Explore') IconComponent = CompassIcon;
+          else if (tabRoute.name === 'Goals') IconComponent = TargetIcon;
+          else if (tabRoute.name === 'Portfolio') IconComponent = TrendingIcon;
+          else if (tabRoute.name === 'Profile') IconComponent = UserIcon;
           else IconComponent = HomeIcon;
 
           return (
@@ -155,17 +168,28 @@ function MainTabs({ route }: any) {
               >
                 {label}
               </Text>
+              {focused && (
+                <View
+                  style={{
+                    width: 4,
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: '#F7941D',
+                    marginTop: 3,
+                  }}
+                />
+              )}
             </View>
           );
-        }
+        },
       })}
     >
       <Tab.Screen name="Home">
         {(props) => <HomeScreen {...props} name={name} />}
       </Tab.Screen>
+      <Tab.Screen name="Explore" component={ArthaVerseScreen} />
+      <Tab.Screen name="Goals" component={GoalsScreen} />
       <Tab.Screen name="Portfolio" component={PortfolioScreen} />
-      <Tab.Screen name="Expenses" component={ExpensesScreen} />
-      <Tab.Screen name="Assistant" component={AssistantScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
@@ -175,11 +199,17 @@ function RootNavigator() {
   const { status } = useAuth();
   const previousStatus = useRef(status);
 
-  // Signing out - or a 401 that the api client turned into one - must take the user back
-  // to the start rather than leaving them on a signed-in screen that silently fails.
+  useEffect(() => {
+    const cleanupHardwareBack = initHardwareBackHandler();
+    return cleanupHardwareBack;
+  }, []);
+
   useEffect(() => {
     if (previousStatus.current === 'authenticated' && status === 'anonymous' && navigationRef.isReady()) {
-      navigationRef.reset({ index: 0, routes: [{ name: 'Language' as never }] });
+      resetNavigationHistory();
+      navigationRef.reset({ index: 0, routes: [{ name: 'Welcome' as never }] });
+    } else if (status === 'authenticated') {
+      resetNavigationHistory();
     }
     previousStatus.current = status;
   }, [status]);
@@ -245,7 +275,7 @@ function RootNavigator() {
   if (status === 'loading') {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator />
+        <ActivityIndicator color="#36358D" />
       </View>
     );
   }
@@ -253,49 +283,51 @@ function RootNavigator() {
   return (
     <Stack.Navigator
       screenOptions={{ headerShown: false }}
-      initialRouteName={status === 'authenticated' ? 'MainTabs' : 'Language'}
+      initialRouteName={status === 'authenticated' ? 'MainTabs' : 'Welcome'}
     >
-      <Stack.Screen name="Language" component={LanguageScreen} />
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
+      <Stack.Screen name="Language" component={LanguageScreen} />
       <Stack.Screen name="Signup">
         {(props) => <SignupScreen {...props} apiUrl={API_URL} />}
       </Stack.Screen>
       <Stack.Screen name="Login">
         {(props) => <LoginScreen {...props} apiUrl={API_URL} />}
       </Stack.Screen>
+      <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
+      <Stack.Screen name="ParentalApproval" component={ParentalApprovalScreen} />
       <Stack.Screen name="KYC">
         {(props) => <KycScreen {...props} apiUrl={API_URL} />}
       </Stack.Screen>
       <Stack.Screen name="RiskAssessment" component={RiskAssessmentScreen} />
-      {/* Both names resolve to the result screen. The cherry-picked version pointed
-          RiskProfileResult at GoalSelectionScreen, which skipped the risk result
-          entirely - every one of our screens navigates to RiskProfileResult. */}
-      <Stack.Screen name="RiskProfileResult" component={RiskResultScreen} />
       <Stack.Screen name="RiskResult" component={RiskResultScreen} />
+      <Stack.Screen name="RiskProfileResult" component={RiskResultScreen} />
       <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
-      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="GoalConfiguration" component={GoalSelectionScreen} />
+      <Stack.Screen name="GoalDetails" component={GoalDetailsScreen} />
+      <Stack.Screen name="EditGoal" component={EditGoalScreen} />
       <Stack.Screen name="InvestmentBuckets" component={InvestmentBucketsScreen} />
       <Stack.Screen name="CustomBucket" component={CustomBucketScreen} />
       <Stack.Screen name="PlanSummary" component={PlanSummaryScreen} />
-      <Stack.Screen name="GoalDetails" component={GoalDetailsScreen} />
-      <Stack.Screen name="Article" component={ArticleScreen} />
-      <Stack.Screen name="Learn" component={LearnScreen} />
-      <Stack.Screen name="FamilyPortfolio" component={FamilyPortfolioScreen} />
-      <Stack.Screen name="EditGoal" component={EditGoalScreen} />
+      <Stack.Screen name="Plan" component={PlanScreen} />
       <Stack.Screen name="MainTabs" component={MainTabs} />
       <Stack.Screen name="Explore" component={ArthaVerseScreen} />
       <Stack.Screen name="ArthaVerse" component={ArthaVerseScreen} />
       <Stack.Screen name="Goals" component={GoalsScreen} />
       <Stack.Screen name="GoalConfiguration" component={GoalSelectionScreen} />
+      <Stack.Screen name="Expenses" component={ExpensesScreen} />
       <Stack.Screen name="Funds">
         {(props) => <FundsScreen {...props} apiUrl={API_URL} />}
       </Stack.Screen>
-      {/* Restored: the cherry-picked App.tsx predates these screens, so they were on
-          disk but unreachable - including the email verification inside EditProfile. */}
       <Stack.Screen name="Invest" component={InvestScreen} />
       <Stack.Screen name="Redeem" component={RedeemScreen} />
       <Stack.Screen name="FundDetail" component={FundDetailScreen} />
+      <Stack.Screen name="FundDetails" component={FundDetailScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+      <Stack.Screen name="FamilyPortfolio" component={FamilyPortfolioScreen} />
+      <Stack.Screen name="Article" component={ArticleScreen} />
+      <Stack.Screen name="Learn" component={LearnScreen} />
+      <Stack.Screen name="Assistant" component={AssistantScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="BankAccounts" component={BankAccountsScreen} />
       <Stack.Screen name="NomineeDetails" component={NomineeDetailsScreen} />
       <Stack.Screen name="ActiveMandates" component={ActiveMandatesScreen} />
@@ -319,6 +351,7 @@ function RootNavigator() {
       <Stack.Screen name="LegalSettings" component={LegalScreen} />
       <Stack.Screen name="MinorGuardian" component={MinorGuardianScreen} />
       <Stack.Screen name="MinorVerify" component={MinorVerifyScreen} />
+      <Stack.Screen name="MinorGuardianVerification" component={MinorVerifyScreen} />
       <Stack.Screen name="MinorConsent" component={MinorConsentScreen} />
       <Stack.Screen name="MinorReview" component={MinorReviewScreen} />
     </Stack.Navigator>
@@ -341,7 +374,16 @@ function ThemedApp() {
   };
 
   return (
-    <NavigationContainer ref={navigationRef} theme={navTheme}>
+    <NavigationContainer
+      ref={navigationRef}
+      theme={navTheme}
+      onStateChange={() => {
+        const currentRoute = navigationRef.getCurrentRoute()?.name;
+        if (currentRoute) {
+          recordTabVisit(currentRoute);
+        }
+      }}
+    >
       <RootNavigator />
     </NavigationContainer>
   );

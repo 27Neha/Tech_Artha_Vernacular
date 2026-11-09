@@ -66,9 +66,9 @@ export class RedemptionService {
     if (!account) throw new BadRequestException('You do not have an investment account yet.');
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user?.email) {
-      // Same rule as a purchase: the AMC emails the contract note for this trade.
-      throw new BadRequestException('Verify your email address before withdrawing.');
+    if (!user?.email || !user?.mobile) {
+      // Same rule as a purchase: the AMC emails the contract note and SMS OTP for this trade.
+      throw new BadRequestException('A verified email address and mobile number are required before withdrawing.');
     }
 
     const { amount, units } = await this.resolveQuantity(account, dto);

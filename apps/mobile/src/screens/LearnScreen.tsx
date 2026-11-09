@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
@@ -14,7 +13,7 @@ const LEARN_CARDS = [
   { icon: <TrendingIcon color="#3C3985" size={28} />, title: 'Understanding Risk', desc: 'Learn how to assess and manage investment risk for your goals.', time: '6 min read', slug: 'understanding-risk' },
   { icon: <FileIcon color="#3C3985" size={28} />, title: 'Reading Fund Performance', desc: 'Understand NAV, returns, and how to compare mutual funds.', time: '7 min read', slug: 'fund-performance' },
   { icon: <WalletIcon color="#3C3985" size={28} />, title: 'ELSS Tax Saving Funds', desc: 'Save tax while growing wealth with 80C.', time: '5 min read', slug: 'elss-tax-saving' },
-  { icon: <TrendingIcon color="#3C3985" size={28} />, title: 'International Funds', desc: 'Invest in global markets from India.', time: '6 min read', slug: 'international-funds' }
+  { icon: <TrendingIcon color="#3C3985" size={28} />, title: 'International Funds', desc: 'Invest in global markets from India.', time: '6 min read', slug: 'international-funds' },
 ];
 
 export const LearnScreen = () => {
@@ -22,31 +21,41 @@ export const LearnScreen = () => {
   const navigation = useNavigation<any>();
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title={t('dash.learnAndGrow', { defaultValue: 'Learn & Grow' })} />
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>{t('dash.learnAndGrow', { defaultValue: 'Learn & Grow' })}</Text>
-        <Text style={styles.subtitle}>{t('learn.subtitle', { defaultValue: 'Educational resources to help you make informed financial decisions.' })}</Text>
+        <Text style={styles.subtitle}>
+          {t('learn.subtitle', { defaultValue: 'Educational resources to help you make informed financial decisions.' })}
+        </Text>
 
         <View style={styles.list}>
-          {LEARN_CARDS.map(c => (
+          {LEARN_CARDS.map((c) => (
             <Pressable 
               key={c.slug} 
-              style={({pressed}) => [styles.card, pressed && styles.cardPressed]}
+              style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
               onPress={() => navigation.navigate('Article', { slug: c.slug })}
             >
               <View style={styles.iconWrapper}>{c.icon}</View>
               <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>{t(`learn.${c.slug.replace(/-([a-z])/g, g => g[1].toUpperCase())}.title`, { defaultValue: c.title })}</Text>
-                <Text style={styles.cardDesc}>{t(`learn.${c.slug.replace(/-([a-z])/g, g => g[1].toUpperCase())}.desc`, { defaultValue: c.desc })}</Text>
-                <Text style={styles.timeLabel}>{c.time.replace(/\d+ min read/, (match) => t('learn.minRead', { defaultValue: match, min: match.split(' ')[0] }))}</Text>
+                <Text style={styles.cardTitle}>
+                  {t(`learn.${c.slug.replace(/-([a-z])/g, (g) => g[1].toUpperCase())}.title`, { defaultValue: c.title })}
+                </Text>
+                <Text style={styles.cardDesc}>
+                  {t(`learn.${c.slug.replace(/-([a-z])/g, (g) => g[1].toUpperCase())}.desc`, { defaultValue: c.desc })}
+                </Text>
+                <Text style={styles.timeLabel}>
+                  {c.time.replace(/\d+ min read/, (match) =>
+                    t('learn.minRead', { defaultValue: match, min: match.split(' ')[0] })
+                  )}
+                </Text>
               </View>
             </Pressable>
           ))}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -64,3 +73,5 @@ const styles = StyleSheet.create({
   cardDesc: { fontSize: 13, color: '#718096', lineHeight: 20, marginBottom: 12 },
   timeLabel: { fontSize: 11, fontWeight: '700', color: '#3C3985', backgroundColor: '#EBEBFA', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }
 });
+
+export default LearnScreen;

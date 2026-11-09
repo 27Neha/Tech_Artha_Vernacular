@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import { formatDobInput } from '../utils/date';
 import { api } from '../services/api/client';
 import { BELONGS_TO_OPTIONS, ChoiceChips } from '../components/ChoiceChips';
+import { Header } from '../components/Header';
 
 /**
  * GET + PUT /auth/profile.
@@ -153,20 +153,18 @@ export const EditProfileScreen = () => {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.centre}>
           <ActivityIndicator />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar style="dark" />
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Edit profile</Text>
-      </View>
+      <Header title="Edit Profile" />
 
       <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Full name (as on PAN)</Text>
@@ -282,7 +280,7 @@ export const EditProfileScreen = () => {
           <Text style={styles.outlineText}>Cancel</Text>
         </Pressable>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

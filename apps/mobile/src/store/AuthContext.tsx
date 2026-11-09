@@ -40,8 +40,10 @@ type AuthStatus = 'loading' | 'authenticated' | 'anonymous';
 type AuthContextValue = {
   status: AuthStatus;
   user: AuthUser | null;
+  language: string | null;
   signIn: (session: Session) => Promise<void>;
   signOut: () => Promise<void>;
+  setLanguage: (language: string) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -49,6 +51,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [language, setLanguage] = useState<string | null>(null);
 
   // authStore is read synchronously on every request, by this client and by the merged
   // screens that build their own fetch headers. State alone would hand out a stale token
@@ -148,8 +151,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, signIn, signOut }),
-    [status, user, signIn, signOut],
+    () => ({ status, user, language, signIn, signOut, setLanguage }),
+    [status, user, language, signIn, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

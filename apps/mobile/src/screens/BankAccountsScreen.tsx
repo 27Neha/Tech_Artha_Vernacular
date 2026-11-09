@@ -1,6 +1,5 @@
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Header } from '../components/Header';
@@ -40,7 +39,7 @@ export const BankAccountsScreen = () => {
   const bank = status?.bankAccount;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title="Bank accounts" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.page}>
@@ -79,7 +78,7 @@ export const BankAccountsScreen = () => {
           </View>
         ) : null}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

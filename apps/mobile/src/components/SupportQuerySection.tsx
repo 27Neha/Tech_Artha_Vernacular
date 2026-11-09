@@ -425,6 +425,11 @@ export const SupportQuerySection: React.FC<SupportQuerySectionProps> = ({ userEm
                   <View style={{ flex: 1 }}>
                     <View style={styles.historyRefRow}>
                       <Text style={styles.historyRefText}>{q.referenceId}</Text>
+                      {q.channel === 'WHATSAPP' && (
+                        <View style={{ backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#BBF7D0' }}>
+                          <Text style={{ fontSize: 9, fontWeight: '700', color: '#166534' }}>WhatsApp</Text>
+                        </View>
+                      )}
                       <View
                         style={[
                           styles.statusBadge,
@@ -456,10 +461,24 @@ export const SupportQuerySection: React.FC<SupportQuerySectionProps> = ({ userEm
                   <View style={styles.historyExpandedContent}>
                     <Text style={styles.historyMessageLabel}>Details:</Text>
                     <Text style={styles.historyMessageText}>{q.message}</Text>
+
+                    {q.lastAgentReply ? (
+                      <View style={{ marginTop: 8, padding: 10, backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+                          <Ionicons name="chatbubble-ellipses" size={13} color="#36358D" />
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#36358D' }}>
+                            {q.assignedAgentName || 'Support Agent'} Reply:
+                          </Text>
+                        </View>
+                        <Text style={{ fontSize: 12, color: '#1E293B' }}>{q.lastAgentReply}</Text>
+                      </View>
+                    ) : null}
+
                     <View style={styles.historyFooter}>
                       <Text style={styles.historyDateText}>
                         Logged on {formattedDate}
                       </Text>
+
                       {q.emailSent && (
                         <View style={styles.emailTag}>
                           <Ionicons name="mail" size={12} color="#16A34A" />

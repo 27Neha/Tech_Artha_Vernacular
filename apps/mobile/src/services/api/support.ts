@@ -4,7 +4,10 @@ export interface SupportQueryPayload {
   subject: string;
   message: string;
   email?: string;
+  customerName?: string;
+  customerPhone?: string;
   idempotencyKey?: string;
+  channel?: 'WHATSAPP' | 'EMAIL' | 'SMS' | 'APP';
 }
 
 export interface SupportQueryResponse {
@@ -21,6 +24,11 @@ export interface SupportQueryResponse {
   isDuplicate?: boolean;
   acknowledgementMessage: string;
   emailDeliveryError?: string | null;
+  channel?: string;
+  lastCustomerMessage?: string | null;
+  lastAgentReply?: string | null;
+  assignedAgentName?: string | null;
+  freshdeskTicketId?: string | null;
 }
 
 /**

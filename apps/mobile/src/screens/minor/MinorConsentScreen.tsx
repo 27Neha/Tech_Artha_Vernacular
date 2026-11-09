@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, SafeAreaView, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../../services/api/client';
+import { Header } from '../../components/Header';
 import { minorStyles as s } from './minorStyles';
 
 /**
@@ -32,8 +33,9 @@ export const MinorConsentScreen = () => {
   };
 
   return (
-    <SafeAreaView style={s.container}>
+    <View style={s.container}>
       <StatusBar style="dark" />
+      <Header title="Guardian Consent" />
       <View style={s.header}>
         <Text style={s.step}>STEP 3 OF 4</Text>
         <Text style={s.title}>Guardian consent</Text>
@@ -74,6 +76,6 @@ export const MinorConsentScreen = () => {
         </Pressable>
         <View style={s.spacer} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };

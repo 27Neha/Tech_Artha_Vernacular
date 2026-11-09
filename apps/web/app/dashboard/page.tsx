@@ -1,5 +1,6 @@
 'use client';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from '../TranslationProvider';
 import { useState, useEffect } from 'react';
 
 const LEARN_CARDS = [
@@ -9,9 +10,10 @@ const LEARN_CARDS = [
   { icon: '📈', title: 'Reading Fund Performance', desc: 'Understand NAV, returns, and how to compare mutual funds.', time: '7 min read', slug: 'fund-performance' },
 ];
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 
 export default function DashboardPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [profile, setProfile] = useState('');
   const [recommendedFunds, setRecommendedFunds] = useState<any[]>([]);
@@ -115,20 +117,20 @@ export default function DashboardPage() {
             {fetchingPortfolio ? '₹...' : `₹${portfolio.totalInvested.toLocaleString('en-IN')}`}
           </p>
         <p className="text-[#EBEAF8] text-sm mt-1">
-            {portfolio.totalInvested === 0 ? "You haven't made any investments yet." : "Verified via Cybrilla/ONDC"}
+            {portfolio.totalInvested === 0 ? t('dash.noInvestmentsYet') : t('dash.verifiedVia')}
           </p>
         <div className="flex gap-3 mt-4">
           <button
             onClick={() => router.push('/funds')}
             className="bg-white text-[var(--primary)] font-bold text-sm px-5 py-2.5 rounded-xl"
           >
-            Browse Funds
+            {t('dash.browseFunds')}
           </button>
           <button 
             onClick={() => router.push('/dashboard/analytics')}
             className="bg-white/20 text-white font-bold text-sm px-5 py-2.5 rounded-xl"
           >
-            View Details
+            {t('dash.viewDetails')}
           </button>
         </div>
       </div>
@@ -199,9 +201,9 @@ export default function DashboardPage() {
 
       {/* Safety Banner */}
       <div className="bg-[var(--primary-light)] rounded-2xl p-4 mt-6">
-        <p className="text-[var(--primary)] font-bold text-sm">🛡️ Bank-grade Security</p>
+        <p className="text-[var(--primary)] font-bold text-sm">🛡️ {t('dash.bankSecurity')}</p>
         <p className="text-[var(--primary)]/70 text-[10px] mt-1 leading-relaxed font-semibold">
-          Your investments are safe. All funds are held in your name directly with the AMC.
+          {t('dash.bankSecurityDesc')}
         </p>
       </div>
 
@@ -220,8 +222,8 @@ export default function DashboardPage() {
           >
             <span className="text-3xl shrink-0">{c.icon}</span>
             <div className="flex-1">
-              <p className="font-bold text-[var(--dark)] text-sm">{c.title}</p>
-              <p className="text-gray-400 text-[11px] mt-0.5 leading-relaxed line-clamp-2">{c.desc}</p>
+              <p className="font-bold text-[var(--dark)] text-sm">{t("learn." + c.slug.replace(/-([a-z])/g, g => g[1].toUpperCase()) + ".title") || c.title}</p>
+              <p className="text-gray-400 text-[11px] mt-0.5 leading-relaxed line-clamp-2">{t("learn." + c.slug.replace(/-([a-z])/g, g => g[1].toUpperCase()) + ".desc") || c.desc}</p>
             </div>
           </div>
         ))}
@@ -229,3 +231,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

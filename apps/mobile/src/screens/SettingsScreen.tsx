@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../store/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
+
 export const SettingsScreen = () => {
   const { t, i18n } = useTranslation('common');
   const navigation = useNavigation<any>();
@@ -209,6 +210,7 @@ export const SettingsScreen = () => {
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textPlaceholder} />
           </Pressable>
+
         </View>
 
         {/* ============================================================== */}
@@ -455,6 +457,7 @@ export const SettingsScreen = () => {
         </View>
       </ScrollView>
     </SafeAreaView>
+
   );
 };
 
@@ -530,6 +533,7 @@ const styles = StyleSheet.create({
   },
 
   tagPill: {
+
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -583,4 +587,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     paddingHorizontal: 12,
   },
+
 });
+
+export default SettingsScreen;

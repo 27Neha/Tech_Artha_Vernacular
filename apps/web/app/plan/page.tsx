@@ -1,8 +1,9 @@
 'use client';
 import { useState, Suspense } from 'react';
+import { useTranslation } from '../TranslationProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 const SIP_DATES = [1, 5, 10, 15, 20, 25];
 
 const BUCKET_NAMES: Record<string, string> = {
@@ -19,6 +20,7 @@ const GOAL_NAMES: Record<string, string> = {
 
 function PlanContent() {
   const router = useRouter();
+  const { t } = useTranslation();
   const searchParams = useSearchParams();
   const goal = searchParams.get('goal') ?? 'wealth';
   const bucket = searchParams.get('bucket') ?? 'balanced';
@@ -134,7 +136,7 @@ function PlanContent() {
         </div>
 
         <p className="text-xs text-gray-400 mb-6 leading-relaxed">
-          Tap the calendar icon to pick a date. <strong>Note:</strong> Dates 29, 30, and 31 are disabled to ensure consistency across shorter months like February.
+          {t('plan.tapCalendar')} <strong>{t('plan.note')}</strong> {t('plan.calendarDisabledNote')}
         </p>
 
         <div className="bg-[var(--primary-light)] border border-[var(--primary)]/20 rounded-2xl p-5 mb-8 text-center shadow-sm">
@@ -147,7 +149,7 @@ function PlanContent() {
         {/* Warning */}
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6">
           <p className="text-amber-700 text-sm leading-relaxed">
-            ⚠️ Mutual fund investments are subject to market risks. Returns shown are illustrative only. Please read all scheme-related documents before investing.
+            {t('plan.marketRiskDisclaimer')}
           </p>
         </div>
 
@@ -160,7 +162,7 @@ function PlanContent() {
             {consent && <span className="text-white text-xs font-bold">✓</span>}
           </div>
           <p className="text-sm text-gray-600 leading-relaxed">
-            I have read and understood the investment plan and confirm my consent to start the SIP.
+            {t('plan.consentSip')}
           </p>
         </button>
 
@@ -171,7 +173,7 @@ function PlanContent() {
           <span>→</span>
         </button>
         <button onClick={() => router.back()} className="btn-outline">
-          Modify Plan
+          {t('plan.modifyPlan')}
         </button>
       </div>
     </div>
@@ -179,5 +181,6 @@ function PlanContent() {
 }
 
 export default function PlanPage() {
+  const { t } = useTranslation();
   return <Suspense><PlanContent /></Suspense>;
 }

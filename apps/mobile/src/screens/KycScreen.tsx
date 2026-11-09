@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, Alert, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { styles } from '../theme/styles';
 import { Header } from '../components/Header';
+import { api, API_URL } from '../services/api/client';
 import { authStore } from '../store/auth';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { exitOnboarding } from '../utils/navigation';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTranslation } from 'react-i18next';
-import { API_URL } from '../services/api/client';
+
+type KycStartResult = {
+  transactionId?: string;
+  status?: 'VERIFIED' | 'FAILED' | 'IN_PROGRESS' | 'PENDING' | string;
+  failureReason?: string | null;
+};
 
 interface KycScreenProps {
   phone?: string;
@@ -27,10 +32,11 @@ export const KycScreen = (props: KycScreenProps) => {
   const navigation = useNavigation<any>();
   const [kycSubmitting, setKycSubmitting] = useState(false);
   
-  // Provide fallback state if props aren't passed via navigator
   const [localName, setLocalName] = useState('');
   const [localPan, setLocalPan] = useState('');
   const [localConsent, setLocalConsent] = useState(false);
+  const [dobDate, setDobDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -39,8 +45,6 @@ export const KycScreen = (props: KycScreenProps) => {
       setLocalConsent(false);
     }, [])
   );
-  const [dobDate, setDobDate] = useState<Date | null>(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const name = props.name ?? localName;
   const setName = props.setName ?? setLocalName;
@@ -59,10 +63,20 @@ export const KycScreen = (props: KycScreenProps) => {
     }
   };
 
-  const startKyc = async () => {
-    if (!consent || !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan) || !name.trim() || !formattedDob) {
-      return Alert.alert('Complete your details', 'Enter your name, valid PAN, date of birth, and accept the consent to continue.');
+  const validate = (): string | null => {
+    if (!name.trim()) return 'Enter your full name, exactly as it appears on your PAN card.';
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
+      return 'Enter a valid 10-character PAN, for example ABCDE1234F (5 letters, 4 digits, 1 letter).';
     }
+    if (!formattedDob) return 'Please select your date of birth.';
+    if (!consent) return 'Please accept the KYC consent to continue.';
+    return null;
+  };
+
+  const startKyc = async () => {
+    const problem = validate();
+    if (problem) return Alert.alert('Check your details', problem);
+
     setKycSubmitting(true);
     try {
       const response = await fetch(`${apiUrl}/api/v1/kyc/start`, {
@@ -114,7 +128,7 @@ export const KycScreen = (props: KycScreenProps) => {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title="Identity verification" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.page}>
@@ -181,6 +195,8 @@ export const KycScreen = (props: KycScreenProps) => {
         </Pressable>
         <Text style={styles.legal}>We never store your PAN in the app. KYC is completed by the secure verification service.</Text>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
+
+export default KycScreen;

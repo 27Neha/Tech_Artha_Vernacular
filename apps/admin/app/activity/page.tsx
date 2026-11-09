@@ -14,9 +14,7 @@ export default function ActivityFeedPage() {
     setLoading(true);
     try {
       const data = await adminApi.getActivityOverview(50);
-      setActivities(data || []);
-    } catch (err) {
-      console.error('Failed to load activities', err);
+
     } finally {
       setLoading(false);
     }
@@ -26,13 +24,7 @@ export default function ActivityFeedPage() {
     fetchActivities();
   }, []);
 
-  const filtered = activities.filter((act) => {
-    const matchesFilter = filterAction === 'ALL' || act.action.toUpperCase().includes(filterAction);
-    const matchesSearch =
-      !search ||
-      act.action.toLowerCase().includes(search.toLowerCase()) ||
-      act.actorEmail?.toLowerCase().includes(search.toLowerCase()) ||
-      act.details?.toLowerCase().includes(search.toLowerCase());
+
     return matchesFilter && matchesSearch;
   });
 

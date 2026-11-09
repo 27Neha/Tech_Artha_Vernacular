@@ -8,6 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { Header } from '../components/Header';
@@ -17,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authStore } from '../store/auth';
 import { api } from '../services/api/client';
 import { useTheme } from '../context/ThemeContext';
+
 
 export const ProfileScreen = () => {
   const { t } = useTranslation('common');
@@ -116,6 +118,7 @@ export const ProfileScreen = () => {
         <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>{t('header.viewProfile', { defaultValue: 'Profile' })}</Text>
 
         {/* 1. PERSONAL INFORMATION (HEADER CARD) */}
+
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>

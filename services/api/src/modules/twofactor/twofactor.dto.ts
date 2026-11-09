@@ -37,9 +37,9 @@ export class RequestTransactionOtpDto {
   @IsOptional()
   fullExit?: boolean;
 
-  @IsIn(['SMS', 'WHATSAPP', 'EMAIL'])
+  @IsIn(['WHATSAPP', 'EMAIL'])
   @IsOptional()
-  channel?: 'SMS' | 'WHATSAPP' | 'EMAIL';
+  channel?: 'WHATSAPP' | 'EMAIL';
 }
 
 /**

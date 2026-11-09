@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { StatusBar } from 'expo-status-bar';
 import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
@@ -75,7 +76,7 @@ A Lumpsum investment is a one-time bulk investment. This is usually preferred wh
 2. **Market Timing (Lumpsum)**: Lumpsum works best when the market has crashed and valuations are cheap. However, timing the market is extremely difficult even for professionals.
 3. **Discipline**: SIPs remove the emotional aspect of investing. Your money is deducted automatically on a set date.
 
-*Recommendation:* For salaried individuals, SIPs are universally recommended. If you receive a large bonus, consider doing a STP (Systematic Transfer Plan) instead of a pure lumpsum to mitigate timing risk.`,
+*Key Takeaway:* For salaried individuals, SIPs are widely used to maintain consistent investing habits. If you receive a large bonus, considering an STP (Systematic Transfer Plan) instead of a single lumpsum can help smooth market entry.`,
 
   'understanding-risk': `All investments carry some degree of risk. In finance, "risk" is simply the probability that your actual return will differ from your expected return, including the possibility of losing some or all of your original investment.
 
@@ -96,7 +97,7 @@ The golden rule of risk management is **Diversification**. Do not put all your e
 3. **Alpha**: Measures how much the fund manager outperformed the benchmark index. A positive Alpha of 2.0 means the fund beat the benchmark by 2%.
 4. **Expense Ratio**: The annual fee charged by the AMC to manage your money. A lower expense ratio directly translates to higher returns for you in the long run.
 
-*Actionable Advice:* Always compare a fund's performance against its specific benchmark (e.g., Nifty 50) and its peers in the exact same category.`,
+*Best Practice:* Always compare a fund's performance against its specific benchmark (e.g., Nifty 50) and its peers in the exact same category.`,
 
   'elss-tax-saving': `Equity Linked Savings Scheme (ELSS) is a specific type of mutual fund designed to offer tax benefits under Section 80C of the Income Tax Act.
 
@@ -157,12 +158,12 @@ export const ArticleScreen = () => {
 
   if (!article || !content) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <View style={styles.safe}>
         <Header title={t('dash.learnAndGrow', { defaultValue: 'Learn' })} onBack={() => navigation.goBack()} />
         <View style={styles.center}>
           <Text style={styles.notFound}>{t('learn.notFound', { defaultValue: 'Article not found.' })}</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -190,7 +191,7 @@ export const ArticleScreen = () => {
   } : null;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title="" onBack={() => navigation.goBack()} />
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -216,7 +217,7 @@ export const ArticleScreen = () => {
         </Animated.View>
 
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

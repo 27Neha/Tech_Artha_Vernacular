@@ -23,7 +23,6 @@ import { CybrillaModule } from './modules/cybrilla/cybrilla.module';
 import { MinorModule } from './modules/minor/minor.module';
 import { CrmModule } from './modules/crm/crm.module';
 import { SupportModule } from './modules/support/support.module';
-import { MtalkzModule } from './modules/mtalkz/mtalkz.module';
 import { ZohoModule } from './modules/zoho/zoho.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { ReminderModule } from './modules/reminder/reminder.module';
@@ -33,6 +32,7 @@ import { TwoFactorModule } from './modules/twofactor/twofactor.module';
 import { MandatesModule } from './modules/mandates/mandates.module';
 import { HoldingsModule } from './modules/holdings/holdings.module';
 import { PostbackModule } from './modules/postback/postback.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { MarketModule } from './modules/market/market.module';
 
 @Module({
@@ -44,6 +44,7 @@ import { MarketModule } from './modules/market/market.module';
     HoldingsModule,
     PostbackModule,
     MarketModule,
+    PaymentsModule,
     KycModule,
     FundsModule,
     AuthModule,
@@ -66,7 +67,6 @@ import { MarketModule } from './modules/market/market.module';
     MinorModule,
     CrmModule,
     SupportModule,
-    MtalkzModule,
     ZohoModule,
     AdminModule,
     ReminderModule,

@@ -81,6 +81,7 @@ export class KycService {
       transactionId: result.id,
       status: evaluated.overallStatus,
       readinessStatus: evaluated.readinessStatus,
+      fields_needed: result.fields_needed || [],
       message: describeKycFailure(evaluated.readinessCode, evaluated.failureReason),
       providerResponse: result,
     };
@@ -92,10 +93,12 @@ export class KycService {
       include: { verifications: true },
     });
 
+    let fields_needed: any[] = [];
     if (application?.status === 'IN_PROGRESS' && application.providerTransactionId) {
       try {
         const result = await this.cybrilla.fetchPreVerification(application.providerTransactionId);
         const evaluated = this.evaluateVerification(result);
+        fields_needed = result?.fields_needed || [];
 
         if (evaluated.overallStatus !== application.status) {
           application = await this.prisma.kYCApplication.update({
@@ -110,8 +113,24 @@ export class KycService {
     }
 
     return application
-      ? { ...application, message: describeKycFailure(application.readinessCode, application.failureReason) }
+      ? { ...application, fields_needed, message: describeKycFailure(application.readinessCode, application.failureReason) }
       : application;
+  }
+
+  async generateDigilockerUrl(userId: string, redirectUrl: string) {
+    const application = await this.prisma.kYCApplication.findUnique({ where: { userId } });
+    if (!application || !application.providerTransactionId) {
+      throw new BadRequestException('KYC request not found');
+    }
+    return this.cybrilla.generateDigilockerUrl(application.providerTransactionId, redirectUrl);
+  }
+
+  async generateEsignUrl(userId: string, redirectUrl: string) {
+    const application = await this.prisma.kYCApplication.findUnique({ where: { userId } });
+    if (!application || !application.providerTransactionId) {
+      throw new BadRequestException('KYC request not found');
+    }
+    return this.cybrilla.generateEsignUrl(application.providerTransactionId, redirectUrl);
   }
 
   /**

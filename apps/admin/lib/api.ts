@@ -600,54 +600,6 @@ class AdminApiClient {
     data: { role: string; position?: string; department?: string; permissions?: string[] },
   ): Promise<{ success: boolean; message: string }> {
     return this.request(`/admin/team-members/${memberId}/role`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async updateMemberStatus(id: string, data: { status: 'ACTIVE' | 'SUSPENDED'; reason?: string }): Promise<any> {
-    return this.request(`/admin/team-members/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async deleteMember(id: string): Promise<any> {
-    return this.request(`/admin/team-members/${id}`, {
-      method: 'DELETE',
-    });
-  }
-
-  async deactivateMember(memberId: string): Promise<{ success: boolean; message: string }> {
-    return this.request(`/admin/members/${memberId}/deactivate`, {
-      method: 'PATCH',
-    });
-  }
-
-  async reactivateMember(memberId: string): Promise<{ success: boolean; message: string }> {
-    return this.request(`/admin/members/${memberId}/reactivate`, {
-      method: 'PATCH',
-    });
-  }
-
-  async resendMemberInvite(memberId: string): Promise<{ success: boolean; message: string; activationUrl: string }> {
-    return this.request(`/admin/members/${memberId}/resend-invite`, {
-      method: 'POST',
-    });
-  }
-
-  async activateAccount(data: {
-    token: string;
-    password: string;
-    name?: string;
-    phone?: string;
-  }): Promise<{ success: boolean; message: string; token: string; user: AdminUserSession }> {
-    return this.request('/admin/auth/activate', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
   // ==========================================
   // INVITATION ACCEPTANCE (PUBLIC)
   // ==========================================
@@ -726,50 +678,7 @@ class AdminApiClient {
 
   // ==========================================
   // SETTINGS & PROFILE OPERATIONS
-  // ==========================================
-  async updateAdminProfile(data: {
-    name?: string;
-    phone?: string;
-  }): Promise<{ success: boolean; message: string; profile: any }> {
-    return this.request('/admin/settings/profile', {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async changeAdminPassword(data: {
-    currentPassword: string;
-    newPassword: string;
-  }): Promise<{ success: boolean; message: string; token: string }> {
-    return this.request('/admin/settings/change-password', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async getRolesConfig(): Promise<RoleConfigItem[]> {
-    return this.request('/admin/settings/roles');
-  }
-
-  async getSystemInfo(): Promise<SystemInfo> {
-    return this.request('/admin/settings/system');
-  }
-
-  async getAdminActivityLogs(params: {
-    page?: number;
-    limit?: number;
-    search?: string;
-  } = {}): Promise<{ data: any[]; pagination: any }> {
-    const query = new URLSearchParams();
-    if (params.page) query.append('page', String(params.page));
-    if (params.limit) query.append('limit', String(params.limit));
-    if (params.search) query.append('search', params.search);
-
-    return this.request(`/admin/settings/audit-logs?${query.toString()}`);
-  }
-
-  // ==========================================
-  // SYSTEM SETTINGS & INTEGRATIONS
+  // ===================================  // SYSTEM SETTINGS & INTEGRATIONS
   // ==========================================
   async getSettingsByCategory(category: string): Promise<Record<string, any>> {
     return this.request(`/admin/settings/${category}`);
@@ -792,7 +701,20 @@ class AdminApiClient {
   // OPERATIONAL DOMAINS
   // ==========================================
   async getActivityOverview(limit = 30): Promise<ActivityOverviewItem[]> {
-    return this.request(`/admin/activity?limit=${limit}`);
+    const res = await this.request<any>(`/admin/activity?limit=${limit}`);
+    const rawList: any[] = Array.isArray(res) ? res : Array.isArray(res?.events) ? res.events : [];
+    return rawList.map((item: any) => ({
+      id: item.id || String(Math.random()),
+      action: item.action || item.title || item.type || 'SYSTEM_EVENT',
+      details: item.details || '',
+      actorEmail: item.actorEmail || item.actor || undefined,
+      actorRole: item.actorRole || item.category || undefined,
+      result: item.result || (item.category === 'SECURITY' ? 'AUDIT' : 'SUCCESS'),
+      ipAddress: item.ipAddress || undefined,
+      createdAt: item.createdAt || item.timestamp || new Date().toISOString(),
+      user: item.user || null,
+    }));
+
   }
 
   async getBankVerifications(params: { page?: number; limit?: number; status?: string; search?: string } = {}): Promise<{

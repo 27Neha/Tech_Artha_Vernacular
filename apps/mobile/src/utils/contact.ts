@@ -18,8 +18,17 @@ export const TECH_ARTHA_SUPPORT = {
 /**
  * Builds the WhatsApp application deep link and the browser/web fallback link.
  */
-export const getWhatsAppUrls = () => {
-  const encodedMessage = encodeURIComponent(TECH_ARTHA_SUPPORT.whatsappMessage);
+export const getWhatsAppUrls = (userContext?: { userId?: string; mobile?: string; name?: string }) => {
+  let message: string = TECH_ARTHA_SUPPORT.whatsappMessage;
+  if (userContext?.userId || userContext?.mobile || userContext?.name) {
+    const details = [
+      userContext.name ? `Name: ${userContext.name}` : null,
+      userContext.userId ? `Client ID: ${userContext.userId}` : null,
+      userContext.mobile ? `Mobile: ${userContext.mobile}` : null,
+    ].filter(Boolean).join(', ');
+    message = `Hi TechArtha Support, I need assistance with my account. [${details}]`;
+  }
+  const encodedMessage = encodeURIComponent(message);
   return {
     encodedMessage,
     appUrl: `whatsapp://send?phone=${TECH_ARTHA_SUPPORT.phone}&text=${encodedMessage}`,
@@ -46,9 +55,10 @@ export interface ContactActionCallbacks {
  * Gracefully falls back to WhatsApp Web / browser if the app is not installed.
  */
 export const openWhatsAppSupport = async (
-  callbacks?: ContactActionCallbacks
+  callbacks?: ContactActionCallbacks,
+  userContext?: { userId?: string; mobile?: string; name?: string }
 ): Promise<boolean> => {
-  const { appUrl, webUrl } = getWhatsAppUrls();
+  const { appUrl, webUrl } = getWhatsAppUrls(userContext);
 
   try {
     const canOpenApp = await Linking.canOpenURL(appUrl);

@@ -1,8 +1,9 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, SafeAreaView, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { api } from '../../services/api/client';
+import { Header } from '../../components/Header';
 import { minorStyles as s } from './minorStyles';
 
 /**
@@ -70,19 +71,20 @@ export const MinorReviewScreen = () => {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.container}>
+      <View style={s.container}>
         <View style={s.centre}>
           <ActivityIndicator />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   const ready = status?.hasGuardian && status?.guardianVerified && status?.hasConsent;
 
   return (
-    <SafeAreaView style={s.container}>
+    <View style={s.container}>
       <StatusBar style="dark" />
+      <Header title="Minor Account Review" />
       <View style={s.header}>
         <Text style={s.step}>STEP 4 OF 4</Text>
         <Text style={s.title}>Review</Text>
@@ -136,6 +138,6 @@ export const MinorReviewScreen = () => {
         </Pressable>
         <View style={s.spacer} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };

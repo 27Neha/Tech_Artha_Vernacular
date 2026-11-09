@@ -66,7 +66,7 @@ export function AdminHeader() {
     const segments = pathname.split('/').filter(Boolean);
     if (segments.length === 0) return 'Operations Overview';
     return segments
-      .map((s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace('-', ' '))
+.map((s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace('-', ' '))
       .join(' / ');
   };
 

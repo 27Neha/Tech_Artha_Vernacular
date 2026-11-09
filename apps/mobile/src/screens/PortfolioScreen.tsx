@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Linking, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -10,6 +11,7 @@ import * as Sharing from 'expo-sharing';
 import { Header } from '../components/Header';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
+
 
 import { API_URL } from '../services/api/client';
 
@@ -304,9 +306,7 @@ export const PortfolioScreen = () => {
     <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
       <StatusBar style="dark" />
       
-      <Header title="Portfolio" />
-      
-      <ScrollView stickyHeaderIndices={[2]} showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.headerBlock}>
           <Text style={styles.headerTitle}>{t('port.title', { defaultValue: 'Portfolio' })}</Text>
         </View>
@@ -748,6 +748,7 @@ export const PortfolioScreen = () => {
         </Pressable>
       </Modal>
     </SafeAreaView>
+
   );
 };
 
@@ -989,4 +990,6 @@ const styles = StyleSheet.create({
   outlineBtn: { borderWidth: 2, borderColor: '#3C3985', paddingVertical: 16, borderRadius: 16, alignItems: 'center', marginTop: 8 },
   outlineBtnText: { color: '#3C3985', fontSize: 14, fontWeight: '800' }
 });
+
+export default PortfolioScreen;
 

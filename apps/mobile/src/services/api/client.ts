@@ -10,13 +10,12 @@
  */
 
 import Constants from 'expo-constants';
-
 const DEFAULT_API_PORT = process.env.EXPO_PUBLIC_API_PORT?.trim() || '3000';
 
 /**
  * Extracts the Metro bundler host (IPv4 or hostname) from Expo runtime metadata.
  * When running in LAN mode over Wi-Fi or a mobile hotspot, Expo Go / dev client
- * populates `hostUri` with `<developer-machine-ip>:<metro-port>` (e.g. `192.168.1.10:8081`).
+ * populates hostUri with <developer-machine-ip>:<metro-port> (e.g. 192.168.1.10:8081).
  */
 export function getMetroHost(): string | null {
   try {
@@ -39,9 +38,7 @@ export function getMetroHost(): string | null {
 }
 
 /**
- * Checks whether a Metro host belongs to a public tunnel service (e.g. `.exp.direct`).
- * Expo's `--tunnel` only tunnels the Metro bundler (port 8081), NOT the NestJS API (port 3000),
- * so we must not blindly append `:3000` to an Expo tunnel hostname.
+ * Checks whether a Metro host belongs to a public tunnel service (e.g. .exp.direct).
  */
 export function isTunnelHost(host: string): boolean {
   const lower = host.toLowerCase();
@@ -56,13 +53,13 @@ export function isTunnelHost(host: string): boolean {
   );
 }
 
+export const LIVE_TUNNEL_API_URL = 'https://necklace-expansion-vegetarian-worlds.trycloudflare.com';
+
 /**
  * Resolves the backend API base URL in priority order:
- * 1. Explicit `EXPO_PUBLIC_API_URL` (when set to a concrete URL other than `'auto'`).
- *    Used for production, staging, or an explicit API tunnel / remote server URL.
- * 2. Automatic LAN / Hotspot host detection from Expo's active Metro host (`hostUri`),
- *    allowing developers to switch Wi-Fi networks or mobile hotspots without editing `.env`.
- * 3. `http://localhost:3000` fallback for local simulators, web, and unit tests.
+ * 1. Explicit EXPO_PUBLIC_API_URL
+ * 2. Automatic LAN / Hotspot host detection from Expo Metro host
+ * 3. http://localhost:3000 fallback
  */
 export function resolveApiUrl(): string {
   const configured = process.env.EXPO_PUBLIC_API_URL?.trim();
@@ -80,7 +77,7 @@ export function resolveApiUrl(): string {
 
 export const API_URL = resolveApiUrl();
 
-const DEFAULT_TIMEOUT_MS = 20000;
+const DEFAULT_TIMEOUT_MS = 8000;
 
 export class ApiError extends Error {
   constructor(
@@ -120,7 +117,7 @@ async function request<T>(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers ?? {}) };
   if (!options.anonymous) {
     const token = getAccessToken();
     if (token) headers.Authorization = `Bearer ${token}`;
@@ -162,11 +159,25 @@ async function request<T>(
  * where this matters most.
  */
 function extractMessage(parsed: unknown, status: number): string {
+  if (status === 500) {
+    if (parsed && typeof parsed === 'object' && (parsed as any).message && (parsed as any).message !== 'Internal server error') {
+      return String((parsed as any).message);
+    }
+    return 'The server encountered an issue. Please try again shortly.';
+  }
+  if (status === 400 && (!parsed || !(parsed as any).message)) {
+    return 'Invalid details provided. Please check and try again.';
+  }
   const fallback = `Request failed (${status}).`;
   if (!parsed || typeof parsed !== 'object') return fallback;
 
-  const message = (parsed as { message?: unknown }).message;
-  if (typeof message === 'string' && message) return message;
+  const message = (parsed as { message?: unknown; error?: unknown }).message;
+  if (typeof message === 'string' && message) {
+    if (message.toLowerCase().includes('database operation could not be completed')) {
+      return 'Please verify that all required details are entered accurately and try again.';
+    }
+    return message;
+  }
 
   if (Array.isArray(message)) {
     const parts = message
@@ -174,6 +185,15 @@ function extractMessage(parsed: unknown, status: number): string {
       .filter(Boolean) as string[];
     if (parts.length) return parts.join('\n');
   }
+
+  const errStr = (parsed as { error?: unknown }).error;
+  if (typeof errStr === 'string' && errStr) {
+    if (errStr.toLowerCase().includes('database')) {
+      return 'Please verify your entered details and try again.';
+    }
+    return errStr;
+  }
+
   return fallback;
 }
 

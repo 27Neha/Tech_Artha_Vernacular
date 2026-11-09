@@ -69,7 +69,7 @@ export const TransactionOtpModal = ({
     setSending(true);
     AsyncStorage.getItem('techartha_2fa_preferred_channel')
       .catch(() => null)
-      .then((savedChannel) => {
+      .then((savedChannel: any) => {
         const ch: 'SMS' | 'WHATSAPP' | 'EMAIL' =
           savedChannel === 'SMS' || savedChannel === 'EMAIL' || savedChannel === 'WHATSAPP'
             ? savedChannel
@@ -80,14 +80,14 @@ export const TransactionOtpModal = ({
           channel: payload.channel ?? ch,
         });
       })
-      .then((data) => {
+      .then((data: any) => {
         if (!active) return;
         setChallenge(data);
         // Mirrors the login screen: in development the server returns the code so the
         // flow can be exercised without waiting on delivery. Stripped from release.
         if (__DEV__ && data?.devOtp) setOtp(data.devOtp);
       })
-      .catch((e) => active && setError(e instanceof Error ? e.message : 'Could not send the code.'))
+      .catch((e: any) => active && setError(e instanceof Error ? e.message : 'Could not send the code.'))
       .finally(() => active && setSending(false));
     return () => {
       active = false;

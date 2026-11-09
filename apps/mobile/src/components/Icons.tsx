@@ -99,7 +99,6 @@ export const EditIcon = ({ color = '#3C3985', size = 14 }) => (
   </Svg>
 );
 
-
 export const CompassIcon = ({ color = '#9CA3AF', size = 24 }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <Circle cx="12" cy="12" r="10" />

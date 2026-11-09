@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, TextInput, Alert, Switch } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { authStore } from '../store/auth';
@@ -86,7 +85,7 @@ export const EditGoalScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['right', 'bottom', 'left']}>
+    <View style={styles.container}>
       <StatusBar style="dark" />
       <Header title={t('goals.editGoal', { defaultValue: 'Edit Goal' })} onBack={() => navigation.goBack()} />
       <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -220,7 +219,7 @@ export const EditGoalScreen = () => {
           <Text style={styles.primaryText}>{loading ? t('common.saving', { defaultValue: 'Saving...' }) : t('common.saveChanges', { defaultValue: 'Save Changes' })}</Text>
         </Pressable>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
