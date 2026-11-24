@@ -568,7 +568,7 @@ export const GoalSelectionScreen: React.FC = () => {
                 </View>
 
                 <View style={[styles.inputContainer, errors.inflationRate ? styles.inputError : null]}>
-                  <Ionicons name="trending-up-outline" size={20} color="#F7941E" style={{ marginRight: 8 }} />
+                  <Ionicons name="trending-up-outline" size={20} color="#F7941D" style={{ marginRight: 8 }} />
                   <TextInput
                     value={inflationRate}
                     onChangeText={(v) => {
@@ -592,7 +592,7 @@ export const GoalSelectionScreen: React.FC = () => {
               {Number(targetAmount) > 0 && Number(timePeriod) > 0 && (
                 <View style={styles.futureCard}>
                   <View style={styles.futureHeader}>
-                    <Ionicons name="calculator-outline" size={18} color="#3C3985" />
+                    <Ionicons name="calculator-outline" size={18} color="#36358D" />
                     <Text style={styles.futureHeaderTitle}>INFLATION-ADJUSTED TARGET</Text>
                   </View>
                   <Text style={styles.futureValueAmount}>
@@ -670,7 +670,7 @@ export const GoalSelectionScreen: React.FC = () => {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F8F9FD',
+    backgroundColor: '#F6F7FC',
   },
   scroll: {
     flex: 1,
@@ -685,16 +685,16 @@ const styles = StyleSheet.create({
   },
   stepBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#EBEBFA',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    backgroundColor: '#EEEDFA',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
     marginBottom: 8,
   },
   stepBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#3C3985',
+    color: '#36358D',
     letterSpacing: 0.8,
   },
   title: {
@@ -719,26 +719,26 @@ const styles = StyleSheet.create({
   card: {
     width: '48%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    borderRadius: 20,
     padding: 16,
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    borderColor: '#E6E8F6',
     shadowColor: '#102A54',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 2,
     justifyContent: 'space-between',
   },
   cardSelected: {
-    borderColor: '#3C3985',
-    backgroundColor: '#FAF5FF',
+    borderColor: '#36358D',
+    backgroundColor: '#EEEDFA',
   },
   iconCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#F8F9FD',
+    backgroundColor: '#F6F7FC',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
@@ -753,7 +753,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   nameSelected: {
-    color: '#3C3985',
+    color: '#36358D',
   },
   cardDesc: {
     fontSize: 11,
@@ -772,22 +772,22 @@ const styles = StyleSheet.create({
   selectText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#3C3985',
+    color: '#36358D',
   },
   selectedGoalBanner: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    borderRadius: 20,
     padding: 16,
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    borderColor: '#E6E8F6',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 18,
     shadowColor: '#102A54',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 2,
   },
   selectedGoalLeft: {
@@ -811,15 +811,15 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   changeGoalBtn: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#F0EFFB',
+    borderRadius: 10,
+    backgroundColor: '#EEEDFA',
   },
   changeGoalText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#3C3985',
+    color: '#36358D',
   },
   formGroup: {
     marginBottom: 18,
@@ -843,7 +843,7 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    borderColor: '#E6E8F6',
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -856,7 +856,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    borderColor: '#E6E8F6',
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 52,
@@ -868,7 +868,7 @@ const styles = StyleSheet.create({
   currencyPrefix: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#3C3985',
+    color: '#36358D',
     marginRight: 8,
   },
   unitSuffix: {
@@ -896,16 +896,16 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   chipPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 14,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E6E8F6',
   },
   chipPillActive: {
-    backgroundColor: '#3C3985',
-    borderColor: '#3C3985',
+    backgroundColor: '#36358D',
+    borderColor: '#36358D',
   },
   chipText: {
     fontSize: 11.5,
@@ -916,11 +916,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   futureCard: {
-    backgroundColor: '#FAF5FF',
-    borderRadius: 18,
+    backgroundColor: '#EEEDFA',
+    borderRadius: 20,
     padding: 18,
     borderWidth: 1.5,
-    borderColor: '#E9D5FF',
+    borderColor: '#D9D7F7',
     marginBottom: 18,
   },
   futureHeader: {
@@ -932,7 +932,7 @@ const styles = StyleSheet.create({
   futureHeaderTitle: {
     fontSize: 10,
     fontWeight: '900',
-    color: '#3C3985',
+    color: '#36358D',
     letterSpacing: 0.8,
   },
   futureValueAmount: {
@@ -948,10 +948,10 @@ const styles = StyleSheet.create({
   },
   adjustmentsContainer: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E6E8F6',
     marginBottom: 16,
   },
   adjustmentsHeader: {
@@ -968,7 +968,7 @@ const styles = StyleSheet.create({
   addAdjustmentText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#3C3985',
+    color: '#36358D',
   },
   adjustmentRow: {
     flexDirection: 'row',
@@ -984,12 +984,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: '#E6E8F6',
   },
   continueBtn: {
-    backgroundColor: '#3C3985',
+    backgroundColor: '#36358D',
     paddingVertical: 15,
-    borderRadius: 14,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },

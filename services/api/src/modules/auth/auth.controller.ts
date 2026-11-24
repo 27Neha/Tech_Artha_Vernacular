@@ -1,4 +1,5 @@
-import { Body, Controller, HttpCode, Post, Get, Put, UseGuards, BadRequestException } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, Get, Put, UseGuards, BadRequestException, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { AccessTokenGuard, CurrentUser } from '../../common/auth';
 import type { AuthenticatedUser } from '../../common/auth';
@@ -204,5 +205,44 @@ export class AuthController {
     body: { fullName?: string; dateOfBirth?: string; pan?: string; clientType?: string; referralCode?: string; gender?: string },
   ) {
     return this.authService.updateProfile(user.id, body);
+  }
+
+  private extractClientIp(req: Request): string | undefined {
+    const forwardedFor = req.headers['x-forwarded-for'];
+    return (
+      (Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor)?.split(',')[0]?.trim() ||
+      req.ip ||
+      undefined
+    );
+  }
+
+  @Post('forgot-password')
+  @HttpCode(200)
+  async forgotPassword(@Body() body: { email?: string }, @Req() req: Request) {
+    return this.authService.requestPasswordReset(body?.email ?? '', {
+      ip: this.extractClientIp(req),
+    });
+  }
+
+  @Post('verify-password-reset-otp')
+  @HttpCode(200)
+  async verifyPasswordResetOtp(
+    @Body() body: { email?: string; otp?: string },
+    @Req() req: Request,
+  ) {
+    return this.authService.verifyPasswordResetOtp(body?.email ?? '', body?.otp ?? '', {
+      ip: this.extractClientIp(req),
+    });
+  }
+
+  @Post('reset-password')
+  @HttpCode(200)
+  async resetPassword(
+    @Body() body: { resetAuthorization?: string; newPassword?: string },
+  ) {
+    return this.authService.resetPassword(
+      body?.resetAuthorization ?? '',
+      body?.newPassword ?? '',
+    );
   }
 }

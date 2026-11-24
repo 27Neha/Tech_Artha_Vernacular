@@ -37,12 +37,13 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
-    "dev": "EXPO_PUBLIC_API_URL=http://$(./scripts/dev-ip.sh):3000 expo start --clear",
-    "dev:localhost": "EXPO_PUBLIC_API_URL=http://localhost:3000 expo start --clear",
+    "start": "expo start --port 8081",
+    "start:shared": "expo start --port 8081 --tunnel",
+    "android": "expo start --port 8081 --android",
+    "ios": "expo start --port 8081 --ios",
+    "web": "expo start --port 8081 --web",
+    "dev": "EXPO_PUBLIC_API_URL=http://$(./scripts/dev-ip.sh):3000 expo start --port 8081 --clear",
+    "dev:localhost": "EXPO_PUBLIC_API_URL=http://localhost:3000 expo start --port 8081 --clear",
     "dev:ip": "./scripts/dev-ip.sh",
     "test": "jest",
     "test:watch": "jest --watch"

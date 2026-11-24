@@ -1,17 +1,18 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import './src/i18n/i18n';
-import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
-import { HomeIcon, TrendingIcon, WalletIcon, HeadsetIcon, UserIcon, CompassIcon, TargetIcon } from './src/components/Icons';
+import { HomeIcon, TrendingIcon, UserIcon, CompassIcon, TargetIcon } from './src/components/Icons';
 
 import { LanguageScreen } from './src/screens/LanguageScreen';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { SignupScreen } from './src/screens/SignupScreen';
+import { ForgotPasswordScreen } from './src/screens/ForgotPasswordScreen';
 import { KycScreen } from './src/screens/KycScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { ArthaVerseScreen } from './src/screens/ArthaVerseScreen';
@@ -57,14 +58,17 @@ import {
 export { navigationRef };
 
 import { API_URL } from './src/services/api/client';
-
 import { Header } from './src/components/Header';
+import { computeTabBarMetrics } from './src/utils/tabBarMetrics';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function MainTabs({ route }: any) {
   const { name } = route?.params || {};
+  const insets = useSafeAreaInsets();
+  const tabBarMetrics = computeTabBarMetrics(insets);
+
   return (
     <Tab.Navigator
       backBehavior="history"
@@ -78,12 +82,21 @@ function MainTabs({ route }: any) {
         header: () => <Header route={tabRoute} />,
         tabBarActiveTintColor: '#36358D',
         tabBarInactiveTintColor: '#94A3B8',
-        tabBarShowLabel: false,
+        tabBarShowLabel: true,
+        tabBarHideOnKeyboard: true,
+        tabBarLabelPosition: 'below-icon',
+        tabBarItemStyle: {
+          flex: 1,
+          minWidth: 0,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingVertical: 2,
+        },
         tabBarStyle: {
-          height: 84,
-          paddingHorizontal: 16,
-          paddingTop: 10,
-          paddingBottom: 22,
+          height: tabBarMetrics.totalHeight,
+          paddingHorizontal: tabBarMetrics.paddingHorizontal,
+          paddingTop: tabBarMetrics.paddingTop,
+          paddingBottom: tabBarMetrics.paddingBottom,
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
           borderTopColor: '#EDF2F7',
@@ -95,7 +108,6 @@ function MainTabs({ route }: any) {
         },
         tabBarIcon: ({ focused }) => {
           let IconComponent;
-          const label = tabRoute.name;
           if (tabRoute.name === 'Home') IconComponent = HomeIcon;
           else if (tabRoute.name === 'Explore') IconComponent = CompassIcon;
           else if (tabRoute.name === 'Goals') IconComponent = TargetIcon;
@@ -103,33 +115,38 @@ function MainTabs({ route }: any) {
           else if (tabRoute.name === 'Profile') IconComponent = UserIcon;
           else IconComponent = HomeIcon;
 
-          return (
-            <View style={{ alignItems: 'center', justifyContent: 'center', width: 64 }}>
-              <IconComponent color={focused ? '#36358D' : '#94A3B8'} size={24} />
-              <Text
-                style={{
-                  marginTop: 3,
-                  fontSize: 11,
-                  fontWeight: focused ? '800' : '600',
-                  color: focused ? '#36358D' : '#94A3B8',
-                }}
-              >
-                {label}
-              </Text>
-              {focused && (
-                <View
-                  style={{
-                    width: 4,
-                    height: 4,
-                    borderRadius: 2,
-                    backgroundColor: '#F7941D',
-                    marginTop: 3,
-                  }}
-                />
-              )}
-            </View>
-          );
+          return <IconComponent color={focused ? '#36358D' : '#94A3B8'} size={22} />;
         },
+        tabBarLabel: ({ focused, color }) => (
+          <View style={{ alignItems: 'center', maxWidth: '100%', paddingHorizontal: 2 }}>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.78}
+              maxFontSizeMultiplier={1.25}
+              allowFontScaling
+              style={{
+                fontSize: 11,
+                lineHeight: 14,
+                fontWeight: focused ? '800' : '600',
+                color,
+                includeFontPadding: false,
+                textAlign: 'center',
+              }}
+            >
+              {tabRoute.name === 'Explore' ? 'ArthaVerse' : tabRoute.name}
+            </Text>
+            <View
+              style={{
+                width: 4,
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: focused ? '#F7941D' : 'transparent',
+                marginTop: 2,
+              }}
+            />
+          </View>
+        ),
       })}
     >
       <Tab.Screen name="Home">
@@ -183,6 +200,7 @@ function RootNavigator() {
       <Stack.Screen name="Login">
         {(props) => <LoginScreen {...props} apiUrl={API_URL} />}
       </Stack.Screen>
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
       <Stack.Screen name="ParentalApproval" component={ParentalApprovalScreen} />
       <Stack.Screen name="KYC">

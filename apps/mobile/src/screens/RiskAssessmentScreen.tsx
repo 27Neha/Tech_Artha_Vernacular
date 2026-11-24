@@ -147,7 +147,7 @@ export const RiskAssessmentScreen = () => {
   if (submitting) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3C3985" />
+        <ActivityIndicator size="large" color="#36358D" />
         <Text style={styles.loadingText}>{t('risk.calc', { defaultValue: 'Analyzing your profile with TechArtha Bot...' })}</Text>
       </View>
     );
@@ -163,7 +163,7 @@ export const RiskAssessmentScreen = () => {
         <View style={styles.headerTop}>
           <View style={styles.headerBotInfo}>
             <View style={styles.headerAvatar}>
-              <HeadsetIcon color="#3C3985" size={20} />
+              <HeadsetIcon color="#36358D" size={20} />
             </View>
             <View>
               <Text style={styles.headerTitle}>TechArtha Risk Profiler</Text>
@@ -193,7 +193,7 @@ export const RiskAssessmentScreen = () => {
         {/* Intro Greeting */}
         <View style={styles.botRow}>
           <View style={styles.botAvatarSmall}>
-            <HeadsetIcon color="#3C3985" size={16} />
+            <HeadsetIcon color="#36358D" size={16} />
           </View>
           <View style={styles.botBubble}>
             <Text style={styles.botText}>
@@ -210,7 +210,7 @@ export const RiskAssessmentScreen = () => {
               {/* Bot question */}
               <View style={styles.botRow}>
                 <View style={styles.botAvatarSmall}>
-                  <HeadsetIcon color="#3C3985" size={16} />
+                  <HeadsetIcon color="#36358D" size={16} />
                 </View>
                 <View style={styles.botBubble}>
                   <Text style={styles.questionIndexLabel}>Question {item.questionIndex + 1} of {questions.length}</Text>
@@ -232,7 +232,7 @@ export const RiskAssessmentScreen = () => {
                       hitSlop={10}
                       accessibilityLabel="Edit answer"
                     >
-                      <EditIcon color="#3C3985" size={11} />
+                      <EditIcon color="#36358D" size={11} />
                     </Pressable>
                   </View>
                 </View>
@@ -249,7 +249,7 @@ export const RiskAssessmentScreen = () => {
           <View style={styles.activeTurn}>
             <View style={styles.botRow}>
               <View style={styles.botAvatarSmall}>
-                <HeadsetIcon color="#3C3985" size={16} />
+                <HeadsetIcon color="#36358D" size={16} />
               </View>
               <View style={styles.botBubble}>
                 <Text style={styles.questionIndexLabel}>
@@ -291,10 +291,10 @@ export const RiskAssessmentScreen = () => {
         {isBotTyping && (
           <View style={styles.botRow}>
             <View style={styles.botAvatarSmall}>
-              <HeadsetIcon color="#3C3985" size={16} />
+              <HeadsetIcon color="#36358D" size={16} />
             </View>
             <View style={[styles.botBubble, styles.typingBubble]}>
-              <ActivityIndicator size="small" color="#3C3985" />
+              <ActivityIndicator size="small" color="#36358D" />
               <Text style={styles.typingText}>TechArtha Bot is preparing the next question...</Text>
             </View>
           </View>
@@ -305,46 +305,46 @@ export const RiskAssessmentScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8F9FB' },
-  loadingContainer: { flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  loadingText: { color: '#3C3985', fontWeight: '700', fontSize: 16, marginTop: 16, textAlign: 'center' },
-  header: { backgroundColor: '#3C3985', paddingTop: 12, paddingBottom: 16, paddingHorizontal: 20 },
+  safe: { flex: 1, backgroundColor: '#F6F7FC' },
+  loadingContainer: { flex: 1, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  loadingText: { color: '#36358D', fontWeight: '800', fontSize: 16, marginTop: 16, textAlign: 'center' },
+  header: { backgroundColor: '#36358D', paddingTop: 14, paddingBottom: 18, paddingHorizontal: 20 },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   headerBotInfo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { color: '#fff', fontSize: 16, fontWeight: '800' },
-  headerSubtitle: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '600' },
+  headerAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '900', letterSpacing: -0.2 },
+  headerSubtitle: { color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '600' },
   badge: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  badgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  progressBg: { height: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: '#F7941E', borderRadius: 3 },
+  badgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
+  progressBg: { height: 6, backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: '#F7941D', borderRadius: 3 },
   chatScroll: { padding: 16, paddingBottom: 40 },
   messageTurn: { marginBottom: 16 },
   activeTurn: { marginBottom: 16 },
   botRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 10, maxWidth: '88%' },
-  botAvatarSmall: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#EBEBFA', alignItems: 'center', justifyContent: 'center', marginTop: 2 },
-  botBubble: { backgroundColor: '#fff', padding: 14, borderRadius: 16, borderTopLeftRadius: 4, borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
-  questionIndexLabel: { fontSize: 11, fontWeight: '800', color: '#F7941E', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 0.5 },
+  botAvatarSmall: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#EEEDFA', alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  botBubble: { backgroundColor: '#FFFFFF', padding: 14, borderRadius: 18, borderTopLeftRadius: 4, borderWidth: 1, borderColor: '#E6E8F6', shadowColor: '#102A54', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
+  questionIndexLabel: { fontSize: 10.5, fontWeight: '800', color: '#F7941D', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 0.5 },
   botText: { color: '#102A54', fontSize: 15, lineHeight: 22, fontWeight: '600' },
   
-  // User side styling (clean white/neutral card with border, matching bot side, with user avatar)
+  // User side styling
   userRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'flex-end', gap: 8, marginTop: 6, marginBottom: 12 },
-  userAvatarSmall: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#EDF2F7', alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  userAvatarSmall: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#EEEDFA', alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   userBubbleWrapper: { alignItems: 'flex-end', maxWidth: '82%' },
-  userBubble: { backgroundColor: '#FFFFFF', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 16, borderTopRightRadius: 4, borderWidth: 1.5, borderColor: '#CBD5E1', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1, minWidth: 110, paddingBottom: 10, paddingRight: 26, position: 'relative' },
+  userBubble: { backgroundColor: '#FFFFFF', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 18, borderTopRightRadius: 4, borderWidth: 1.5, borderColor: '#E6E8F6', shadowColor: '#102A54', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, minWidth: 110, paddingBottom: 10, paddingRight: 26, position: 'relative' },
   userRoleLabel: { fontSize: 10, fontWeight: '800', color: '#64748B', textTransform: 'uppercase', marginBottom: 2, textAlign: 'right' },
-  userText: { color: '#0F172A', fontSize: 15, fontWeight: '700', lineHeight: 21 },
-  editIconBtn: { position: 'absolute', right: 6, bottom: 6, width: 18, height: 18, borderRadius: 9, backgroundColor: '#F0EFFB', borderWidth: 1, borderColor: '#D4D2F5', alignItems: 'center', justifyContent: 'center' },
-  editIconBtnPressed: { backgroundColor: '#D4D2F5', opacity: 0.8 },
+  userText: { color: '#102A54', fontSize: 15, fontWeight: '700', lineHeight: 21 },
+  editIconBtn: { position: 'absolute', right: 6, bottom: 6, width: 20, height: 20, borderRadius: 10, backgroundColor: '#EEEDFA', borderWidth: 1, borderColor: '#D9D7F7', alignItems: 'center', justifyContent: 'center' },
+  editIconBtnPressed: { backgroundColor: '#D9D7F7', opacity: 0.8 },
   
   optionsContainer: { marginLeft: 38, marginTop: 4, gap: 8 },
   optionsHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  tapInstruction: { fontSize: 12, color: '#718096', fontWeight: '700' },
-  optionCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: '#E2E8F0' },
-  optionCardPressed: { borderColor: '#3C3985', backgroundColor: '#F0EFFF' },
-  optionLetter: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#F0F3F8', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  optionLetterText: { fontSize: 13, fontWeight: '800', color: '#3C3985' },
-  optionLabel: { flex: 1, fontSize: 14, fontWeight: '600', color: '#102A54' },
+  tapInstruction: { fontSize: 12, color: '#64748B', fontWeight: '700' },
+  optionCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 14, borderRadius: 16, borderWidth: 1.5, borderColor: '#E6E8F6', shadowColor: '#102A54', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
+  optionCardPressed: { borderColor: '#36358D', backgroundColor: '#EEEDFA' },
+  optionLetter: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#EEEDFA', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  optionLetterText: { fontSize: 13, fontWeight: '800', color: '#36358D' },
+  optionLabel: { flex: 1, fontSize: 14, fontWeight: '700', color: '#102A54' },
   typingBubble: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14 },
-  typingText: { fontSize: 13, color: '#718096', fontWeight: '600' },
+  typingText: { fontSize: 13, color: '#64748B', fontWeight: '600' },
 });

@@ -331,188 +331,194 @@ export default function SignupPage() {
             Join thousands of goal-based investors across India.
           </p>
 
-          {termsWarning && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 animate-fade-in">
-              <span className="text-xl">⚠️</span>
-              <p className="text-sm font-bold text-red-600 leading-snug">{termsWarning}</p>
-            </div>
-          )}
-
-          {authChannel === 'EMAIL' ? (
-            <div className="flex flex-col w-full">
-              <div className="mb-6">
-                <label className="label text-sm text-gray-700 font-semibold mb-2 block">
-                  {t('signup.emailAddress', { defaultValue: 'Email Address' })}
-                </label>
-                <input
-                  type="email"
-                  ref={emailInputRef}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t('signup.emailPlaceholder', { defaultValue: 'name@example.com' })}
-                  className="w-full p-4 border border-gray-200 rounded-xl focus:border-[#3C3985] focus:ring-1 focus:ring-[#3C3985] outline-none transition-colors"
-                />
-                {validationError && <p className="text-red-500 text-xs mt-2 font-medium">{validationError}</p>}
-              </div>
-
-              {accountExistsWarning && (
-                <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col items-center justify-center text-center">
-                  <p className="text-sm text-amber-900 mb-2 font-medium">
-                    {t('signup.emailExists', { defaultValue: 'This email is already registered. Please log in instead.' })}
+          {(() => {
+            const termsCheckboxBlock = (
+              <div className={`mt-1 mb-5 p-3 rounded-xl border ${termsWarning ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
+                {termsWarning && (
+                  <p className="text-xs font-bold text-red-600 mb-2 flex items-center gap-1.5">
+                    <span>⚠️</span>
+                    <span>{termsWarning}</span>
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => router.push('/login')}
-                    className="text-sm font-bold text-[#3C3985] hover:underline"
-                  >
-                    {t('signup.goToLogin', { defaultValue: 'Go to Login' })} →
-                  </button>
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={() => handleContinue('EMAIL')}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-3 py-4 rounded-xl font-bold text-lg text-white bg-[#3C3985] hover:bg-[#322f73] transition-all shadow-sm mb-4"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                  <polyline points="22,6 12,13 2,6"></polyline>
-                </svg>
-                <span>{t('signup.continueWithEmail', { defaultValue: 'Continue with Email' })}</span>
-                <span>→</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthChannel('WHATSAPP');
-                  setValidationError('');
-                  setTermsWarning('');
-                }}
-                className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors shadow-sm mb-4"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
-                </svg>
-                {t('signup.useWaInstead', { defaultValue: 'Continue with WhatsApp instead' })}
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col w-full">
-              <div className="mb-6">
-                <label className="label text-sm text-gray-700 font-semibold mb-2 block">
-                  {t('signup.mobileNumber', { defaultValue: 'WhatsApp Mobile Number' })}
-                </label>
-                <div className="flex w-full">
-                  <div className="flex-shrink-0 flex items-center justify-center px-4 border border-gray-200 border-r-0 rounded-l-xl bg-gray-50 text-gray-600 font-semibold">
-                    +91
-                  </div>
+                )}
+                <div className="flex items-start gap-3 select-none">
                   <input
-                    type="tel"
-                    ref={mobileInputRef}
-                    value={mobile}
-                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                    placeholder={t('signup.mobilePlaceholder', { defaultValue: 'Enter 10-digit mobile number' })}
-                    className="w-full p-4 border border-gray-200 rounded-r-xl focus:border-[#3C3985] focus:ring-1 focus:ring-[#3C3985] outline-none transition-colors"
-                    maxLength={10}
-                    inputMode="numeric"
+                    type="checkbox"
+                    id="signup-terms"
+                    checked={acceptedTerms}
+                    onChange={(e) => {
+                      setAcceptedTerms(e.target.checked);
+                      if (e.target.checked) setTermsWarning('');
+                    }}
+                    className={`mt-1 h-5 w-5 rounded border text-[#3C3985] focus:ring-[#3C3985] cursor-pointer ${
+                      termsWarning ? 'border-red-500' : 'border-gray-300'
+                    }`}
                   />
+                  <div className="text-xs sm:text-sm text-gray-600 leading-snug">
+                    <label htmlFor="signup-terms" className="cursor-pointer">
+                      {t('signup.termsPrefix', { defaultValue: 'I agree to the ' })}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setTermsModalOpen(true)}
+                      className="font-semibold text-gray-900 underline hover:text-[#3C3985] transition-colors inline"
+                    >
+                      {t('signup.termsOfService', { defaultValue: 'Terms of Service' })}
+                    </button>
+                    <span>{` ${t('signup.and', { defaultValue: 'and' })} `}</span>
+                    <button
+                      type="button"
+                      onClick={() => setPrivacyPolicyModalOpen(true)}
+                      className="font-semibold text-gray-900 underline hover:text-[#3C3985] transition-colors inline"
+                    >
+                      {t('signup.privacyPolicy', { defaultValue: 'Privacy Policy' })}
+                    </button>
+                  </div>
                 </div>
-                {validationError && <p className="text-red-500 text-xs mt-2 font-medium">{validationError}</p>}
               </div>
+            );
 
-              {accountExistsWarning && (
-                <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col items-center justify-center text-center">
-                  <p className="text-sm text-amber-900 mb-2 font-medium">
-                    {t('signup.mobileExists', { defaultValue: 'This mobile number is already registered. Please log in instead.' })}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => router.push('/login')}
-                    className="text-sm font-bold text-[#3C3985] hover:underline"
-                  >
-                    {t('signup.goToLogin', { defaultValue: 'Go to Login' })} →
-                  </button>
+            return authChannel === 'EMAIL' ? (
+              <div className="flex flex-col w-full">
+                <div className="mb-5">
+                  <label className="label text-sm text-gray-700 font-semibold mb-2 block">
+                    {t('signup.emailAddress', { defaultValue: 'Email Address' })}
+                  </label>
+                  <input
+                    type="email"
+                    ref={emailInputRef}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={t('signup.emailPlaceholder', { defaultValue: 'name@example.com' })}
+                    className="w-full p-4 border border-gray-200 rounded-xl focus:border-[#3C3985] focus:ring-1 focus:ring-[#3C3985] outline-none transition-colors"
+                  />
+                  {validationError && <p className="text-red-500 text-xs mt-2 font-medium">{validationError}</p>}
                 </div>
-              )}
 
-              <button
-                type="button"
-                onClick={() => handleContinue('WHATSAPP')}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-3 py-4 rounded-xl font-bold text-lg text-white bg-[#25D366] hover:bg-[#20ba5a] transition-all shadow-sm mb-4"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
-                </svg>
-                <span>{t('signup.continueWithWa', { defaultValue: 'Continue with WhatsApp' })}</span>
-                <span>→</span>
-              </button>
+                {accountExistsWarning && (
+                  <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col items-center justify-center text-center">
+                    <p className="text-sm text-amber-900 mb-2 font-medium">
+                      {t('signup.emailExists', { defaultValue: 'This email is already registered. Please log in instead.' })}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => router.push('/login')}
+                      className="text-sm font-bold text-[#3C3985] hover:underline"
+                    >
+                      {t('signup.goToLogin', { defaultValue: 'Go to Login' })} →
+                    </button>
+                  </div>
+                )}
 
-              <div className="relative flex items-center justify-center my-2 mb-4">
-                <div className="border-t border-gray-200 w-full absolute"></div>
-                <span className="bg-white px-4 text-gray-400 text-xs font-semibold relative">
-                  {t('signup.or', { defaultValue: 'OR' })}
-                </span>
-              </div>
+                {termsCheckboxBlock}
 
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthChannel('EMAIL');
-                  setValidationError('');
-                  setTermsWarning('');
-                }}
-                className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors shadow-sm mb-4"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3C3985" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                  <polyline points="22,6 12,13 2,6"></polyline>
-                </svg>
-                {t('signup.useEmailInstead', { defaultValue: 'Continue with Email' })}
-              </button>
-            </div>
-          )}
-
-          {/* Terms & Conditions Checkbox */}
-          <div className="mt-2 mb-6">
-            <div className="flex items-start gap-3 select-none">
-              <input
-                type="checkbox"
-                id="signup-terms"
-                checked={acceptedTerms}
-                onChange={(e) => {
-                  setAcceptedTerms(e.target.checked);
-                  if (e.target.checked) setTermsWarning('');
-                }}
-                className={`mt-1 h-5 w-5 rounded border text-[#3C3985] focus:ring-[#3C3985] cursor-pointer ${
-                  termsWarning ? 'border-red-500' : 'border-gray-300'
-                }`}
-              />
-              <div className="text-xs sm:text-sm text-gray-600 leading-snug">
-                <label htmlFor="signup-terms" className="cursor-pointer">
-                  {t('signup.termsPrefix', { defaultValue: 'I agree to the ' })}
-                </label>
                 <button
                   type="button"
-                  onClick={() => setTermsModalOpen(true)}
-                  className="font-semibold text-gray-900 underline hover:text-[#3C3985] transition-colors inline"
+                  onClick={() => handleContinue('EMAIL')}
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-3 py-4 rounded-xl font-bold text-lg text-white bg-[#3C3985] hover:bg-[#322f73] transition-all shadow-sm mb-4"
                 >
-                  {t('signup.termsOfService', { defaultValue: 'Terms of Service' })}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                  </svg>
+                  <span>{t('signup.continueWithEmail', { defaultValue: 'Continue with Email' })}</span>
+                  <span>→</span>
                 </button>
-                <span>{` ${t('signup.and', { defaultValue: 'and' })} `}</span>
+
                 <button
                   type="button"
-                  onClick={() => setPrivacyPolicyModalOpen(true)}
-                  className="font-semibold text-gray-900 underline hover:text-[#3C3985] transition-colors inline"
+                  onClick={() => {
+                    setAuthChannel('WHATSAPP');
+                    setValidationError('');
+                    setTermsWarning('');
+                  }}
+                  className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors shadow-sm mb-4"
                 >
-                  {t('signup.privacyPolicy', { defaultValue: 'Privacy Policy' })}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                  </svg>
+                  {t('signup.useWaInstead', { defaultValue: 'Continue with WhatsApp instead' })}
                 </button>
               </div>
-            </div>
-          </div>
+            ) : (
+              <div className="flex flex-col w-full">
+                <div className="mb-5">
+                  <label className="label text-sm text-gray-700 font-semibold mb-2 block">
+                    {t('signup.mobileNumber', { defaultValue: 'WhatsApp Mobile Number' })}
+                  </label>
+                  <div className="flex w-full">
+                    <div className="flex-shrink-0 flex items-center justify-center px-4 border border-gray-200 border-r-0 rounded-l-xl bg-gray-50 text-gray-600 font-semibold">
+                      +91
+                    </div>
+                    <input
+                      type="tel"
+                      ref={mobileInputRef}
+                      value={mobile}
+                      onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      placeholder={t('signup.mobilePlaceholder', { defaultValue: 'Enter 10-digit mobile number' })}
+                      className="w-full p-4 border border-gray-200 rounded-r-xl focus:border-[#3C3985] focus:ring-1 focus:ring-[#3C3985] outline-none transition-colors"
+                      maxLength={10}
+                      inputMode="numeric"
+                    />
+                  </div>
+                  {validationError && <p className="text-red-500 text-xs mt-2 font-medium">{validationError}</p>}
+                </div>
+
+                {accountExistsWarning && (
+                  <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col items-center justify-center text-center">
+                    <p className="text-sm text-amber-900 mb-2 font-medium">
+                      {t('signup.mobileExists', { defaultValue: 'This mobile number is already registered. Please log in instead.' })}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => router.push('/login')}
+                      className="text-sm font-bold text-[#3C3985] hover:underline"
+                    >
+                      {t('signup.goToLogin', { defaultValue: 'Go to Login' })} →
+                    </button>
+                  </div>
+                )}
+
+                {termsCheckboxBlock}
+
+                <button
+                  type="button"
+                  onClick={() => handleContinue('WHATSAPP')}
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-3 py-4 rounded-xl font-bold text-lg text-white bg-[#25D366] hover:bg-[#20ba5a] transition-all shadow-sm mb-4"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                  </svg>
+                  <span>{t('signup.continueWithWa', { defaultValue: 'Continue with WhatsApp' })}</span>
+                  <span>→</span>
+                </button>
+
+                <div className="relative flex items-center justify-center my-2 mb-4">
+                  <div className="border-t border-gray-200 w-full absolute"></div>
+                  <span className="bg-white px-4 text-gray-400 text-xs font-semibold relative">
+                    {t('signup.or', { defaultValue: 'OR' })}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthChannel('EMAIL');
+                    setValidationError('');
+                    setTermsWarning('');
+                  }}
+                  className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors shadow-sm mb-4"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3C3985" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                  </svg>
+                  {t('signup.useEmailInstead', { defaultValue: 'Continue with Email' })}
+                </button>
+              </div>
+            );
+          })()}
         </div>
       )}
 

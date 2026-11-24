@@ -167,6 +167,7 @@ export const EditProfileScreen = () => {
       <Header title="Edit Profile" />
 
       <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+        <Text style={[styles.headerTitle, { marginTop: 16, marginBottom: 4 }]}>Edit Profile</Text>
         <Text style={styles.label}>Full name (as on PAN)</Text>
         <TextInput value={fullName} onChangeText={setFullName} autoCapitalize="words" style={styles.input} />
 
@@ -285,25 +286,25 @@ export const EditProfileScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FB' },
+  container: { flex: 1, backgroundColor: '#F6F7FC' },
   centre: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: { padding: 24, paddingTop: 60, paddingBottom: 12 },
   headerTitle: { color: '#102A54', fontSize: 24, fontWeight: '800' },
   content: { paddingHorizontal: 20 },
-  label: { fontSize: 13, color: '#4A5568', fontWeight: '600', marginTop: 18, marginBottom: 6 },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, height: 52, paddingHorizontal: 16, fontSize: 16, color: '#102A54' },
-  readonly: { backgroundColor: '#EDF2F7', borderRadius: 12, height: 52, paddingHorizontal: 16, justifyContent: 'center' },
-  readonlyText: { color: '#4A5568', fontSize: 16, fontWeight: '600' },
-  hint: { color: '#718096', fontSize: 11, marginTop: 6, lineHeight: 16 },
-  verifiedRow: { backgroundColor: '#EDF7EE', borderWidth: 1, borderColor: '#BFE3C2', borderRadius: 12, minHeight: 52, paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  verifiedText: { color: '#102A54', fontSize: 15, fontWeight: '600', flexShrink: 1 },
-  verifiedBadge: { color: '#2F7D32', fontSize: 11, fontWeight: '800', letterSpacing: 0.4 },
-  smallButton: { backgroundColor: '#3C3985', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center', marginTop: 12 },
-  smallButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  linkText: { color: '#3C3985', fontSize: 13, fontWeight: '600', textAlign: 'center', marginTop: 12 },
-  button: { backgroundColor: '#3C3985', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 32 },
-  buttonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  outlineButton: { padding: 16, borderRadius: 12, alignItems: 'center', borderWidth: 2, borderColor: '#3C3985', marginTop: 12, marginBottom: 40 },
-  outlineText: { color: '#3C3985', fontSize: 15, fontWeight: '700' },
+  label: { fontSize: 13, color: '#102A54', fontWeight: '800', marginTop: 18, marginBottom: 6 },
+  input: { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E6E8F6', borderRadius: 14, height: 52, paddingHorizontal: 16, fontSize: 15, color: '#102A54', fontWeight: '700' },
+  readonly: { backgroundColor: '#F1F3F9', borderRadius: 14, height: 52, paddingHorizontal: 16, justifyContent: 'center', borderWidth: 1, borderColor: '#E6E8F6' },
+  readonlyText: { color: '#64748B', fontSize: 15, fontWeight: '700' },
+  hint: { color: '#64748B', fontSize: 11, marginTop: 6, lineHeight: 16 },
+  verifiedRow: { backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0', borderRadius: 14, minHeight: 52, paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  verifiedText: { color: '#102A54', fontSize: 15, fontWeight: '700', flexShrink: 1 },
+  verifiedBadge: { color: '#059669', fontSize: 11, fontWeight: '800', letterSpacing: 0.4 },
+  smallButton: { backgroundColor: '#36358D', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center', marginTop: 12 },
+  smallButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  linkText: { color: '#36358D', fontSize: 13, fontWeight: '700', textAlign: 'center', marginTop: 12 },
+  button: { backgroundColor: '#36358D', padding: 16, borderRadius: 16, alignItems: 'center', marginTop: 32 },
+  buttonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  outlineButton: { padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1.5, borderColor: '#E6E8F6', backgroundColor: '#FFFFFF', marginTop: 12, marginBottom: 40 },
+  outlineText: { color: '#102A54', fontSize: 15, fontWeight: '800' },
   disabled: { opacity: 0.5 },
 });

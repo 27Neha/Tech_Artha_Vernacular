@@ -165,9 +165,10 @@ export const RiskometerGauge: React.FC<RiskometerGaugeProps> = ({
 
       {/* 5 Category Labels Row */}
       {showLabels && (
-        <View style={[styles.labelsRow, { width: width - 8 }]}>
+        <View style={[styles.labelsRow, { width: Math.max(width, 286) }]}>
           {RISK_CATEGORIES.map((catItem) => {
             const isSelected = catItem.key === normalizedCat;
+            const textLabel = size < 265 ? (catItem.shortLabel || catItem.label) : catItem.label;
             return (
               <View key={catItem.key} style={styles.labelCol}>
                 <View style={[styles.indicatorDot, { backgroundColor: catItem.color }, isSelected && styles.activeDot]} />
@@ -176,9 +177,11 @@ export const RiskometerGauge: React.FC<RiskometerGaugeProps> = ({
                     styles.labelText,
                     isSelected && { color: catItem.color, fontWeight: '800' },
                   ]}
-                  numberOfLines={2}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
                 >
-                  {catItem.label}
+                  {textLabel}
                 </Text>
               </View>
             );

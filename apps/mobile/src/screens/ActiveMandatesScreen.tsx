@@ -122,7 +122,7 @@ export const ActiveMandatesScreen = () => {
         </Text>
 
         {loading ? (
-          <ActivityIndicator color="#3C3985" style={{ marginTop: 32 }} />
+          <ActivityIndicator color="#36358D" style={{ marginTop: 32 }} />
         ) : (
           <>
             {data?.message ? (
@@ -177,23 +177,45 @@ export const ActiveMandatesScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8F9FB' },
+  safe: { flex: 1, backgroundColor: '#F6F7FC' },
   page: { padding: 20, paddingBottom: 48, gap: 16 },
-  intro: { color: '#4A5568', fontSize: 13, lineHeight: 20 },
-  notice: { backgroundColor: '#FFFAF0', borderColor: '#FBD38D', borderWidth: 1, borderRadius: 12, padding: 14 },
-  noticeText: { color: '#C05621', fontSize: 13, lineHeight: 19 },
-  card: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', padding: 18, gap: 6 },
+  intro: { color: '#475569', fontSize: 13, lineHeight: 20 },
+  notice: { backgroundColor: '#FFFBEB', borderColor: '#FDE68A', borderWidth: 1, borderRadius: 14, padding: 14 },
+  noticeText: { color: '#B45309', fontSize: 13, lineHeight: 19, fontWeight: '600' },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E6E8F6',
+    padding: 18,
+    gap: 8,
+    shadowColor: '#102A54',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardTitle: { color: '#102A54', fontSize: 16, fontWeight: '800' },
-  badge: { fontSize: 11, fontWeight: '800', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, overflow: 'hidden' },
-  ok: { backgroundColor: '#E6F6EC', color: '#2F7D32' },
-  wait: { backgroundColor: '#FFF6E5', color: '#B7791F' },
-  bad: { backgroundColor: '#FDECEC', color: '#C53030' },
-  meta: { color: '#4A5568', fontSize: 13 },
-  label: { color: '#4A5568', fontSize: 13, fontWeight: '600', marginTop: 12, marginBottom: 6 },
-  input: { backgroundColor: '#F8F9FB', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, height: 50, paddingHorizontal: 14, fontSize: 16, color: '#102A54' },
-  hint: { color: '#718096', fontSize: 11, marginTop: 4, lineHeight: 16 },
-  button: { backgroundColor: '#3C3985', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 12 },
-  buttonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  badge: { fontSize: 11, fontWeight: '800', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, overflow: 'hidden' },
+  ok: { backgroundColor: '#ECFDF5', color: '#059669' },
+  wait: { backgroundColor: '#FFFBEB', color: '#D97706' },
+  bad: { backgroundColor: '#FEF2F2', color: '#DC2626' },
+  meta: { color: '#64748B', fontSize: 13, fontWeight: '500' },
+  label: { color: '#102A54', fontSize: 13, fontWeight: '800', marginTop: 12, marginBottom: 6 },
+  input: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E6E8F6',
+    borderRadius: 14,
+    height: 50,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    color: '#102A54',
+    fontWeight: '700',
+  },
+  hint: { color: '#64748B', fontSize: 11, marginTop: 4, lineHeight: 16 },
+  button: { backgroundColor: '#36358D', paddingVertical: 14, borderRadius: 16, alignItems: 'center', marginTop: 12 },
+  buttonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   disabled: { opacity: 0.5 },
 });

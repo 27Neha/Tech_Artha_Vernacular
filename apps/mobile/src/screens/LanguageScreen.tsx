@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, Image } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
@@ -51,7 +51,7 @@ export const LanguageScreen = () => {
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           
           <View style={styles.logoWrapper}>
-            <Image source={require('../../assets/logo.png')} style={styles.logoImage} resizeMode="contain" />
+            <TechArthaLogo size="large" />
           </View>
 
           <View style={styles.pillContainer}>
@@ -107,7 +107,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { padding: 20, paddingTop: 32, paddingBottom: 110 },
   logoWrapper: { alignItems: 'center', marginBottom: 20, marginTop: 8 },
-  logoImage: { height: 40, width: 180 },
   pillContainer: { alignItems: 'center', marginBottom: 14 },
   pill: { backgroundColor: '#EEF0FB', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: '#E0E3FA' },
   pillText: { color: '#36358D', fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },

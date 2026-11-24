@@ -64,7 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <TranslationProvider>
           <GoogleTranslateWidget />
           <GlobalHeader />
-          <div className="max-w-md mx-auto min-h-screen relative pt-[calc(3.5rem+env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)] flex flex-col">
+          <div className="ta-app-container">
             {children}
           </div>
         </TranslationProvider>

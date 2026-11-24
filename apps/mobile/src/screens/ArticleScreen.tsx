@@ -149,19 +149,19 @@ export const ArticleScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fff' },
+  safe: { flex: 1, backgroundColor: '#FFFFFF' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  notFound: { fontSize: 18, color: '#718096' },
+  notFound: { fontSize: 18, color: '#64748B' },
   scrollView: { flex: 1 },
-  headerArea: { backgroundColor: '#F8F9FB', padding: 24, paddingBottom: 40, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, marginBottom: 24 },
-  tagWrapper: { backgroundColor: '#EBEBFA', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, alignSelf: 'flex-start', marginBottom: 16 },
-  tagText: { color: '#3C3985', fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 },
-  title: { fontSize: 32, fontWeight: '800', color: '#102A54', lineHeight: 40, marginBottom: 16 },
+  headerArea: { backgroundColor: '#F6F7FC', padding: 24, paddingBottom: 36, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, marginBottom: 20, borderWidth: 1, borderColor: '#E6E8F6' },
+  tagWrapper: { backgroundColor: '#EEEDFA', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, alignSelf: 'flex-start', marginBottom: 14 },
+  tagText: { color: '#36358D', fontSize: 11.5, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8 },
+  title: { fontSize: 26, fontWeight: '900', color: '#102A54', lineHeight: 34, marginBottom: 14, letterSpacing: -0.3 },
   metaRow: { flexDirection: 'row', alignItems: 'center' },
-  metaText: { color: '#3C3985', fontWeight: '700', fontSize: 14 },
-  metaDot: { color: '#3C3985', marginHorizontal: 8, fontWeight: '700' },
+  metaText: { color: '#36358D', fontWeight: '800', fontSize: 13 },
+  metaDot: { color: '#36358D', marginHorizontal: 8, fontWeight: '800' },
   contentArea: { padding: 24, paddingBottom: 60 },
-  paragraph: { fontSize: 16, lineHeight: 26, color: '#4A5568', marginBottom: 24 },
+  paragraph: { fontSize: 15, lineHeight: 24, color: '#475569', marginBottom: 20 },
   bold: { fontWeight: '800', color: '#102A54' },
-  italic: { fontStyle: 'italic', color: '#718096' }
+  italic: { fontStyle: 'italic', color: '#64748B' }
 });

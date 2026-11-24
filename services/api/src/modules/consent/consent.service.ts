@@ -21,6 +21,21 @@ export class ConsentService {
   async grant(input: { userId: string; type: string; provider?: string; source: string; ipAddress?: string; deviceId?: string }) {
     const definition = CONSENT_VERSIONS[input.type];
     if (!definition) throw new BadRequestException('This consent type is not recognised.');
+
+    const existing = await this.prisma.consent.findFirst({
+      where: {
+        userId: input.userId,
+        type: input.type,
+        version: definition.version,
+        status: 'GRANTED',
+      },
+      include: { events: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (existing) {
+      return existing;
+    }
+
     const consent = await this.prisma.consent.create({
       data: {
         userId: input.userId,

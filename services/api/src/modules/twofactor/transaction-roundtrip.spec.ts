@@ -149,7 +149,7 @@ describe('redemption round trip', () => {
       accountFor: async () => ({ id: 'a1', fpAccountId: 'mfia_1', fpAccountOldId: 7 }),
       resolveQuantity: (RedemptionService.prototype as any).resolveQuantity,
       prisma: {
-        user: { findUnique: async () => ({ email: 'a@b.c' }) },
+        user: { findUnique: async () => ({ email: 'a@b.c', mobile: '9999999999' }) },
         fpRedemptionOrder: { create: jest.fn().mockRejectedValue(new Error(REACHED)) },
       },
     };

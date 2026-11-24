@@ -11,20 +11,32 @@
 
 import Constants from 'expo-constants';
 
-export const LIVE_TUNNEL_API_URL = 'https://necklace-expansion-vegetarian-worlds.trycloudflare.com';
+export const LIVE_TUNNEL_API_URL = 'https://listen-immigrants-joyce-omissions.trycloudflare.com';
 
 function resolveApiUrl(): string {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
-  // If explicitly pointing to a public HTTPS tunnel, use it
-  if (envUrl && envUrl.startsWith('https://') && !envUrl.includes('localhost')) {
+  // Use an explicit non-ephemeral HTTPS API URL if configured; ignore stale cached
+  // trycloudflare.com quick-tunnel URLs so Fast Refresh immediately uses LIVE_TUNNEL_API_URL.
+  if (
+    envUrl &&
+    envUrl.startsWith('https://') &&
+    !envUrl.includes('localhost') &&
+    !envUrl.includes('.trycloudflare.com')
+  ) {
     return envUrl;
   }
-  // If running over Expo tunnel (exp.direct / ngrok), always use the Cloudflare API tunnel
+  // If running over Expo tunnel (exp.direct / ngrok), always use the live Cloudflare API tunnel
   const hostUri = Constants.expoConfig?.hostUri || (Constants as any).manifest?.debuggerHost;
   if (hostUri && (hostUri.includes('exp.direct') || hostUri.includes('ngrok') || hostUri.includes('cloudflare'))) {
     return LIVE_TUNNEL_API_URL;
   }
-  if (envUrl && !envUrl.includes('192.168.') && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+  if (
+    envUrl &&
+    !envUrl.includes('192.168.') &&
+    !envUrl.includes('localhost') &&
+    !envUrl.includes('127.0.0.1') &&
+    !envUrl.includes('.trycloudflare.com')
+  ) {
     return envUrl;
   }
   return LIVE_TUNNEL_API_URL;

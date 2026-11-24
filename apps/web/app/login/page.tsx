@@ -196,13 +196,6 @@ export default function LoginPage() {
               Sign in to manage your goals and investments with TechArtha.
             </p>
 
-            {termsWarning && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 animate-fade-in">
-                <span className="text-xl">⚠️</span>
-                <p className="text-sm font-bold text-red-600 leading-snug">{termsWarning}</p>
-              </div>
-            )}
-
             {accountNotExistsWarning && (
               <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col items-center justify-center text-center">
                 <p className="text-sm text-amber-900 mb-2 font-medium">
@@ -284,12 +277,67 @@ export default function LoginPage() {
               </button>
             </div>
 
+            {error && <p className="text-red-500 text-sm mb-4 font-medium">{error}</p>}
+
+            {/* Terms of Service & Privacy Policy Checkbox */}
+            <div className={`mt-2 mb-5 p-3 rounded-xl border ${termsWarning ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
+              {termsWarning && (
+                <p className="text-xs font-bold text-red-600 mb-2 flex items-center gap-1.5">
+                  <span>⚠️</span>
+                  <span>{termsWarning}</span>
+                </p>
+              )}
+              <div className="flex items-start gap-3 select-none">
+                <input
+                  type="checkbox"
+                  id="login-terms"
+                  checked={acceptedTerms}
+                  onChange={(e) => {
+                    setAcceptedTerms(e.target.checked);
+                    if (e.target.checked) setTermsWarning('');
+                  }}
+                  className={`mt-1 h-5 w-5 rounded border text-[#3C3985] focus:ring-[#3C3985] cursor-pointer ${
+                    termsWarning ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                />
+                <div className="text-xs sm:text-sm text-gray-600 leading-snug">
+                  <label htmlFor="login-terms" className="cursor-pointer">
+                    {t('signup.termsPrefix', { defaultValue: 'I agree to the ' })}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setTermsModalOpen(true)}
+                    className="font-semibold text-gray-900 underline hover:text-[#3C3985] transition-colors inline"
+                  >
+                    {t('signup.termsOfService', { defaultValue: 'Terms of Service' })}
+                  </button>
+                  <span>{` ${t('signup.and', { defaultValue: 'and' })} `}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPrivacyPolicyModalOpen(true)}
+                    className="font-semibold text-gray-900 underline hover:text-[#3C3985] transition-colors inline"
+                  >
+                    {t('signup.privacyPolicy', { defaultValue: 'Privacy Policy' })}
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {loginMethod === 'password' ? (
               <div className="animate-fade-in">
-                <div className="mb-6">
-                  <label className="label text-sm text-gray-700 font-semibold mb-2 block">
-                    {t('login.password', { defaultValue: 'Password' })}
-                  </label>
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="label text-sm text-gray-700 font-semibold block">
+                      {t('login.password', { defaultValue: 'Password' })}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => router.push('/forgot-password')}
+                      className="text-xs font-bold text-[#3C3985] hover:underline"
+                    >
+                      {t('login.forgotPassword', { defaultValue: 'Forgot Password?' })}
+                    </button>
+                  </div>
                   <div className="relative flex items-center">
                     <input
                       type={showPassword ? 'text' : 'password'}
@@ -316,7 +364,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => handleContinue('PASSWORD')}
-                  disabled={loading || !password}
+                  disabled={loading}
                   className="w-full py-4 rounded-xl font-bold text-lg text-white bg-[#3C3985] hover:bg-[#322f73] transition-all shadow-sm disabled:opacity-50"
                 >
                   {t('login.login', { defaultValue: 'Login' })} →
@@ -396,46 +444,18 @@ export default function LoginPage() {
                     </button>
                   </>
                 )}
-              </div>
-            )}
 
-            {/* Terms of Service & Privacy Policy Checkbox */}
-            <div className="mt-6 mb-6">
-              <div className="flex items-start gap-3 select-none">
-                <input
-                  type="checkbox"
-                  id="login-terms"
-                  checked={acceptedTerms}
-                  onChange={(e) => {
-                    setAcceptedTerms(e.target.checked);
-                    if (e.target.checked) setTermsWarning('');
-                  }}
-                  className={`mt-1 h-5 w-5 rounded border text-[#3C3985] focus:ring-[#3C3985] cursor-pointer ${
-                    termsWarning ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                />
-                <div className="text-xs sm:text-sm text-gray-600 leading-snug">
-                  <label htmlFor="login-terms" className="cursor-pointer">
-                    {t('signup.termsPrefix', { defaultValue: 'I agree to the ' })}
-                  </label>
+                <div className="text-center pt-1">
                   <button
                     type="button"
-                    onClick={() => setTermsModalOpen(true)}
-                    className="font-semibold text-gray-900 underline hover:text-[#3C3985] transition-colors inline"
+                    onClick={() => router.push('/forgot-password')}
+                    className="text-xs font-bold text-[#3C3985] hover:underline"
                   >
-                    {t('signup.termsOfService', { defaultValue: 'Terms of Service' })}
-                  </button>
-                  <span>{` ${t('signup.and', { defaultValue: 'and' })} `}</span>
-                  <button
-                    type="button"
-                    onClick={() => setPrivacyPolicyModalOpen(true)}
-                    className="font-semibold text-gray-900 underline hover:text-[#3C3985] transition-colors inline"
-                  >
-                    {t('signup.privacyPolicy', { defaultValue: 'Privacy Policy' })}
+                    {t('login.forgotPasswordLink', { defaultValue: 'Forgot Password? Reset via Email' })}
                   </button>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 

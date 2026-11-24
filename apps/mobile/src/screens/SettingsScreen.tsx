@@ -171,7 +171,7 @@ export const SettingsScreen = () => {
         {/* LANGUAGE */}
         <View style={[styles.card, expanded === 'Language' && styles.cardActive]}>
           <Pressable style={styles.cardHeader} onPress={() => toggleExpand('Language')}>
-            <View style={styles.iconBox}><Ionicons name="language-outline" size={20} color="#3C3985" /></View>
+            <View style={styles.iconBox}><Ionicons name="language-outline" size={20} color="#36358D" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{t('settings.language', { defaultValue: 'Language' })}</Text>
               <Text style={styles.cardSub}>{t('settings.changeLang', { defaultValue: 'Change your preferred language' })}</Text>
@@ -187,10 +187,10 @@ export const SettingsScreen = () => {
                   onPress={() => handleLangSelect(l.code)}
                 >
                   <View>
-                    <Text style={[styles.langNative, i18n.language === l.code && { color: '#3C3985' }]}>{l.nativeName}</Text>
+                    <Text style={[styles.langNative, i18n.language === l.code && { color: '#36358D' }]}>{l.nativeName}</Text>
                     <Text style={styles.langName}>{l.name}</Text>
                   </View>
-                  {i18n.language === l.code && <Text style={{ color: '#3C3985', fontWeight: 'bold' }}>✓</Text>}
+                  {i18n.language === l.code && <Text style={{ color: '#36358D', fontWeight: 'bold' }}>✓</Text>}
                 </Pressable>
               ))}
             </View>
@@ -202,7 +202,7 @@ export const SettingsScreen = () => {
           <Text style={styles.sectionLabel}>{t('settings.permissions', { defaultValue: 'Permissions' })}</Text>
           <View style={[styles.card, { marginBottom: 0 }]}>
             <View style={[styles.cardHeader, { paddingBottom: 0 }]}>
-              <View style={styles.iconBox}><Ionicons name="notifications-outline" size={20} color="#3C3985" /></View>
+              <View style={styles.iconBox}><Ionicons name="notifications-outline" size={20} color="#36358D" /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>{t('settings.deviceNotif', { defaultValue: 'Notifications' })}</Text>
                 <Text style={[styles.cardSub, { color: notifStatus === 'granted' ? '#10B981' : '#EF4444' }]}>
@@ -222,7 +222,7 @@ export const SettingsScreen = () => {
         {/* APP THEME */}
         <View style={[styles.card, expanded === 'App Theme' && styles.cardActive]}>
           <Pressable style={styles.cardHeader} onPress={() => toggleExpand('App Theme')}>
-            <View style={styles.iconBox}><Ionicons name="color-palette-outline" size={20} color="#3C3985" /></View>
+            <View style={styles.iconBox}><Ionicons name="color-palette-outline" size={20} color="#36358D" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{t('settings.appTheme', { defaultValue: 'App Theme' })}</Text>
               <Text style={styles.cardSub}>{theme.charAt(0).toUpperCase() + theme.slice(1)} Mode</Text>
@@ -237,8 +237,8 @@ export const SettingsScreen = () => {
                   style={[styles.langItem, theme === tType && styles.langItemActive]}
                   onPress={() => handleThemeChange(tType)}
                 >
-                  <Text style={[styles.langNative, theme === tType && { color: '#3C3985' }, { textTransform: 'capitalize' }]}>{tType}</Text>
-                  {theme === tType && <Text style={{ color: '#3C3985', fontWeight: 'bold' }}>✓</Text>}
+                  <Text style={[styles.langNative, theme === tType && { color: '#36358D' }, { textTransform: 'capitalize' }]}>{tType}</Text>
+                  {theme === tType && <Text style={{ color: '#36358D', fontWeight: 'bold' }}>✓</Text>}
                 </Pressable>
               ))}
             </View>
@@ -431,7 +431,7 @@ export const SettingsScreen = () => {
         {/* OTHER SETTINGS */}
         <Pressable style={styles.card} onPress={() => Alert.alert('Coming Soon', 'Privacy settings will be available shortly.')}>
           <View style={styles.cardHeader}>
-            <View style={styles.iconBox}><Ionicons name="lock-closed-outline" size={20} color="#3C3985" /></View>
+            <View style={styles.iconBox}><Ionicons name="lock-closed-outline" size={20} color="#36358D" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{t('settings.privacyTitle', { defaultValue: 'Privacy & Security' })}</Text>
               <Text style={styles.cardSub}>{t('settings.privacyDesc', { defaultValue: 'App Lock, Biometrics, and Data Privacy' })}</Text>
@@ -441,7 +441,7 @@ export const SettingsScreen = () => {
 
         <Pressable style={styles.card} onPress={() => Alert.alert('Coming Soon', 'Device management will be available shortly.')}>
           <View style={styles.cardHeader}>
-            <View style={styles.iconBox}><Ionicons name="hardware-chip-outline" size={20} color="#3C3985" /></View>
+            <View style={styles.iconBox}><Ionicons name="hardware-chip-outline" size={20} color="#36358D" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{t('settings.devicesTitle', { defaultValue: 'Linked Devices' })}</Text>
               <Text style={styles.cardSub}>{t('settings.devicesDesc', { defaultValue: 'Manage devices logged into your account' })}</Text>
@@ -482,47 +482,75 @@ export const SettingsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8F9FB' },
-  pageTitle: { fontSize: 28, textTransform: 'capitalize', fontWeight: '800', color: '#102A54', marginBottom: 20 },
-  container: { padding: 24, paddingBottom: 40 },
-  card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  cardActive: { borderColor: '#3C3985' },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  iconBox: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F7FAFC', alignItems: 'center', justifyContent: 'center' },
+  safe: { flex: 1, backgroundColor: '#F6F7FC' },
+  pageTitle: { fontSize: 26, fontWeight: '900', color: '#102A54', marginBottom: 20, letterSpacing: -0.3 },
+  container: { padding: 20, paddingBottom: 40 },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E6E8F6',
+    shadowColor: '#102A54',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  cardActive: { borderColor: '#36358D' },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  iconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#EEEDFA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   iconText: { fontSize: 20 },
   cardTitle: { fontSize: 14, fontWeight: '800', color: '#102A54', marginBottom: 2 },
-  cardSub: { fontSize: 12, color: '#A0AEC0' },
-  chevron: { fontSize: 20, color: '#CBD5E0', fontWeight: 'bold' },
-  expandedContent: { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#F7FAFC', gap: 8 },
-  langItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#EDF2F7' },
-  langItemActive: { backgroundColor: '#EBEBFA', borderColor: '#3C3985' },
+  cardSub: { fontSize: 11.5, color: '#64748B' },
+  chevron: { fontSize: 18, color: '#94A3B8', fontWeight: 'bold' },
+  expandedContent: { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#F1F5F9', gap: 8 },
+  langItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E6E8F6',
+    backgroundColor: '#FFFFFF',
+  },
+  langItemActive: { backgroundColor: '#EEEDFA', borderColor: '#36358D' },
   langNative: { fontSize: 14, fontWeight: '800', color: '#102A54' },
-  langName: { fontSize: 12, color: '#A0AEC0', marginTop: 2 },
+  langName: { fontSize: 12, color: '#64748B', marginTop: 2 },
   permissionsContainer: { marginBottom: 12, marginTop: 4 },
   sectionContainer: { marginBottom: 12, marginTop: 4 },
-  sectionLabel: { fontSize: 10, fontWeight: '800', color: '#A0AEC0', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginLeft: 4 },
+  sectionLabel: { fontSize: 10, fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginLeft: 4 },
   toggleBtn: { width: 48, height: 24, borderRadius: 12, backgroundColor: '#E2E8F0', padding: 2 },
-  toggleBtnActive: { backgroundColor: '#3C3985' },
-  toggleKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
+  toggleBtnActive: { backgroundColor: '#36358D' },
+  toggleKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFFFFF', shadowColor: '#102A54', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
   toggleKnobActive: { transform: [{ translateX: 24 }] },
   contactOption: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#EDF2F7',
+    borderColor: '#E6E8F6',
     backgroundColor: '#FFFFFF',
     gap: 12,
   },
   contactOptionPressed: {
-    backgroundColor: '#F8F9FE',
-    borderColor: '#D6D6F5',
+    backgroundColor: '#EEEDFA',
+    borderColor: '#36358D',
   },
   contactIconWrap: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -556,7 +584,7 @@ const styles = StyleSheet.create({
   },
   contactOptionSub: {
     fontSize: 12,
-    color: '#718096',
+    color: '#64748B',
     marginBottom: 2,
   },
   contactOptionMeta: {
@@ -564,11 +592,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#36358D',
   },
-  disclosureCard: { backgroundColor: '#EBEAF8', borderRadius: 16, padding: 16, marginTop: 12, marginBottom: 16 },
-  disclosureText: { color: '#3C3985', fontSize: 12, lineHeight: 18, textAlign: 'center' },
-  signOutBtn: { backgroundColor: '#FFF5F5', padding: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#FEB2B2', marginBottom: 16 },
-  signOutText: { color: '#C53030', fontSize: 15, fontWeight: '700' },
-  version: { color: '#A0AEC0', fontSize: 11, textAlign: 'center', marginBottom: 30 },
+  disclosureCard: { backgroundColor: '#EEEDFA', borderRadius: 16, padding: 16, marginTop: 12, marginBottom: 16 },
+  disclosureText: { color: '#36358D', fontSize: 12, lineHeight: 18, textAlign: 'center', fontWeight: '500' },
+  signOutBtn: {
+    backgroundColor: '#FEF2F2',
+    padding: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    marginBottom: 16,
+  },
+  signOutText: { color: '#DC2626', fontSize: 14, fontWeight: '800' },
+  version: { color: '#94A3B8', fontSize: 11, textAlign: 'center', marginBottom: 30, fontWeight: '600' },
 });
 
 export default SettingsScreen;

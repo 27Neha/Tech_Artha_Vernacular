@@ -46,9 +46,11 @@ model User {
   portfolio          Portfolio?
   riskAssessments    RiskAssessment[]
   riskProfile        RiskProfile?
-  sessions           Session[]
-  supportTickets     SupportTicket[]
-  profile            UserProfile?
+  sessions            Session[]
+  passwordResetTokens PasswordResetToken[]
+  passwordResetOtps   PasswordResetOtp[]
+  supportTickets      SupportTicket[]
+  profile             UserProfile?
 }
 
 model UserProfile {
@@ -852,3 +854,35 @@ model AdminMember {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 }
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  purpose   String    @default("PASSWORD_RESET")
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt, expiresAt])
+}
+
+model PasswordResetOtp {
+  id          String    @id @default(uuid())
+  userId      String
+  email       String
+  purpose     String    @default("PASSWORD_RESET")
+  otpHash     String
+  expiresAt   DateTime
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  status      String    @default("PENDING")
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, status, createdAt])
+  @@index([email, purpose, status, createdAt])
+}
+

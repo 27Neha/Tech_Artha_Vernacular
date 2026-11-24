@@ -95,21 +95,21 @@ export const InvestmentBucketsScreen = () => {
         ) : null}
 
         {loading ? (
-          <ActivityIndicator size="large" color="#3C3985" style={{ marginTop: 40 }} />
+          <ActivityIndicator size="large" color="#36358D" style={{ marginTop: 40 }} />
         ) : buckets.map(bucket => {
           const isExpanded = expandedBucket === bucket.id;
           return (
             <Pressable 
               key={bucket.id} 
-              style={[styles.card, bucket.recommended && styles.cardSelected, isExpanded && { borderColor: '#3C3985' }]}
+              style={[styles.card, bucket.recommended && styles.cardSelected, isExpanded && { borderColor: '#36358D' }]}
               onPress={() => setExpandedBucket(isExpanded ? null : bucket.id)}
             >
               <View style={styles.cardHeader}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.name}>{t(`buckets.${bucket.id}.name`, { defaultValue: bucket.name })}</Text>
                   {bucket.bucketRiskLevel && (
-                    <View style={{ backgroundColor: '#EDF2F7', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 4 }}>
-                      <Text style={{ fontSize: 10, fontWeight: '800', color: '#4A5568' }}>{t(`buckets.${bucket.id}.risk`, { defaultValue: bucket.bucketRiskLevel })}</Text>
+                    <View style={{ backgroundColor: '#EEEDFA', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 4 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: '#36358D' }}>{t(`buckets.${bucket.id}.risk`, { defaultValue: bucket.bucketRiskLevel })}</Text>
                     </View>
                   )}
                 </View>
@@ -119,13 +119,13 @@ export const InvestmentBucketsScreen = () => {
               <Text style={styles.desc}>{t(`buckets.${bucket.id}.desc`, { defaultValue: bucket.explanation })}</Text>
               
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                <View style={{ flex: 1, backgroundColor: '#F1F5F9', padding: 12, borderRadius: 8 }}>
-                  <Text style={{ fontSize: 10, color: '#718096', marginBottom: 4, textTransform: 'uppercase', fontWeight: '600' }}>{t('buckets.horizon', { defaultValue: 'Horizon' })}</Text>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#3C3985' }}>{bucket.horizon || 'Flex'}</Text>
+                <View style={{ flex: 1, backgroundColor: '#F1F5F9', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#E6E8F6' }}>
+                  <Text style={{ fontSize: 10, color: '#64748B', marginBottom: 4, textTransform: 'uppercase', fontWeight: '800' }}>{t('buckets.horizon', { defaultValue: 'Horizon' })}</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#36358D' }}>{bucket.horizon || 'Flex'}</Text>
                 </View>
-                <View style={{ flex: 1.2, backgroundColor: '#F1F5F9', padding: 12, borderRadius: 8 }}>
-                  <Text style={{ fontSize: 10, color: '#718096', marginBottom: 4, textTransform: 'uppercase', fontWeight: '600' }}>{t('buckets.risk', { defaultValue: 'Risk' })}</Text>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#3C3985' }} numberOfLines={1} adjustsFontSizeToFit>{bucket.bucketRiskLevel ? t(`buckets.${bucket.id}.risk`, { defaultValue: bucket.bucketRiskLevel }) : 'Mixed'}</Text>
+                <View style={{ flex: 1.2, backgroundColor: '#F1F5F9', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#E6E8F6' }}>
+                  <Text style={{ fontSize: 10, color: '#64748B', marginBottom: 4, textTransform: 'uppercase', fontWeight: '800' }}>{t('buckets.risk', { defaultValue: 'Risk' })}</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#36358D' }} numberOfLines={1} adjustsFontSizeToFit>{bucket.bucketRiskLevel ? t(`buckets.${bucket.id}.risk`, { defaultValue: bucket.bucketRiskLevel }) : 'Mixed'}</Text>
                 </View>
               </View>
               
@@ -144,7 +144,7 @@ export const InvestmentBucketsScreen = () => {
                       <Text style={{ fontSize: 11, color: '#9CA3AF' }}>{f.category}</Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#3C3985' }}>{f.nav ? `₹${parseFloat(f.nav).toFixed(2)}` : 'N/A'}</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: '#36358D' }}>{f.nav ? `₹${parseFloat(f.nav).toFixed(2)}` : 'N/A'}</Text>
                     </View>
                   </View>
                 ))}
@@ -213,25 +213,37 @@ export const InvestmentBucketsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FB' },
+  container: { flex: 1, backgroundColor: '#F6F7FC' },
   headerTitle: { color: '#102A54', fontSize: 24, fontWeight: '800', marginBottom: 8 },
   subtitle: { color: '#4A5568', fontSize: 14, lineHeight: 20 },
   content: { padding: 20 },
-  card: { backgroundColor: 'white', padding: 20, borderRadius: 16, marginBottom: 16, borderWidth: 2, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 },
-  cardSelected: { borderColor: '#E2E8F0', backgroundColor: '#EBEAF8' },
+  card: {
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 20,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: '#E6E8F6',
+    shadowColor: '#102A54',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  cardSelected: { borderColor: '#36358D', backgroundColor: '#EEEDFA' },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-  name: { fontSize: 18, fontWeight: '700', color: '#102A54', marginBottom: 4 },
-  recBadge: { backgroundColor: '#EBF4FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  recText: { color: '#3182CE', fontSize: 10, fontWeight: '700' },
-  desc: { color: '#4A5568', fontSize: 14, lineHeight: 20, marginBottom: 16 },
-  outlineBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 2, borderColor: '#3C3985', alignItems: 'center', justifyContent: 'center' },
-  outlineBtnTxt: { color: '#3C3985', fontSize: 15, fontWeight: '800' },
-  primaryBtnFlex: { flex: 1, backgroundColor: '#3C3985', paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  darkBtn: { width: '100%', backgroundColor: '#102A54', paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
-  primaryBtnTxt: { color: 'white', fontSize: 15, fontWeight: '800' },
+  name: { fontSize: 18, fontWeight: '800', color: '#102A54', marginBottom: 4 },
+  recBadge: { backgroundColor: '#FFFBEB', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, borderWidth: 1, borderColor: '#FDE68A' },
+  recText: { color: '#B45309', fontSize: 10, fontWeight: '800' },
+  desc: { color: '#475569', fontSize: 14, lineHeight: 20, marginBottom: 16 },
+  outlineBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, borderWidth: 1.5, borderColor: '#36358D', alignItems: 'center', justifyContent: 'center' },
+  outlineBtnTxt: { color: '#36358D', fontSize: 15, fontWeight: '800' },
+  primaryBtnFlex: { flex: 1, backgroundColor: '#36358D', paddingVertical: 14, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  darkBtn: { width: '100%', backgroundColor: '#102A54', paddingVertical: 16, borderRadius: 16, alignItems: 'center', marginTop: 8 },
+  primaryBtnTxt: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   laterButton: { paddingVertical: 14, alignItems: 'center', marginTop: 4 },
-  laterText: { color: '#3C3985', fontSize: 14, fontWeight: '700' },
-  disclaimer: { fontSize: 10, color: '#A0AEC0', textAlign: 'center', marginTop: 8, marginBottom: 40 }
+  laterText: { color: '#36358D', fontSize: 14, fontWeight: '700' },
+  disclaimer: { fontSize: 10, color: '#94A3B8', textAlign: 'center', marginTop: 8, marginBottom: 40 }
 });
 
 export default InvestmentBucketsScreen;

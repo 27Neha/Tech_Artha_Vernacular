@@ -105,8 +105,11 @@ describe('api client', () => {
     });
   });
 
-  it('falls back to a generic message when the body carries none', async () => {
+  it('falls back to a friendly message for 500 and generic message for other statuses when body carries none', async () => {
     globalThis.fetch = respond(500, {}) as any;
-    await expect(api.get('/health')).rejects.toThrow(/Request failed \(500\)/);
+    await expect(api.get('/health')).rejects.toThrow(/The server encountered an issue/);
+
+    globalThis.fetch = respond(502, {}) as any;
+    await expect(api.get('/health')).rejects.toThrow(/Request failed \(502\)/);
   });
 });

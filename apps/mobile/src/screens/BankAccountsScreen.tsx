@@ -43,7 +43,7 @@ export const BankAccountsScreen = () => {
       <StatusBar style="dark" />
       <Header title="Bank accounts" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.page}>
-        {!status && !error ? <ActivityIndicator color="#3C3985" style={{ marginTop: 32 }} /> : null}
+        {!status && !error ? <ActivityIndicator color="#36358D" style={{ marginTop: 32 }} /> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         {status && !status.hasInvestmentAccount ? (
@@ -83,14 +83,26 @@ export const BankAccountsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8F9FB' },
+  safe: { flex: 1, backgroundColor: '#F6F7FC' },
   page: { padding: 20, paddingBottom: 48, gap: 16 },
-  card: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', padding: 18, gap: 6 },
-  eyebrow: { color: '#718096', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E6E8F6',
+    padding: 20,
+    gap: 8,
+    shadowColor: '#102A54',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  eyebrow: { color: '#94A3B8', fontSize: 10, fontWeight: '800', letterSpacing: 0.6 },
   title: { color: '#102A54', fontSize: 16, fontWeight: '800' },
-  text: { color: '#4A5568', fontSize: 14, lineHeight: 20 },
-  hint: { color: '#718096', fontSize: 12, lineHeight: 18, marginTop: 8 },
-  error: { color: '#C53030', fontSize: 14 },
-  button: { backgroundColor: '#3C3985', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 10 },
-  buttonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  text: { color: '#475569', fontSize: 14, lineHeight: 20, fontWeight: '500' },
+  hint: { color: '#64748B', fontSize: 12, lineHeight: 18, marginTop: 8 },
+  error: { color: '#DC2626', fontSize: 14, fontWeight: '700' },
+  button: { backgroundColor: '#36358D', paddingVertical: 14, borderRadius: 16, alignItems: 'center', marginTop: 10 },
+  buttonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
 });

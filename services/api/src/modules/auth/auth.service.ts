@@ -1,7 +1,16 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { BELONGS_TO } from '../cybrilla/investor-options';
 import { JwtService } from '@nestjs/jwt';
-import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'crypto';
+import { createHmac, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { InteraktService } from '../../integrations/interakt/interakt.service';
 import { MockOtpProvider, InteraktOtpProvider, OtpChannel, OtpProvider, ChannelRoutingOtpProvider } from './otp.provider';
@@ -13,9 +22,34 @@ const OTP_MAX_ATTEMPTS = 5;
 const OTP_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const OTP_RATE_LIMIT_COUNT = 5;
 
+const PASSWORD_RESET_PURPOSE = 'PASSWORD_RESET';
+const PASSWORD_RESET_OTP_TTL_MINUTES = 5;
+const PASSWORD_RESET_OTP_TTL_MS = PASSWORD_RESET_OTP_TTL_MINUTES * 60 * 1000;
+const PASSWORD_RESET_OTP_MAX_ATTEMPTS = 5;
+const PASSWORD_RESET_RESEND_COOLDOWN_MS = 45 * 1000;
+const PASSWORD_RESET_AUTH_TTL_MINUTES = 10;
+const PASSWORD_RESET_AUTH_TTL_MS = PASSWORD_RESET_AUTH_TTL_MINUTES * 60 * 1000;
+const PASSWORD_RESET_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const PASSWORD_RESET_MAX_PER_EMAIL = 5;
+const PASSWORD_RESET_MAX_PER_IP = 15;
+const PASSWORD_RESET_VERIFY_MAX_PER_IP = 25;
+
+export const GENERIC_PASSWORD_RESET_MESSAGE =
+  "If an account exists for this email address, we've sent a verification code.";
+export const INVALID_RESET_OTP_MESSAGE = 'Incorrect code. Please try again.';
+export const EXPIRED_RESET_OTP_MESSAGE = 'Your code has expired. Request a new one.';
+export const TOO_MANY_OTP_ATTEMPTS_MESSAGE =
+  'Too many incorrect attempts. Please request a new code.';
+export const INVALID_RESET_AUTH_MESSAGE =
+  'Your reset session has expired. Please start again.';
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly resetEmailAttempts = new Map<string, number[]>();
+  private readonly resetIpAttempts = new Map<string, number[]>();
+  private readonly resetVerifyIpAttempts = new Map<string, number[]>();
+  private readonly resetEmailCooldowns = new Map<string, number>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -598,6 +632,396 @@ export class AuthService {
       data: { passwordHash: hashedPassword },
     });
     return { success: true };
+  }
+
+  /**
+   * Shared strong password policy enforced consistently across signup and password reset:
+   * minimum 8 characters, at least one uppercase, lowercase, digit, and special character.
+   */
+  validatePasswordPolicy(password: string) {
+    if (!password || typeof password !== 'string') {
+      throw new BadRequestException('New password is required.');
+    }
+    if (password.length < 8) {
+      throw new BadRequestException('Password must be at least 8 characters.');
+    }
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+      throw new BadRequestException(
+        'Password must include at least one uppercase letter, lowercase letter, number, and special character.',
+      );
+    }
+  }
+
+  private normalizeResetEmail(email: string) {
+    const normalized = (email ?? '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normalized)) {
+      throw new BadRequestException('Please enter a valid email address.');
+    }
+    return normalized;
+  }
+
+  private pruneAndPushRateWindow(store: Map<string, number[]>, key: string, maxRequests: number) {
+    const now = Date.now();
+    const cutoff = now - PASSWORD_RESET_RATE_LIMIT_WINDOW_MS;
+    const recent = (store.get(key) ?? []).filter((ts) => ts > cutoff);
+    if (recent.length >= maxRequests) {
+      store.set(key, recent);
+      throw new HttpException(
+        'Too many requests. Please wait a few minutes and try again.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    recent.push(now);
+    store.set(key, recent);
+  }
+
+  async requestPasswordReset(email: string, meta?: { ip?: string }) {
+    const normalizedEmail = this.normalizeResetEmail(email);
+
+    const nowMs = Date.now();
+    const lastSentAt = this.resetEmailCooldowns.get(normalizedEmail);
+    if (lastSentAt && nowMs - lastSentAt < PASSWORD_RESET_RESEND_COOLDOWN_MS) {
+      const waitSeconds = Math.ceil((PASSWORD_RESET_RESEND_COOLDOWN_MS - (nowMs - lastSentAt)) / 1000);
+      throw new HttpException(
+        `Please wait ${waitSeconds} seconds before requesting a new code.`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    this.pruneAndPushRateWindow(
+      this.resetEmailAttempts,
+      normalizedEmail,
+      PASSWORD_RESET_MAX_PER_EMAIL,
+    );
+    if (meta?.ip) {
+      this.pruneAndPushRateWindow(this.resetIpAttempts, meta.ip, PASSWORD_RESET_MAX_PER_IP);
+    }
+
+    this.resetEmailCooldowns.set(normalizedEmail, nowMs);
+
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true, isActive: true },
+    });
+
+    // Privacy safeguard: do not reveal whether an account exists for this email.
+    if (!user || !user.isActive) {
+      return {
+        status: 'OK',
+        message: GENERIC_PASSWORD_RESET_MESSAGE,
+        expiresInSeconds: PASSWORD_RESET_OTP_TTL_MINUTES * 60,
+        cooldownSeconds: PASSWORD_RESET_RESEND_COOLDOWN_MS / 1000,
+      };
+    }
+
+    const code = String(randomInt(0, 1000000)).padStart(6, '0');
+    const otpHash = this.hash(`pwdreset-otp:${user.id}:${normalizedEmail}:${code}`);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + PASSWORD_RESET_OTP_TTL_MS);
+
+    const createdRecord = await this.prisma.$transaction(async (tx) => {
+      await tx.passwordResetOtp.updateMany({
+        where: {
+          userId: user.id,
+          purpose: PASSWORD_RESET_PURPOSE,
+          status: 'PENDING',
+          usedAt: null,
+        },
+        data: { status: 'SUPERSEDED', usedAt: now },
+      });
+
+      await tx.passwordResetToken.updateMany({
+        where: {
+          userId: user.id,
+          purpose: PASSWORD_RESET_PURPOSE,
+          usedAt: null,
+        },
+        data: { usedAt: now },
+      });
+
+      return tx.passwordResetOtp.create({
+        data: {
+          userId: user.id,
+          email: normalizedEmail,
+          purpose: PASSWORD_RESET_PURPOSE,
+          otpHash,
+          expiresAt,
+          attempts: 0,
+          maxAttempts: PASSWORD_RESET_OTP_MAX_ATTEMPTS,
+          status: 'PENDING',
+        },
+      });
+    });
+
+    try {
+      await this.emailOtpProvider.sendPasswordResetOtpEmail({
+        email: normalizedEmail,
+        code,
+        expiresInMinutes: PASSWORD_RESET_OTP_TTL_MINUTES,
+      });
+    } catch (error) {
+      // Do not keep cooldown or unmailed OTP active if email delivery fails.
+      if (lastSentAt !== undefined) {
+        this.resetEmailCooldowns.set(normalizedEmail, lastSentAt);
+      } else {
+        this.resetEmailCooldowns.delete(normalizedEmail);
+      }
+
+      await this.prisma.passwordResetOtp.updateMany({
+        where: { id: createdRecord.id, status: 'PENDING', usedAt: null },
+        data: { status: 'DELIVERY_FAILED', usedAt: new Date() },
+      });
+
+      await this.prisma.auditLog
+        .create({
+          data: {
+            userId: user.id,
+            action: 'PASSWORD_RESET_OTP_DELIVERY_FAILED',
+            ipAddress: meta?.ip,
+            result: 'FAILURE',
+            details: JSON.stringify({
+              reason: error instanceof Error ? error.message : 'Email delivery failed',
+            }),
+          },
+        })
+        .catch(() => undefined);
+
+      throw error;
+    }
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'PASSWORD_RESET_OTP_REQUESTED',
+        ipAddress: meta?.ip,
+        result: 'SUCCESS',
+      },
+    });
+
+    return {
+      status: 'OK',
+      message: GENERIC_PASSWORD_RESET_MESSAGE,
+      expiresInSeconds: PASSWORD_RESET_OTP_TTL_MINUTES * 60,
+      cooldownSeconds: PASSWORD_RESET_RESEND_COOLDOWN_MS / 1000,
+    };
+  }
+
+  async verifyPasswordResetOtp(email: string, otp: string, meta?: { ip?: string }) {
+    const normalizedEmail = this.normalizeResetEmail(email);
+    const cleanOtp = (otp ?? '').trim();
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      throw new BadRequestException('Please enter the 6-digit verification code.');
+    }
+
+    if (meta?.ip) {
+      this.pruneAndPushRateWindow(
+        this.resetVerifyIpAttempts,
+        meta.ip,
+        PASSWORD_RESET_VERIFY_MAX_PER_IP,
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true, isActive: true },
+    });
+
+    if (!user || !user.isActive) {
+      throw new BadRequestException(INVALID_RESET_OTP_MESSAGE);
+    }
+
+    const record = await this.prisma.passwordResetOtp.findFirst({
+      where: {
+        userId: user.id,
+        email: normalizedEmail,
+        purpose: PASSWORD_RESET_PURPOSE,
+        status: 'PENDING',
+        usedAt: null,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!record) {
+      throw new BadRequestException(INVALID_RESET_OTP_MESSAGE);
+    }
+
+    const now = new Date();
+    if (record.expiresAt <= now) {
+      await this.prisma.passwordResetOtp.updateMany({
+        where: { id: record.id, status: 'PENDING', usedAt: null },
+        data: { status: 'EXPIRED', usedAt: now },
+      });
+      throw new BadRequestException(EXPIRED_RESET_OTP_MESSAGE);
+    }
+
+    if (record.attempts >= record.maxAttempts) {
+      await this.prisma.passwordResetOtp.updateMany({
+        where: { id: record.id, status: 'PENDING', usedAt: null },
+        data: { status: 'FAILED', usedAt: now },
+      });
+      throw new HttpException(TOO_MANY_OTP_ATTEMPTS_MESSAGE, HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    const expected = Buffer.from(record.otpHash, 'hex');
+    const actual = Buffer.from(
+      this.hash(`pwdreset-otp:${user.id}:${normalizedEmail}:${cleanOtp}`),
+      'hex',
+    );
+
+    if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+      const updated = await this.prisma.passwordResetOtp.update({
+        where: { id: record.id },
+        data: { attempts: { increment: 1 } },
+      });
+      if (updated.attempts >= updated.maxAttempts) {
+        await this.prisma.passwordResetOtp.updateMany({
+          where: { id: record.id, status: 'PENDING', usedAt: null },
+          data: { status: 'FAILED', usedAt: new Date() },
+        });
+        throw new HttpException(TOO_MANY_OTP_ATTEMPTS_MESSAGE, HttpStatus.TOO_MANY_REQUESTS);
+      }
+      throw new BadRequestException(INVALID_RESET_OTP_MESSAGE);
+    }
+
+    const rawAuthorization = randomBytes(32).toString('hex');
+    const authHash = this.hash(`pwdreset-auth:${rawAuthorization}`);
+    const authExpiresAt = new Date(now.getTime() + PASSWORD_RESET_AUTH_TTL_MS);
+
+    await this.prisma.$transaction(async (tx) => {
+      const consumed = await tx.passwordResetOtp.updateMany({
+        where: {
+          id: record.id,
+          status: 'PENDING',
+          usedAt: null,
+          expiresAt: { gt: now },
+          attempts: { lt: record.maxAttempts },
+        },
+        data: { status: 'VERIFIED', usedAt: now },
+      });
+      if (consumed.count !== 1) {
+        throw new BadRequestException(EXPIRED_RESET_OTP_MESSAGE);
+      }
+
+      await tx.passwordResetToken.updateMany({
+        where: {
+          userId: user.id,
+          purpose: PASSWORD_RESET_PURPOSE,
+          usedAt: null,
+        },
+        data: { usedAt: now },
+      });
+
+      await tx.passwordResetToken.create({
+        data: {
+          userId: user.id,
+          purpose: PASSWORD_RESET_PURPOSE,
+          tokenHash: authHash,
+          expiresAt: authExpiresAt,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'PASSWORD_RESET_OTP_VERIFIED',
+          ipAddress: meta?.ip,
+          result: 'SUCCESS',
+        },
+      });
+    });
+
+    return {
+      status: 'VERIFIED',
+      resetAuthorization: rawAuthorization,
+      expiresInSeconds: PASSWORD_RESET_AUTH_TTL_MINUTES * 60,
+    };
+  }
+
+  async resetPassword(resetAuthorization: string, newPassword: string) {
+    const rawAuth = (resetAuthorization ?? '').trim();
+    if (!rawAuth || rawAuth.length < 32) {
+      throw new BadRequestException(INVALID_RESET_AUTH_MESSAGE);
+    }
+
+    this.validatePasswordPolicy(newPassword);
+
+    const tokenHash = this.hash(`pwdreset-auth:${rawAuth}`);
+    const record = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+      include: { user: { select: { id: true, isActive: true } } },
+    });
+
+    const now = new Date();
+    if (
+      !record ||
+      record.purpose !== PASSWORD_RESET_PURPOSE ||
+      record.usedAt !== null ||
+      record.expiresAt <= now ||
+      !record.user?.isActive
+    ) {
+      throw new BadRequestException(INVALID_RESET_AUTH_MESSAGE);
+    }
+
+    const newPasswordHash = this.hash(newPassword);
+
+    await this.prisma.$transaction(async (tx) => {
+      const consumed = await tx.passwordResetToken.updateMany({
+        where: {
+          id: record.id,
+          purpose: PASSWORD_RESET_PURPOSE,
+          usedAt: null,
+          expiresAt: { gt: now },
+        },
+        data: { usedAt: now },
+      });
+      if (consumed.count !== 1) {
+        throw new BadRequestException(INVALID_RESET_AUTH_MESSAGE);
+      }
+
+      await tx.passwordResetToken.updateMany({
+        where: {
+          userId: record.userId,
+          purpose: PASSWORD_RESET_PURPOSE,
+          usedAt: null,
+        },
+        data: { usedAt: now },
+      });
+
+      await tx.passwordResetOtp.updateMany({
+        where: {
+          userId: record.userId,
+          purpose: PASSWORD_RESET_PURPOSE,
+          status: 'PENDING',
+          usedAt: null,
+        },
+        data: { status: 'SUPERSEDED', usedAt: now },
+      });
+
+      await tx.user.update({
+        where: { id: record.userId },
+        data: { passwordHash: newPasswordHash },
+      });
+
+      // Revoke all existing sessions and refresh tokens upon password reset
+      await tx.session.updateMany({
+        where: { userId: record.userId, isActive: true },
+        data: { isActive: false },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: record.userId,
+          action: 'PASSWORD_RESET_COMPLETED',
+          result: 'SUCCESS',
+          details: JSON.stringify({ sessionsRevoked: true }),
+        },
+      });
+    });
+
+    return {
+      status: 'OK',
+      message: 'Your password has been changed successfully.',
+    };
   }
 
   async updateProfile(

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 const SearchFundCard = ({ fund, onClick }: { fund: any, onClick: () => void }) => (
   <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:border-[var(--primary)] transition-colors cursor-pointer" onClick={onClick}>
@@ -71,8 +71,15 @@ export default function FundDiscoveryPage() {
   const [categoryResults, setCategoryResults] = useState<any[]>([]);
   const [isLoadingCategory, setIsLoadingCategory] = useState(false);
 
-  // Initialize data
+  // Initialize data & optional ?q= category query
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const qParam = new URLSearchParams(window.location.search).get('q');
+      if (qParam && qParam.trim()) {
+        setQuery(qParam.trim());
+        setDebouncedQuery(qParam.trim());
+      }
+    }
     const fetchBuckets = async () => {
       try {
         const token = localStorage.getItem('access_token');

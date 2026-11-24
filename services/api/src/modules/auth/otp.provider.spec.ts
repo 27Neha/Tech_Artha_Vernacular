@@ -49,8 +49,15 @@ describe('OTP channel routing', () => {
       expect(interaktSend).not.toHaveBeenCalled();
     });
 
-    it('strictly THROWS for SMS channel with BadRequestException', async () => {
-      await expect(router.send({ ...input, channel: 'SMS' as any })).rejects.toThrow(BadRequestException);
+    it('routes SMS to mock provider in non-production by default', async () => {
+      delete process.env.OTP_SMS_MODE;
+      await router.send({ ...input, channel: 'SMS' });
+      expect(mock.send).toHaveBeenCalledTimes(1);
+      expect(interaktSend).not.toHaveBeenCalled();
+    });
+
+    it('strictly THROWS for unsupported channel with BadRequestException', async () => {
+      await expect(router.send({ ...input, channel: 'INVALID' as any })).rejects.toThrow(BadRequestException);
       expect(mock.send).not.toHaveBeenCalled();
       expect(interaktSend).not.toHaveBeenCalled();
     });

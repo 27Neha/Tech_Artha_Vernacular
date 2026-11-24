@@ -79,8 +79,8 @@ export default function GlobalHeader() {
   const currentLangObj = SUPPORTED_LANGUAGES.find((l) => l.code === lang) || SUPPORTED_LANGUAGES[0];
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 pb-2 pt-[max(1rem,env(safe-area-inset-top))]">
-      <div className="max-w-md mx-auto px-6 flex items-center justify-between h-12">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <div className="ta-header-inner">
         <div className="flex items-center gap-2">
           {showBack && (
             <button

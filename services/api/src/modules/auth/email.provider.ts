@@ -123,4 +123,190 @@ export class EmailOtpProvider implements OtpProvider {
       throw new ServiceUnavailableException('Unable to deliver email OTP right now. Please try WhatsApp or try again shortly.');
     }
   }
+
+  /**
+   * Sends the transactional 6-digit password-reset OTP email via Zoho ZeptoMail.
+   * Never logs or exposes the raw OTP. Fails explicitly if ZEPTOMAIL_ENABLED is not 'true'
+   * or provider credentials/sender domain are rejected.
+   */
+  async sendPasswordResetOtpEmail(input: {
+    email: string;
+    code: string;
+    expiresInMinutes: number;
+  }): Promise<void> {
+    const emailEnabled = process.env.ZEPTOMAIL_ENABLED === 'true';
+    const apiKey = process.env.ZEPTOMAIL_SEND_MAIL_TOKEN || process.env.ZEPTOMAIL_SEND_API_KEY;
+    const fromAddressRaw =
+      process.env.ZEPTOMAIL_AUTH_FROM_EMAIL ||
+      process.env.ZEPTOMAIL_FROM_EMAIL ||
+      'support@techartha.com';
+    const fromName = process.env.ZEPTOMAIL_FROM_NAME || 'TechArtha';
+    const apiUrl =
+      process.env.ZEPTOMAIL_API_URL ||
+      process.env.ZEPTOMAIL_URL ||
+      'https://api.zeptomail.in/v1.1/email';
+
+    const toAddress = input.email.trim().toLowerCase();
+    const maskedTo = toAddress.replace(
+      /^(.)(.*)(@.*)$/,
+      (_, a, b, c) => `${a}${'*'.repeat(Math.max(1, b.length))}${c}`,
+    );
+
+    if (!emailEnabled) {
+      this.logger.warn(
+        `Password reset OTP requested for ${maskedTo}, but ZEPTOMAIL_ENABLED is not 'true'.`,
+      );
+      throw new ServiceUnavailableException(
+        'Email delivery is currently unavailable. Please try again later.',
+      );
+    }
+
+    if (
+      !apiKey ||
+      apiKey === '<server-side-api-key>' ||
+      apiKey === 'put-your-zepto-mail-api-key-here' ||
+      apiKey.includes('<')
+    ) {
+      this.logger.error('Missing or placeholder ZEPTOMAIL_SEND_MAIL_TOKEN / ZEPTOMAIL_SEND_API_KEY.');
+      throw new ServiceUnavailableException(
+        'Email delivery is currently unavailable. Please try again later.',
+      );
+    }
+
+    const escapeHtml = (value: string) =>
+      value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
+    const safeCode = escapeHtml(input.code.trim());
+    const validLabel = `${input.expiresInMinutes} minutes`;
+
+    const textBody = [
+      'Hi,',
+      '',
+      'We received a request to reset your TechArtha password.',
+      '',
+      'Your verification code is:',
+      '',
+      safeCode,
+      '',
+      `This code is valid for ${validLabel}.`,
+      '',
+      'Please do not share this code with anyone.',
+      '',
+      "If you didn't request this, you can ignore this email.",
+      '',
+      'Team TechArtha',
+    ].join('\n');
+
+    const payload = {
+      from: { address: fromAddressRaw, name: fromName },
+      to: [{ email_address: { address: toAddress, name: 'TechArtha User' } }],
+      subject: 'Your TechArtha Password Reset Code',
+      textbody: textBody,
+      htmlbody: `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Your TechArtha Password Reset Code</title>
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F8F9FB; margin: 0; padding: 20px; color: #102A54;">
+          <div style="max-width: 500px; margin: 0 auto; background: #FFFFFF; border-radius: 16px; border: 1px solid #E2E8F0; overflow: hidden;">
+            <div style="background-color: #36358D; padding: 22px 24px; text-align: center;">
+              <h1 style="color: #FFFFFF; font-size: 22px; font-weight: 800; margin: 0;">TechArtha</h1>
+            </div>
+
+            <div style="padding: 28px 24px;">
+              <p style="font-size: 15px; color: #102A54; margin: 0 0 14px 0;">Hi,</p>
+              <p style="font-size: 15px; line-height: 1.55; color: #334155; margin: 0 0 16px 0;">
+                We received a request to reset your TechArtha password.
+              </p>
+              <p style="font-size: 15px; color: #334155; margin: 0 0 12px 0;">
+                Your verification code is:
+              </p>
+
+              <div style="text-align: center; background-color: #FFF7ED; border: 1.5px solid #FDBA74; border-radius: 12px; padding: 16px; margin: 0 0 18px 0;">
+                <span style="font-family: 'Courier New', Courier, monospace; font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #C2410C;">${safeCode}</span>
+              </div>
+
+              <p style="font-size: 14px; line-height: 1.55; color: #334155; margin: 0 0 10px 0;">
+                This code is valid for <strong>${validLabel}</strong>.
+              </p>
+              <p style="font-size: 14px; line-height: 1.55; color: #334155; margin: 0 0 10px 0;">
+                Please do not share this code with anyone.
+              </p>
+              <p style="font-size: 14px; line-height: 1.55; color: #64748B; margin: 0 0 18px 0;">
+                If you didn't request this, you can ignore this email.
+              </p>
+              <p style="font-size: 14px; font-weight: 700; color: #102A54; margin: 0;">
+                Team TechArtha
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+
+    const authHeader = apiKey.startsWith('Zoho-enczapikey ')
+      ? apiKey
+      : `Zoho-enczapikey ${apiKey}`;
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: authHeader,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const responseData = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        this.logger.error(
+          `ZeptoMail Password Reset OTP API Error: ${response.status} - ${JSON.stringify(responseData)}`,
+        );
+        const errorMsg = JSON.stringify(responseData || {}).toLowerCase();
+        if (errorMsg.includes('invalid api token') || response.status === 401) {
+          throw new ServiceUnavailableException(
+            'Email delivery service configuration is invalid (ZeptoMail token rejected).',
+          );
+        }
+        if (
+          errorMsg.includes('verify') ||
+          errorMsg.includes('unverified') ||
+          errorMsg.includes('domain') ||
+          errorMsg.includes('sender')
+        ) {
+          throw new ServiceUnavailableException(
+            'Email sender domain is not verified in ZeptoMail.',
+          );
+        }
+        throw new ServiceUnavailableException(
+          'Unable to send verification code right now. Please try again shortly.',
+        );
+      }
+
+      this.logger.log(`[PASSWORD_RESET_OTP] email=sent to=${maskedTo}`);
+    } catch (error: any) {
+      if (error instanceof ServiceUnavailableException || error instanceof BadRequestException) {
+        throw error;
+      }
+      this.logger.error(
+        'Password reset OTP email delivery failed cleanly',
+        error?.message || error,
+      );
+      throw new ServiceUnavailableException(
+        'Unable to send verification code right now. Please try again shortly.',
+      );
+    }
+  }
 }
