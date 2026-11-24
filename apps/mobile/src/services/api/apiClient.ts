@@ -1,1 +1,2 @@
-export const API_URL = 'http://192.168.1.7:3000';
+export { API_URL, api, ApiError, configureApi } from './client';
+export type { Session, AuthUser } from '../../store/AuthContext';

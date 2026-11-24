@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 export default function GuardianVerification() {
   const router = useRouter();
@@ -20,10 +20,24 @@ export default function GuardianVerification() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ mobile, code })
       });
-      if(!res.ok) throw new Error('Invalid OTP');
-      router.push('/onboarding/minor/consent');
-    } catch (e) {
-      alert("Invalid OTP");
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.message || 'Invalid OTP');
+      
+      if (data.hasRiskProfile) {
+        router.push('/onboarding/minor/consent');
+      } else {
+        if (data.guardianToken) {
+          localStorage.setItem('guardian_token', data.guardianToken);
+          localStorage.setItem('minor_token_backup', token || '');
+          localStorage.setItem('access_token', data.guardianToken); // Swap to guardian session
+          localStorage.setItem('is_guardian_risk_flow', 'true');
+          router.push('/risk');
+        } else {
+          throw new Error('Error generating guardian session');
+        }
+      }
+    } catch (e: any) {
+      alert(e.message || "Invalid OTP");
     } finally {
       setLoading(false);
     }

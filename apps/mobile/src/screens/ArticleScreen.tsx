@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
@@ -43,7 +42,7 @@ A Lumpsum investment is a one-time bulk investment. This is usually preferred wh
 2. **Market Timing (Lumpsum)**: Lumpsum works best when the market has crashed and valuations are cheap. However, timing the market is extremely difficult even for professionals.
 3. **Discipline**: SIPs remove the emotional aspect of investing. Your money is deducted automatically on a set date.
 
-*Recommendation:* For salaried individuals, SIPs are universally recommended. If you receive a large bonus, consider doing a STP (Systematic Transfer Plan) instead of a pure lumpsum to mitigate timing risk.`,
+*Key Takeaway:* For salaried individuals, SIPs are widely used to maintain consistent investing habits. If you receive a large bonus, considering an STP (Systematic Transfer Plan) instead of a single lumpsum can help smooth market entry.`,
 
   'understanding-risk': `All investments carry some degree of risk. In finance, "risk" is simply the probability that your actual return will differ from your expected return, including the possibility of losing some or all of your original investment.
 
@@ -64,7 +63,7 @@ The golden rule of risk management is **Diversification**. Do not put all your e
 3. **Alpha**: Measures how much the fund manager outperformed the benchmark index. A positive Alpha of 2.0 means the fund beat the benchmark by 2%.
 4. **Expense Ratio**: The annual fee charged by the AMC to manage your money. A lower expense ratio directly translates to higher returns for you in the long run.
 
-*Actionable Advice:* Always compare a fund's performance against its specific benchmark (e.g., Nifty 50) and its peers in the exact same category.`,
+*Best Practice:* Always compare a fund's performance against its specific benchmark (e.g., Nifty 50) and its peers in the exact same category.`,
 
   'elss-tax-saving': `Equity Linked Savings Scheme (ELSS) is a specific type of mutual fund designed to offer tax benefits under Section 80C of the Income Tax Act.
 
@@ -109,17 +108,17 @@ export const ArticleScreen = () => {
 
   if (!article || !content) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <View style={styles.safe}>
         <Header title={t('dash.learnAndGrow', { defaultValue: 'Learn' })} onBack={() => navigation.goBack()} />
         <View style={styles.center}>
           <Text style={styles.notFound}>{t('learn.notFound', { defaultValue: 'Article not found.' })}</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
       <Header title="" onBack={() => navigation.goBack()} />
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -145,24 +144,24 @@ export const ArticleScreen = () => {
         </View>
 
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fff' },
+  safe: { flex: 1, backgroundColor: '#FFFFFF' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  notFound: { fontSize: 18, color: '#718096' },
+  notFound: { fontSize: 18, color: '#64748B' },
   scrollView: { flex: 1 },
-  headerArea: { backgroundColor: '#F8F9FB', padding: 24, paddingBottom: 40, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, marginBottom: 24 },
-  tagWrapper: { backgroundColor: '#EBEBFA', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, alignSelf: 'flex-start', marginBottom: 16 },
-  tagText: { color: '#3C3985', fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 },
-  title: { fontSize: 32, fontWeight: '800', color: '#102A54', lineHeight: 40, marginBottom: 16 },
+  headerArea: { backgroundColor: '#F6F7FC', padding: 24, paddingBottom: 36, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, marginBottom: 20, borderWidth: 1, borderColor: '#E6E8F6' },
+  tagWrapper: { backgroundColor: '#EEEDFA', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, alignSelf: 'flex-start', marginBottom: 14 },
+  tagText: { color: '#36358D', fontSize: 11.5, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8 },
+  title: { fontSize: 26, fontWeight: '900', color: '#102A54', lineHeight: 34, marginBottom: 14, letterSpacing: -0.3 },
   metaRow: { flexDirection: 'row', alignItems: 'center' },
-  metaText: { color: '#3C3985', fontWeight: '700', fontSize: 14 },
-  metaDot: { color: '#3C3985', marginHorizontal: 8, fontWeight: '700' },
+  metaText: { color: '#36358D', fontWeight: '800', fontSize: 13 },
+  metaDot: { color: '#36358D', marginHorizontal: 8, fontWeight: '800' },
   contentArea: { padding: 24, paddingBottom: 60 },
-  paragraph: { fontSize: 16, lineHeight: 26, color: '#4A5568', marginBottom: 24 },
+  paragraph: { fontSize: 15, lineHeight: 24, color: '#475569', marginBottom: 20 },
   bold: { fontWeight: '800', color: '#102A54' },
-  italic: { fontStyle: 'italic', color: '#718096' }
+  italic: { fontStyle: 'italic', color: '#64748B' }
 });

@@ -11,13 +11,26 @@ export class MFAPIProvider {
   private detailsCache = new Map<string, { expiresAt: number; data: FundDetails }>();
   private navCache = new Map<string, { expiresAt: number; data: { date: string; nav: string } }>();
 
+  private async fetchWithTimeout(url: string, timeoutMs: number = 3000): Promise<Response> {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(id);
+      return response;
+    } catch (err) {
+      clearTimeout(id);
+      throw err;
+    }
+  }
+
   async searchFunds(query: string): Promise<FundSearchResult[]> {
     const cacheKey = query.trim().toLowerCase();
     const cached = this.searchCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.data;
 
     try {
-      const response = await fetch(`${this.baseUrl}/mf/search?q=${encodeURIComponent(query)}`);
+      const response = await this.fetchWithTimeout(`${this.baseUrl}/mf/search?q=${encodeURIComponent(query)}`);
       if (!response.ok) throw new Error();
       const items = (await response.json()) as FundSearchResult[];
       this.searchCache.set(cacheKey, { data: items, expiresAt: Date.now() + 5 * 60 * 1000 });
@@ -33,7 +46,7 @@ export class MFAPIProvider {
     if (cached && cached.expiresAt > Date.now()) return cached.data;
 
     try {
-      const response = await fetch(`${this.baseUrl}/mf/${schemeCode}`);
+      const response = await this.fetchWithTimeout(`${this.baseUrl}/mf/${schemeCode}`, 4000);
       if (!response.ok) throw new Error();
       const data = (await response.json()) as FundDetails;
       this.detailsCache.set(cacheKey, { data, expiresAt: Date.now() + 24 * 60 * 60 * 1000 });

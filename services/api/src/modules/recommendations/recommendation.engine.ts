@@ -20,7 +20,7 @@ export class RecommendationEngine {
     // named "Bond Fund"/"Income Fund"/"Banking & PSU Fund"/etc.), and returns very few results overall.
     // Query several relevant terms per profile and merge/dedupe to get a real candidate pool.
     const queries =
-      profile === 'CONSERVATIVE'
+      profile === 'CONSERVATIVE' || profile === 'MODERATELY_LOW'
         ? ['Debt', 'Banking and PSU', 'Corporate Bond', 'Short Duration', 'Money Market']
         : profile === 'MODERATE'
         ? ['Hybrid', 'Balanced Advantage', 'Multi Asset']
@@ -50,9 +50,13 @@ export class RecommendationEngine {
     if (profile === 'CONSERVATIVE') {
       return category.includes('EQUITY') || category.includes('HYBRID') || category.includes('SMALL CAP');
     }
+
+    if (profile === 'MODERATELY_LOW') {
+      return category.includes('EQUITY') || category.includes('SMALL CAP');
+    }
     
     if (profile === 'MODERATE') {
-      return category.includes('SMALL CAP') || category.includes('EQUITY');
+      return category.includes('SMALL CAP');
     }
 
     return false;

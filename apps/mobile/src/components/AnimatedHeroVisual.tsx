@@ -1,178 +1,480 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Animated, Easing, StyleSheet, Dimensions } from 'react-native';
-import Svg, { Defs, Pattern, Circle, Rect, Path, LinearGradient, Stop, G } from 'react-native-svg';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, Animated, Easing, StyleSheet, Pressable } from 'react-native';
+import Svg, {
+  Defs,
+  LinearGradient,
+  Stop,
+  Path,
+  Circle,
+  Line,
+  Rect,
+  G,
+  Text as SvgText,
+} from 'react-native-svg';
+import { colors } from '../theme/tokens';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
-const AnimatedG = Animated.createAnimatedComponent(G);
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-export default function AnimatedHeroVisual() {
-  const lineAnim = useRef(new Animated.Value(1000)).current;
-  const floatAnim1 = useRef(new Animated.Value(0)).current;
-  const floatAnim2 = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+export type ActiveHeroTab = 'compounding' | 'horizon';
+
+export interface AnimatedHeroVisualProps {
+  height?: number;
+}
+
+export const AnimatedHeroVisual: React.FC<AnimatedHeroVisualProps> = ({ height = 280 }) => {
+  const [activeTab, setActiveTab] = useState<ActiveHeroTab>('compounding');
+
+  const lineAnim = useRef(new Animated.Value(450)).current;
+  const scaleAnim = useRef(new Animated.Value(0.97)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
+  const transitionAnim = useRef(new Animated.Value(1)).current;
 
+  // Entrance animations
   useEffect(() => {
-    // Initial entry scale and opacity
     Animated.parallel([
       Animated.timing(scaleAnim, {
         toValue: 1,
-        duration: 800,
-        easing: Easing.out(Easing.back(1.5)),
+        duration: 750,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
       Animated.timing(opacityAnim, {
         toValue: 1,
-        duration: 600,
+        duration: 550,
+        easing: Easing.out(Easing.quad),
         useNativeDriver: true,
-      })
+      }),
     ]).start();
 
     // Line drawing animation
     Animated.timing(lineAnim, {
       toValue: 0,
-      duration: 1500,
-      delay: 200,
-      easing: Easing.inOut(Easing.ease),
-      useNativeDriver: true,
+      duration: 1200,
+      delay: 100,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [lineAnim, opacityAnim, scaleAnim]);
+
+  // Smooth, fluid tab switching transition
+  const handleTabChange = (tab: ActiveHeroTab) => {
+    if (tab === activeTab) return;
+
+    Animated.sequence([
+      Animated.timing(transitionAnim, {
+        toValue: 0.25,
+        duration: 110,
+        easing: Easing.ease,
+        useNativeDriver: true,
+      }),
+      Animated.timing(transitionAnim, {
+        toValue: 1,
+        duration: 220,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    lineAnim.setValue(450);
+    Animated.timing(lineAnim, {
+      toValue: 0,
+      duration: 700,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
     }).start();
 
-    // Floating animations (looping)
-    const floatLoop1 = Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim1, { toValue: -6, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(floatAnim1, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
-    );
-    
-    const floatLoop2 = Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim2, { toValue: 6, duration: 2500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(floatAnim2, { toValue: 0, duration: 2500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
-    );
+    setActiveTab(tab);
+  };
 
-    // Pulse animation (looping)
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 0, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
-    );
+  const isCompounding = activeTab === 'compounding';
 
-    floatLoop1.start();
-    floatLoop2.start();
-    pulseLoop.start();
+  // Curve A (Disciplined Compounding): Steady, progressive upward momentum
+  const curveA = 'M 30 158 C 100 150, 165 124, 218 88 C 262 58, 296 42, 324 30';
+  const shadowA = 'M 30 162 C 100 154, 165 128, 218 92 C 262 62, 296 46, 324 34';
+  const highlightA = 'M 30 157 C 100 149, 165 123, 218 87 C 262 57, 296 41, 324 29';
+  const areaA = 'M 30 158 C 100 150, 165 124, 218 88 C 262 58, 296 42, 324 30 L 324 165 L 30 165 Z';
 
-    return () => {
-      floatLoop1.stop();
-      floatLoop2.stop();
-      pulseLoop.stop();
-    };
-  }, []);
+  // Curve B (Long-Term Horizon): Gradual patient foundation then soaring exponential flight
+  const curveB = 'M 30 162 C 110 164, 165 158, 205 132 C 248 106, 285 54, 324 18';
+  const shadowB = 'M 30 166 C 110 168, 165 162, 205 136 C 248 110, 285 58, 324 22';
+  const highlightB = 'M 30 161 C 110 163, 165 157, 205 131 C 248 105, 285 53, 324 17';
+  const areaB = 'M 30 162 C 110 164, 165 158, 205 132 C 248 106, 285 54, 324 18 L 324 165 L 30 165 Z';
 
-  const pulseOpacity = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] });
-  const pulseScale = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.2] });
+  // Dynamic positions for nodes & pointer labels
+  // Point 1 (Start / Early Years)
+  const p1X = 30;
+  const p1Y = isCompounding ? 158 : 162;
 
-  // Fallback dimension width for scaling properly without breaking
-  const { width } = Dimensions.get('window');
-  
+  // Point 2 (Consistent Investing / Growing Over Time)
+  const p2X = isCompounding ? 175 : 205;
+  const p2Y = isCompounding ? 116 : 132;
+
+  // Point 3 (Compounding Growth / Long-Term Horizon)
+  const p3X = 324;
+  const p3Y = isCompounding ? 30 : 18;
+
   return (
-    <Animated.View style={[styles.container, { opacity: opacityAnim, transform: [{ scale: scaleAnim }] }]}>
-      {/* Background Glow */}
-      <View style={styles.glow} />
+    <Animated.View
+      style={[
+        styles.outerCard,
+        {
+          height,
+          opacity: opacityAnim,
+          transform: [{ scale: scaleAnim }],
+        },
+      ]}
+    >
+      {/* 2 Compact Interactive Tabs at top */}
+      <View style={styles.cardHeaderRow}>
+        <Pressable
+          onPress={() => handleTabChange('compounding')}
+          hitSlop={10}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: isCompounding }}
+          accessibilityLabel="Disciplined Wealth Compounding"
+        >
+          {isCompounding ? (
+            <View style={styles.activeTabPill}>
+              <View style={styles.tabIndicatorDot} />
+              <Text style={styles.activeTabText}>DISCIPLINED WEALTH COMPOUNDING</Text>
+            </View>
+          ) : (
+            <View style={styles.inactiveTabWrap}>
+              <Text style={styles.inactiveTabText}>DISCIPLINED WEALTH COMPOUNDING</Text>
+            </View>
+          )}
+        </Pressable>
 
-      <Svg width="100%" height="100%" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid meet">
-        <Defs>
-          <Pattern id="gridPattern" width="20" height="20" patternUnits="userSpaceOnUse">
-            <Circle cx="2" cy="2" r="1.5" fill="#3C3985" opacity="0.3" />
-          </Pattern>
+        <Pressable
+          onPress={() => handleTabChange('horizon')}
+          hitSlop={10}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: !isCompounding }}
+          accessibilityLabel="Long-Term Horizon"
+        >
+          {!isCompounding ? (
+            <View style={styles.activeTabPill}>
+              <View style={[styles.tabIndicatorDot, { backgroundColor: colors.accent }]} />
+              <Text style={styles.activeTabText}>LONG-TERM HORIZON</Text>
+            </View>
+          ) : (
+            <View style={styles.inactiveTabWrap}>
+              <Text style={styles.inactiveTabText}>LONG-TERM HORIZON</Text>
+            </View>
+          )}
+        </Pressable>
+      </View>
 
-          <LinearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <Stop offset="0%" stopColor="#3C3985" stopOpacity="1" />
-            <Stop offset="100%" stopColor="#102A54" stopOpacity="1" />
-          </LinearGradient>
-          
-          <LinearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <Stop offset="0%" stopColor="#FFAE42" stopOpacity="1" />
-            <Stop offset="100%" stopColor="#DD6B20" stopOpacity="1" />
-          </LinearGradient>
-          
-          <LinearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <Stop offset="0%" stopColor="#3C3985" stopOpacity="0.2" />
-            <Stop offset="50%" stopColor="#3C3985" stopOpacity="0.8" />
-            <Stop offset="100%" stopColor="#DD6B20" stopOpacity="1" />
-          </LinearGradient>
-        </Defs>
+      {/* 3D Visual Metaphor with Dimensional Layering & Pointer Labels */}
+      <Animated.View style={[styles.svgWrapper, { opacity: transitionAnim }]}>
+        <Svg width="100%" height="100%" viewBox="0 0 350 205" preserveAspectRatio="xMidYMid meet">
+          <Defs>
+            {/* Soft Ambient Apex Lighting */}
+            <LinearGradient id="apexAura" x1="100%" y1="0%" x2="0%" y2="100%">
+              <Stop offset="0%" stopColor="#4E4CB8" stopOpacity="0.09" />
+              <Stop offset="50%" stopColor="#36358D" stopOpacity="0.03" />
+              <Stop offset="100%" stopColor="#36358D" stopOpacity="0" />
+            </LinearGradient>
 
-        {/* Abstract Grid Pattern */}
-        <Rect width="100%" height="100%" fill="url(#gridPattern)" />
+            {/* 3D Core Curve Gradient: Indigo -> Royal Violet -> Electric Indigo -> Sunset Orange -> Amber */}
+            <LinearGradient id="curve3DGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+              <Stop offset="0%" stopColor="#36358D" stopOpacity="0.75" />
+              <Stop offset="38%" stopColor="#4E4CB8" stopOpacity="0.95" />
+              <Stop offset="68%" stopColor="#6366F1" stopOpacity="1" />
+              <Stop offset="88%" stopColor="#F7941D" stopOpacity="1" />
+              <Stop offset="100%" stopColor="#FFAE42" stopOpacity="1" />
+            </LinearGradient>
 
-        {/* Rising Growth Line */}
-        <AnimatedPath
-          d="M 20 160 C 80 150, 120 140, 180 110 C 240 80, 280 60, 360 40"
-          fill="none"
-          stroke="url(#lineGrad)"
-          strokeWidth="6"
-          strokeLinecap="round"
-          strokeDasharray={1000}
-          strokeDashoffset={lineAnim}
-        />
+            {/* 3D Specular Highlight Ridge on Top Edge */}
+            <LinearGradient id="specularGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+              <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.45" />
+              <Stop offset="50%" stopColor="#E0E7FF" stopOpacity="0.65" />
+              <Stop offset="85%" stopColor="#FFF2D6" stopOpacity="0.7" />
+              <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.8" />
+            </LinearGradient>
 
-        {/* Floating Abstract Coin / Node 1 (Navy/Purple) */}
-        <AnimatedG y={floatAnim1 as any}>
-          <Circle cx="90" cy="110" r="14" fill="url(#primaryGrad)" opacity="0.9" />
-          <Circle cx="90" cy="110" r="6" fill="#EBEBFA" opacity="0.6" />
-        </AnimatedG>
+            {/* Luminous Area Gradient Fill Under Curve */}
+            <LinearGradient id="growthAreaGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <Stop offset="0%" stopColor="#F7941D" stopOpacity="0.16" />
+              <Stop offset="35%" stopColor="#4E4CB8" stopOpacity="0.08" />
+              <Stop offset="75%" stopColor="#36358D" stopOpacity="0.02" />
+              <Stop offset="100%" stopColor="#36358D" stopOpacity="0.00" />
+            </LinearGradient>
 
-        {/* Floating Data Node 2 (Orange) */}
-        <AnimatedG y={floatAnim2 as any}>
-          <Circle cx="210" cy="70" r="10" fill="url(#orangeGrad)" />
-        </AnimatedG>
+            {/* 3D Sphere Spherical Gradient */}
+            <LinearGradient id="sphere3DGrad" x1="20%" y1="10%" x2="80%" y2="90%">
+              <Stop offset="0%" stopColor="#FFD188" />
+              <Stop offset="45%" stopColor="#F7941D" />
+              <Stop offset="100%" stopColor="#B45309" />
+            </LinearGradient>
+          </Defs>
 
-        {/* High Point Glow Node */}
-        <G>
-          <Circle cx="360" cy="40" r="8" fill="#DD6B20" />
-          {/* Animated Glow */}
-          <AnimatedCircle 
-            cx="360" 
-            cy="40" 
-            r="18" 
-            fill="#DD6B20" 
-            opacity={pulseOpacity}
-            scale={pulseScale as any} originX="360" originY="40"
+          {/* Soft ambient background lighting aura */}
+          <Rect width="100%" height="100%" fill="url(#apexAura)" />
+
+          {/* Calming minimal baseline guide */}
+          <Line
+            x1="20"
+            y1="165"
+            x2="330"
+            y2="165"
+            stroke="#F1F5F9"
+            strokeWidth="1.2"
           />
-        </G>
 
-        {/* Subtle Geometric Ring (Translucent Depth) */}
-        <AnimatedG y={floatAnim1 as any}>
-          <Circle cx="290" cy="130" r="28" fill="none" stroke="#EBEBFA" strokeWidth="3" opacity="0.7" />
-          <Circle cx="290" cy="130" r="18" fill="none" stroke="#EBEBFA" strokeWidth="1" opacity="0.5" />
-        </AnimatedG>
-        
-        {/* Floating Particles */}
-        <AnimatedCircle cx="50" cy="60" r="3" fill="#3C3985" opacity="0.4" y={floatAnim1 as any} />
-        <AnimatedCircle cx="160" cy="150" r="4" fill="#DD6B20" opacity="0.3" y={floatAnim2 as any} />
-        <AnimatedCircle cx="330" cy="100" r="2" fill="#102A54" opacity="0.3" y={floatAnim1 as any} />
-      </Svg>
+          {/* Layer 1: Translucent Fluid Area Fill under the growth curve */}
+          <Path
+            d={isCompounding ? areaA : areaB}
+            fill="url(#growthAreaGrad)"
+          />
+
+          {/* Layer 2: 3D Soft Drop Shadow underneath the curve */}
+          <Path
+            d={isCompounding ? shadowA : shadowB}
+            fill="none"
+            stroke="#102A54"
+            strokeWidth="7"
+            strokeLinecap="round"
+            opacity="0.08"
+          />
+
+          {/* Layer 3: 3D Ambient Core Ribbon */}
+          <AnimatedPath
+            d={isCompounding ? curveA : curveB}
+            fill="none"
+            stroke="url(#curve3DGrad)"
+            strokeWidth="4.2"
+            strokeLinecap="round"
+            strokeDasharray={450}
+            strokeDashoffset={lineAnim}
+          />
+
+          {/* Layer 4: 3D Specular Highlight Ridge Stroke along crest */}
+          <AnimatedPath
+            d={isCompounding ? highlightA : highlightB}
+            fill="none"
+            stroke="url(#specularGrad)"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeDasharray={450}
+            strokeDashoffset={lineAnim}
+          />
+
+          {/* ======================================================== */}
+          {/* POINT 1: START / EARLY YEARS (Bottom Left)                */}
+          {/* ======================================================== */}
+          {/* Downward leader tick to badge below baseline */}
+          <Line
+            x1={p1X}
+            y1={p1Y + 5}
+            x2={p1X}
+            y2={175}
+            stroke="#CBD5E1"
+            strokeWidth="1"
+            strokeDasharray="2 2"
+          />
+          {/* 3D Foundation Node */}
+          <Circle cx={p1X} cy={p1Y} r="7" fill="#36358D" opacity="0.12" />
+          <Circle cx={p1X} cy={p1Y} r="4" fill="#36358D" />
+          <Circle cx={p1X - 1} cy={p1Y - 1} r="1.3" fill="#FFFFFF" opacity="0.9" />
+
+          {/* Point 1 Pointer Label: Placed safely BELOW curve at Y = 175 */}
+          <G>
+            <Rect
+              x={14}
+              y={175}
+              width={isCompounding ? 68 : 72}
+              height={18}
+              rx={9}
+              fill="#FFFFFF"
+              stroke="#E2E8F0"
+              strokeWidth={1}
+            />
+            <SvgText
+              x={isCompounding ? 48 : 50}
+              y={187.5}
+              fontSize="8.5"
+              fill="#102A54"
+              fontWeight="800"
+              textAnchor="middle"
+            >
+              {isCompounding ? 'Start / SIP' : 'Early Years'}
+            </SvgText>
+          </G>
+
+          {/* ======================================================== */}
+          {/* POINT 2: CONSISTENT INVESTING / GROWING OVER TIME (Mid)  */}
+          {/* ======================================================== */}
+          <G>
+            {/* Upward leader tick line to badge placed safely ABOVE */}
+            <Line
+              x1={p2X}
+              y1={p2Y - 7}
+              x2={p2X}
+              y2={isCompounding ? 87 : 106}
+              stroke="#CBD5E1"
+              strokeWidth="1"
+              strokeDasharray="2 2"
+            />
+
+            {/* 3D Spherical Node with Specular Glint */}
+            <Circle cx={p2X} cy={p2Y} r="9" fill={colors.accent} opacity="0.16" />
+            <Circle cx={p2X} cy={p2Y} r="5" fill="url(#sphere3DGrad)" />
+            <Circle cx={p2X - 1.2} cy={p2Y - 1.2} r="1.5" fill="#FFFFFF" opacity="0.9" />
+
+            {/* Point 2 Pointer Label: Placed cleanly ABOVE the curve */}
+            <G>
+              <Rect
+                x={isCompounding ? p2X - 58 : p2X - 58}
+                y={isCompounding ? 68 : 87}
+                width={116}
+                height={19}
+                rx={9.5}
+                fill="#FFFFFF"
+                stroke="#E2E8F0"
+                strokeWidth={1}
+              />
+              <SvgText
+                x={p2X}
+                y={isCompounding ? 80.5 : 99.5}
+                fontSize="8.5"
+                fill="#36358D"
+                fontWeight="800"
+                textAnchor="middle"
+              >
+                {isCompounding ? 'Consistent Investing' : 'Growing Over Time'}
+              </SvgText>
+            </G>
+          </G>
+
+          {/* ======================================================== */}
+          {/* POINT 3: COMPOUNDING GROWTH / LONG-TERM HORIZON (Apex)   */}
+          {/* ======================================================== */}
+          {/* Horizontal leader connector to the badge on the left */}
+          <Line
+            x1={p3X - 10}
+            y1={p3Y}
+            x2={298}
+            y2={p3Y}
+            stroke="#CBD5E1"
+            strokeWidth="1"
+            strokeDasharray="2 2"
+          />
+
+          {/* Point 3 Pointer Label: Placed safely to the LEFT of the beacon */}
+          <G>
+            <Rect
+              x={isCompounding ? 180 : 184}
+              y={isCompounding ? p3Y - 10 : p3Y - 10}
+              width={isCompounding ? 116 : 112}
+              height={20}
+              rx={10}
+              fill="#FFF7ED"
+              stroke="#FFEDD5"
+              strokeWidth={1}
+            />
+            <SvgText
+              x={isCompounding ? 238 : 240}
+              y={isCompounding ? p3Y + 3.5 : p3Y + 3.5}
+              fontSize="8.5"
+              fill="#C05621"
+              fontWeight="800"
+              textAnchor="middle"
+            >
+              {isCompounding ? 'Compounding Growth ★' : 'Long-Term Horizon'}
+            </SvgText>
+          </G>
+
+          {/* Radiant Apex 3D Beacon with Breathing Aura */}
+          <Circle cx={p3X} cy={p3Y} r={18} fill={colors.accent} opacity={0.14} />
+          <Circle cx={p3X} cy={p3Y} r={11} fill={colors.accent} opacity={0.22} />
+          <Circle cx={p3X} cy={p3Y} r={6} fill="url(#sphere3DGrad)" />
+          <Circle cx={p3X} cy={p3Y} r={2.2} fill="#FFFFFF" />
+        </Svg>
+      </Animated.View>
+
+      {/* Clean, minimal educational footnote */}
+      <View style={styles.cardFooter}>
+        <Text style={styles.disclaimerText}>
+          Illustrative representation of compounding over time
+        </Text>
+      </View>
     </Animated.View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: {
-    height: 240,
-    width: '100%',
-    marginTop: 8, marginBottom: 8,
+  outerCard: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
+    marginVertical: 4,
+    elevation: 3,
+    shadowColor: '#102A54',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.07,
+    shadowRadius: 16,
     overflow: 'hidden',
-    position: 'relative',
-    backgroundColor: '#fff',
+    justifyContent: 'space-between',
   },
-  glow: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: '#F8F9FB', // simulating a subtle glow behind
-  }
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  activeTabPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF0FB',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    gap: 6,
+  },
+  inactiveTabWrap: {
+    paddingHorizontal: 6,
+    paddingVertical: 5,
+  },
+  tabIndicatorDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#36358D',
+  },
+  activeTabText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#36358D',
+    letterSpacing: 0.3,
+  },
+  inactiveTabText: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: '#94A3B8',
+    letterSpacing: 0.2,
+  },
+  svgWrapper: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardFooter: {
+    paddingTop: 4,
+    alignItems: 'center',
+  },
+  disclaimerText: {
+    fontSize: 9.5,
+    color: '#94A3B8',
+    textAlign: 'center',
+    fontWeight: '500',
+    letterSpacing: 0.1,
+  },
 });
+
+export default AnimatedHeroVisual;

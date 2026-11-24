@@ -1,5 +1,6 @@
 'use client';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from '../../TranslationProvider';
 
 const ARTICLES = [
   { slug: 'what-is-mutual-fund', icon: '📈', title: 'What is a Mutual Fund?', desc: 'Learn how pooled investments work.', time: '5 min', tag: 'Beginner' },
@@ -19,6 +20,7 @@ const TAG_COLORS: Record<string, string> = {
 
 export default function LearnPage() {
   const router = useRouter();
+  const { t } = useTranslation();
 
   return (
     <div className="p-5">
@@ -44,8 +46,8 @@ export default function LearnPage() {
               <div className="flex items-center gap-2 mb-1">
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${TAG_COLORS[a.tag]}`}>{a.tag}</span>
               </div>
-              <p className="font-bold text-[var(--dark)] text-sm">{a.title}</p>
-              <p className="text-gray-400 text-xs mt-0.5">{a.desc}</p>
+              <p className="font-bold text-[var(--dark)] text-sm">{t("learn." + a.slug.replace(/-([a-z])/g, (g: string) => g[1].toUpperCase()) + ".title") || a.title}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{t("learn." + a.slug.replace(/-([a-z])/g, (g: string) => g[1].toUpperCase()) + ".desc") || a.desc}</p>
               <p className="text-[var(--orange)] text-xs font-bold mt-1">{a.time} read</p>
             </div>
             <span className="text-[var(--orange)] text-2xl">›</span>

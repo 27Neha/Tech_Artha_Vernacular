@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, TextInput, Alert, Switch } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { authStore } from '../store/auth';
@@ -8,8 +7,7 @@ import { Header } from '../components/Header';
 import Svg, { Path, Polyline, Line } from 'react-native-svg';
 import { ChevronIcon } from '../components/Icons';
 import { useTranslation } from 'react-i18next';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_URL } from '../services/api/client';
 
 
 const CheckIcon = ({ color }: any) => (
@@ -43,10 +41,91 @@ export const EditGoalScreen = () => {
   const [timePeriod, setTimePeriod] = useState(goal?.timePeriod?.toString() || '');
   const [inflationRate, setInflationRate] = useState(goal?.inflationRate?.toString() || '6');
   const [loading, setLoading] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
+  const [isPaused, setIsPaused] = useState(goal?.status === 'PAUSED');
   const [error, setError] = useState('');
 
   if (!goal) return null;
+
+  const handleTogglePause = async (val: boolean) => {
+    setIsPaused(val);
+    try {
+      const token = authStore.accessToken;
+      const endpoint = val ? `/goals/${goal.id}/pause` : `/goals/${goal.id}/resume`;
+      await fetch(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      Alert.alert(
+        val ? 'Goal Paused' : 'Goal Resumed',
+        val
+          ? 'Goal tracking is paused. Active bank mandates and SIPs remain unaffected with your bank.'
+          : 'Goal milestone tracking and contributions have been resumed.',
+      );
+    } catch {
+      setIsPaused(!val);
+      Alert.alert('Error', 'Unable to update goal status.');
+    }
+  };
+
+  const handleDelete = () => {
+    const invested = Number(goal.currentSavings || goal.currentInvestmentValue || 0);
+    if (invested > 0) {
+      Alert.alert(
+        'Investments Linked to Goal',
+        'You have already invested ₹' +
+          invested.toLocaleString('en-IN') +
+          ' towards this goal. Removing this goal will archive it and will NOT sell or redeem your investments. They remain protected in your portfolio.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Confirm Archive',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const token = authStore.accessToken;
+                await fetch(`${API_URL}/goals/${goal.id}`, {
+                  method: 'DELETE',
+                  headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+                Alert.alert('Goal Archived', 'Goal removed from active milestones. Investments remain safely in your portfolio.');
+                navigation.navigate('MainTabs');
+              } catch {
+                Alert.alert('Error', 'Failed to archive goal.');
+              }
+            },
+          },
+        ],
+      );
+    } else {
+      Alert.alert(
+        'Delete Goal?',
+        'Are you sure you want to delete this goal? This action will remove the goal from your active goals.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete Goal',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const token = authStore.accessToken;
+                await fetch(`${API_URL}/goals/${goal.id}`, {
+                  method: 'DELETE',
+                  headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+                Alert.alert('Goal Deleted', 'Goal deleted successfully.');
+                navigation.navigate('MainTabs');
+              } catch {
+                Alert.alert('Error', 'Failed to delete goal.');
+              }
+            },
+          },
+        ],
+      );
+    }
+  };
 
   const handleSave = async () => {
     setError('');
@@ -86,7 +165,7 @@ export const EditGoalScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['right', 'bottom', 'left']}>
+    <View style={styles.container}>
       <StatusBar style="dark" />
       <Header title={t('goals.editGoal', { defaultValue: 'Edit Goal' })} onBack={() => navigation.goBack()} />
       <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -162,11 +241,8 @@ export const EditGoalScreen = () => {
             </View>
             <Switch 
               value={isPaused} 
-              onValueChange={(val) => {
-                 setIsPaused(val);
-                 if(val) Alert.alert(t('goals.goalPaused', { defaultValue: 'Goal Paused' }), t('goals.goalPausedDesc', { defaultValue: 'SIPs associated with this goal are temporarily suspended.' }));
-              }}
-              trackColor={{ false: '#E2E8F0', true: '#3C3985' }}
+              onValueChange={handleTogglePause}
+              trackColor={{ false: '#E2E8F0', true: '#36358D' }}
             />
           </View>
 
@@ -193,12 +269,7 @@ export const EditGoalScreen = () => {
           {/* Delete Goal */}
           <Pressable 
             style={({pressed}) => ({ flexDirection: 'row', alignItems: 'center', padding: 20, backgroundColor: pressed ? '#FFF5F5' : '#fff', borderBottomLeftRadius: 24, borderBottomRightRadius: 24 })}
-            onPress={() => {
-              Alert.alert(t('goals.deleteGoal', { defaultValue: 'Delete Goal' }), t('goals.deleteConfirm', { defaultValue: 'This action cannot be undone. Any invested amount will safely remain in your main portfolio.' }), [
-                { text: t('common.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
-                { text: t('common.delete', { defaultValue: 'Delete' }), style: 'destructive' }
-              ]);
-            }}
+            onPress={handleDelete}
           >
             <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF5F5', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
               <TrashIcon color="#E53E3E" />
@@ -220,7 +291,7 @@ export const EditGoalScreen = () => {
           <Text style={styles.primaryText}>{loading ? t('common.saving', { defaultValue: 'Saving...' }) : t('common.saveChanges', { defaultValue: 'Save Changes' })}</Text>
         </Pressable>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 

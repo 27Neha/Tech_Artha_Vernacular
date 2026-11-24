@@ -1,32 +1,31 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { authStore } from '../store/auth';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { api, API_URL } from '../services/api/client';
 
 export const ProfileScreen = () => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
 
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
-  const [nominees, setNominees] = useState<any[]>([]);
-  const [mandates, setMandates] = useState<any[]>([]);
+  // Real account data, replacing the placeholder avatar initial and +91 XXXXX XXXXX.
+  const [profile, setProfile] = useState<{
+    mobile?: string;
+    email?: string | null;
+    profile?: { fullName?: string };
+    riskProfile?: { category?: string } | null;
+  } | null>(null);
 
   const fetchProfileData = useCallback(async () => {
     try {
       const token = authStore.accessToken;
       if (!token) return;
-      
-      
-      // We assume user profile id is fetched and then we fetch cybrilla details.
-      // Mocking the arrays for now since profile id is needed for the Cybrilla Sandbox API calls as per Web
-      // In the real implementation, this would depend on the user's fpProfileId
+
+      setProfile(await api.get('/auth/profile'));
     } catch (e) {
       console.error(e);
     }
@@ -38,10 +37,6 @@ export const ProfileScreen = () => {
     }, [fetchProfileData])
   );
 
-  const toggleExpand = (section: string) => {
-    setExpanded(prev => prev === section ? null : section);
-  };
-
   const handleLogout = () => {
     authStore.accessToken = null;
     authStore.userId = null;
@@ -49,156 +44,100 @@ export const ProfileScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
-      <Header title={t('header.viewProfile', { defaultValue: 'Profile' })} />
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.pageTitle}>{t('header.viewProfile', { defaultValue: 'Profile' })}</Text>
         
         {/* Avatar Card */}
         <View style={styles.profileCard}>
-          <View style={styles.avatar}><Text style={styles.avatarText}>U</Text></View>
-          <Text style={styles.name}>{t('header.user', { defaultValue: 'User' })}</Text>
-          <Text style={styles.mobile}>+91 XXXXX XXXXX</Text>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {(profile?.profile?.fullName ?? 'U').trim().charAt(0).toUpperCase() || 'U'}
+            </Text>
+          </View>
+          <Text style={styles.name}>
+            {profile?.profile?.fullName ?? t('header.user', { defaultValue: 'User' })}
+          </Text>
+          <Text style={styles.mobile}>{profile?.mobile ?? '-'}</Text>
           <View style={styles.kycBadge}><Text style={styles.kycText}>{t('header.kycVerified', { defaultValue: 'KYC VERIFIED' })}</Text></View>
         </View>
 
         {/* MENU */}
         <View style={{ gap: 12, marginBottom: 24 }}>
+          {/* Edit Profile */}
+          <Pressable style={styles.card} onPress={() => navigation.navigate('EditProfile')}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.iconBox, { backgroundColor: '#EEEDFA' }]}>
+                <Ionicons name="person-circle-outline" size={22} color="#36358D" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>{t('profile.editProfile', { defaultValue: 'Personal Information' })}</Text>
+                <Text style={styles.cardSub}>
+                  {profile?.email
+                    ? profile.email
+                    : t('profile.verifyEmail', { defaultValue: 'PAN, DOB, and email verification' })}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </View>
+          </Pressable>
+
+          {/* Bank Accounts Dedicated Screen */}
+          <Pressable style={styles.card} onPress={() => navigation.navigate('BankAccounts')}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.iconBox, { backgroundColor: '#EEEDFA' }]}>
+                <Ionicons name="business-outline" size={20} color="#36358D" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>{t('prof.bank', { defaultValue: 'Bank Accounts' })}</Text>
+                <Text style={styles.cardSub}>{t('profile.primaryBank', { defaultValue: 'Manage linked bank accounts for SIP & payouts' })}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </View>
+          </Pressable>
+
+          {/* Nominee Details Dedicated Screen */}
+          <Pressable style={styles.card} onPress={() => navigation.navigate('NomineeDetails')}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.iconBox, { backgroundColor: '#FAF5FF' }]}>
+                <Ionicons name="people-outline" size={20} color="#6B21A8" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>{t('prof.nominee', { defaultValue: 'Nominee Details' })}</Text>
+                <Text style={styles.cardSub}>{t('profile.nomineeDesc', { defaultValue: 'SEBI compliance: Add up to 3 legal nominees' })}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </View>
+          </Pressable>
+
           {/* Family Portfolio */}
           <Pressable style={styles.card} onPress={() => navigation.navigate('FamilyPortfolio')}>
             <View style={styles.cardHeader}>
-              <View style={[styles.iconBox, { backgroundColor: '#FFF5F5' }]}><Text style={styles.iconText}>dY`"??</Text></View>
+              <View style={[styles.iconBox, { backgroundColor: '#FFF7ED' }]}>
+                <Ionicons name="folder-open-outline" size={20} color="#F7941D" />
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>{t('profile.familyPortfolio', { defaultValue: 'Family Portfolio' })}</Text>
-                <Text style={styles.cardSub}>{t('profile.familyDesc', { defaultValue: 'Manage wealth together' })}</Text>
+                <Text style={styles.cardSub}>{t('profile.familyDesc', { defaultValue: 'Manage wealth together with family members' })}</Text>
               </View>
-              <Text style={styles.chevron}>&gt;</Text>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </View>
           </Pressable>
 
-          {/* Account Settings */}
-          <Pressable style={styles.card} onPress={() => navigation.navigate('Settings')}>
+          {/* Active Mandates Dedicated Screen */}
+          <Pressable style={styles.card} onPress={() => navigation.navigate('ActiveMandates')}>
             <View style={styles.cardHeader}>
-              <View style={styles.iconBox}><Text style={styles.iconText}>sT,?</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{t('profile.accountSettings', { defaultValue: 'Account Settings' })}</Text>
-                <Text style={styles.cardSub}>{t('profile.settingsDesc', { defaultValue: 'Language, themes, notifications' })}</Text>
+              <View style={[styles.iconBox, { backgroundColor: '#ECFDF5' }]}>
+                <Ionicons name="card-outline" size={20} color="#059669" />
               </View>
-              <Text style={styles.chevron}>&gt;</Text>
-            </View>
-          </Pressable>
-
-          {/* AI / Client Assistance */}
-          <Pressable style={styles.card} onPress={() => Alert.alert('Chat Support', 'Chat Support interface coming soon!')}>
-            <View style={styles.cardHeader}>
-              <View style={[styles.iconBox, { backgroundColor: '#E6FFFA' }]}><Text style={styles.iconText}>dY -</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{t('profile.support', { defaultValue: 'AI / Client Assistance' })}</Text>
-                <Text style={styles.cardSub}>{t('profile.supportDesc', { defaultValue: 'Get help with your portfolio' })}</Text>
-              </View>
-              <Text style={styles.chevron}>&gt;</Text>
-            </View>
-          </Pressable>
-
-          {/* Contact */}
-          <Pressable style={styles.card} onPress={() => Alert.alert('Contact module structure exists. Awaiting verified contact details from project owners.')}>
-            <View style={styles.cardHeader}>
-              <View style={[styles.iconBox, { backgroundColor: '#F0FFF4' }]}><Text style={styles.iconText}>dY"z</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{t('profile.contact', { defaultValue: 'Contact Us' })}</Text>
-                <Text style={styles.cardSub}>{t('profile.contactDesc', { defaultValue: 'Get in touch with support' })}</Text>
-              </View>
-              <Text style={styles.chevron}>&gt;</Text>
-            </View>
-          </Pressable>
-
-          {/* Terms */}
-          <Pressable style={styles.card} onPress={() => Alert.alert('Terms & Conditions structure exists. Awaiting approved legal text.')}>
-            <View style={styles.cardHeader}>
-              <View style={styles.iconBox}><Text style={styles.iconText}>dY",</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{t('profile.terms', { defaultValue: 'Terms & Conditions' })}</Text>
-                <Text style={styles.cardSub}>{t('profile.termsDesc', { defaultValue: 'Legal agreements and policies' })}</Text>
-              </View>
-              <Text style={styles.chevron}>&gt;</Text>
-            </View>
-          </Pressable>
-        </View>
-
-        {/* EXPANDABLE SECTIONS */}
-        <View style={{ gap: 12, marginBottom: 24 }}>
-          {/* Bank Accounts */}
-          <View style={[styles.card, expanded === 'Bank Accounts' && styles.cardActive]}>
-            <Pressable style={styles.cardHeader} onPress={() => toggleExpand('Bank Accounts')}>
-              <View style={[styles.iconBox, { backgroundColor: '#E0E7FF' }]}><Text style={styles.iconText}>dY?</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{t('prof.bank', { defaultValue: 'Bank Accounts' })}</Text>
-                <Text style={styles.cardSub}>{t('profile.primaryBank', { defaultValue: 'Manage linked bank accounts' })}</Text>
-              </View>
-              <Text style={[styles.chevron, expanded === 'Bank Accounts' && { transform: [{ rotate: '90deg' }] }]}>&gt;</Text>
-            </Pressable>
-            {expanded === 'Bank Accounts' && (
-              <View style={styles.expandedContent}>
-                {bankAccounts.length === 0 ? (
-                  <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-                    <Text style={{ color: '#A0AEC0', fontSize: 12, fontWeight: '700', marginBottom: 12 }}>{t('prof.noBank', { defaultValue: 'No bank accounts linked.' })}</Text>
-                    <Pressable style={styles.smBtnOutlined} onPress={() => Alert.alert('Coming Soon', 'Bank integration coming soon!')}>
-                      <Text style={styles.smBtnOutlinedText}>{t('prof.addBank', { defaultValue: '+ Add Bank Account' })}</Text>
-                    </Pressable>
-                  </View>
-                ) : null}
-              </View>
-            )}
-          </View>
-
-          {/* Nominees */}
-          <View style={[styles.card, expanded === 'Nominees' && styles.cardActive]}>
-            <Pressable style={styles.cardHeader} onPress={() => toggleExpand('Nominees')}>
-              <View style={[styles.iconBox, { backgroundColor: '#FAF5FF' }]}><Text style={styles.iconText}>dY`"</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{t('prof.nominee', { defaultValue: 'Nominees' })}</Text>
-                <Text style={styles.cardSub}>{t('profile.nomineeDesc', { defaultValue: 'Manage your portfolio nominees' })}</Text>
-              </View>
-              <Text style={[styles.chevron, expanded === 'Nominees' && { transform: [{ rotate: '90deg' }] }]}>&gt;</Text>
-            </Pressable>
-            {expanded === 'Nominees' && (
-              <View style={styles.expandedContent}>
-                {nominees.length === 0 ? (
-                  <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-                    <Text style={{ color: '#A0AEC0', fontSize: 12, fontWeight: '700', marginBottom: 12 }}>{t('prof.noNominee', { defaultValue: 'No nominees added yet.' })}</Text>
-                    <Pressable style={styles.smBtnOutlined} onPress={() => Alert.alert('Coming Soon', 'Nominee integration coming soon!')}>
-                      <Text style={styles.smBtnOutlinedText}>{t('prof.addNominee', { defaultValue: '+ Add Nominee' })}</Text>
-                    </Pressable>
-                  </View>
-                ) : null}
-              </View>
-            )}
-          </View>
-
-          {/* Mandates */}
-          <View style={[styles.card, expanded === 'Mandates' && styles.cardActive]}>
-            <Pressable style={styles.cardHeader} onPress={() => toggleExpand('Mandates')}>
-              <View style={[styles.iconBox, { backgroundColor: '#F0FFF4' }]}><Text style={styles.iconText}>dY"</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>{t('prof.mandate', { defaultValue: 'Active Mandates' })}</Text>
-                <Text style={styles.cardSub}>{t('profile.mandateDesc', { defaultValue: 'Manage your auto-pay mandates' })}</Text>
+                <Text style={styles.cardSub}>{t('profile.mandateDesc', { defaultValue: 'Manage e-Mandate auto-pay limits & NPCI authorizations' })}</Text>
               </View>
-              <Text style={[styles.chevron, expanded === 'Mandates' && { transform: [{ rotate: '90deg' }] }]}>&gt;</Text>
-            </Pressable>
-            {expanded === 'Mandates' && (
-              <View style={styles.expandedContent}>
-                {mandates.length === 0 ? (
-                  <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-                    <Text style={{ color: '#A0AEC0', fontSize: 12, fontWeight: '700', marginBottom: 12 }}>{t('prof.noMandates', { defaultValue: 'No active mandates.' })}</Text>
-                    <Pressable style={styles.smBtnOutlined} onPress={() => Alert.alert('Coming Soon', 'Mandate creation coming soon!')}>
-                      <Text style={styles.smBtnOutlinedText}>{t('prof.createMandate', { defaultValue: '+ Create Mandate' })}</Text>
-                    </Pressable>
-                  </View>
-                ) : null}
-              </View>
-            )}
-          </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </View>
+          </Pressable>
         </View>
 
         <Pressable style={styles.logoutBtn} onPress={handleLogout}>
@@ -206,40 +145,104 @@ export const ProfileScreen = () => {
         </Pressable>
 
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8F9FB' },
-  pageTitle: { fontSize: 28, textTransform: 'capitalize', fontWeight: '800', color: '#102A54', marginBottom: 24 },
-  container: { padding: 24, paddingBottom: 40 },
-  profileCard: { backgroundColor: '#fff', borderRadius: 24, padding: 32, alignItems: 'center', marginBottom: 32, borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#3C3985', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  avatarText: { color: '#fff', fontSize: 32, fontWeight: '800' },
-  name: { fontSize: 22, fontWeight: '800', color: '#102A54', marginBottom: 4 },
-  mobile: { fontSize: 14, color: '#718096', marginBottom: 16, fontWeight: '600' },
-  kycBadge: { backgroundColor: '#F0FFF4', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: '#C6F6D5' },
-  kycText: { color: '#276749', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  
-  card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 4, elevation: 1 },
-  cardActive: { borderColor: '#3C3985' },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  iconBox: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F7FAFC', alignItems: 'center', justifyContent: 'center' },
+  safe: { flex: 1, backgroundColor: '#F6F7FC' },
+  pageTitle: { fontSize: 26, fontWeight: '900', color: '#102A54', marginBottom: 20, letterSpacing: -0.3 },
+  container: { padding: 20, paddingBottom: 40 },
+  profileCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 28,
+    alignItems: 'center',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#E6E8F6',
+    shadowColor: '#102A54',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#36358D',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    borderWidth: 3,
+    borderColor: '#EEEDFA',
+  },
+  avatarText: { color: '#FFFFFF', fontSize: 32, fontWeight: '800' },
+  name: { fontSize: 20, fontWeight: '800', color: '#102A54', marginBottom: 4 },
+  mobile: { fontSize: 13, color: '#64748B', marginBottom: 14, fontWeight: '600' },
+  kycBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  kycText: { color: '#059669', fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
+
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E6E8F6',
+    shadowColor: '#102A54',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  cardActive: { borderColor: '#36358D' },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  iconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#EEEDFA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   iconText: { fontSize: 20 },
   cardTitle: { fontSize: 14, fontWeight: '800', color: '#102A54', marginBottom: 2 },
-  cardSub: { fontSize: 12, color: '#A0AEC0' },
-  chevron: { fontSize: 20, color: '#CBD5E0', fontWeight: '300' },
-  expandedContent: { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#F7FAFC' },
-  
-  innerBox: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 16, backgroundColor: '#F7FAFC' },
-  smBtn: { backgroundColor: '#3C3985', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
-  smBtnText: { color: '#fff', fontSize: 12, fontWeight: '800' },
-  smBtnOutlined: { backgroundColor: '#EBEBFA', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#3C3985', borderStyle: 'dashed' },
-  smBtnOutlinedText: { color: '#3C3985', fontSize: 12, fontWeight: '800' },
-  outlineBtn: { borderWidth: 2, borderColor: '#3C3985', paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
-  outlineBtnText: { color: '#3C3985', fontSize: 12, fontWeight: '800' },
+  cardSub: { fontSize: 11.5, color: '#64748B' },
+  chevron: { fontSize: 20, color: '#94A3B8', fontWeight: '300' },
+  expandedContent: { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
 
-  logoutBtn: { backgroundColor: '#FFF5F5', padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: '#FEB2B2', marginTop: 8 },
-  logoutText: { color: '#C53030', fontSize: 16, fontWeight: '800' }
+  innerBox: { borderWidth: 1, borderColor: '#E6E8F6', borderRadius: 14, padding: 16, backgroundColor: '#F8FAFC' },
+  smBtn: { backgroundColor: '#36358D', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
+  smBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
+  smBtnOutlined: {
+    backgroundColor: '#EEEDFA',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#36358D',
+    borderStyle: 'dashed',
+  },
+  smBtnOutlinedText: { color: '#36358D', fontSize: 12, fontWeight: '800' },
+  outlineBtn: { borderWidth: 1.5, borderColor: '#36358D', paddingVertical: 12, borderRadius: 14, alignItems: 'center' },
+  outlineBtnText: { color: '#36358D', fontSize: 13, fontWeight: '800' },
+
+  logoutBtn: {
+    backgroundColor: '#FEF2F2',
+    padding: 15,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    marginTop: 8,
+  },
+  logoutText: { color: '#DC2626', fontSize: 14, fontWeight: '800' },
 });

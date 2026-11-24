@@ -13,10 +13,7 @@ export class MinorController {
     return this.minorService.getOnboardingStatus(user.id);
   }
 
-  @Post('risk-assessment')
-  async saveRiskAssessment(@CurrentUser() user: AuthenticatedUser, @Body() body: any) {
-    return this.minorService.saveRiskAssessment(user.id, body);
-  }
+
 
   @Post('guardian')
   async saveGuardian(@CurrentUser() user: AuthenticatedUser, @Body() body: any) {

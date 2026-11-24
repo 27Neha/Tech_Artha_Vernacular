@@ -3,14 +3,16 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
+import { EmailOtpProvider } from './email.provider';
 import { AccessTokenGuard } from '../../common/auth';
 import { InteraktModule } from '../../integrations/interakt/interakt.module';
-import { EmailOtpProvider } from './email.provider';
+import { ZohoModule } from '../zoho/zoho.module';
 
 @Module({
   imports: [
     PrismaModule,
     InteraktModule,
+    ZohoModule,
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET ?? 'development-only-change-me',

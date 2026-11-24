@@ -1,7 +1,9 @@
-﻿'use client';
+'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import i18n from '../i18n/i18n';
+import { I18nextProvider } from 'react-i18next';
+const I18nProvider = I18nextProvider as any;
 
 // All languages shown in the language selector.
 // Translations exist for en/hi/mr; others fall back to English strings automatically.
@@ -193,9 +195,13 @@ export function TranslationProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <TranslationContext.Provider value={{ lang, setLang: changeLang, t, translateText }}>
-      {children}
-    </TranslationContext.Provider>
+    <>
+      <I18nProvider i18n={i18n}>
+        <TranslationContext.Provider value={{ lang, setLang: changeLang, t, translateText }}>
+          {children}
+        </TranslationContext.Provider>
+      </I18nProvider>
+    </>
   );
 }
 
