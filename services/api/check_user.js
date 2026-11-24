@@ -1,0 +1,1 @@
+const { PrismaClient } = require('@prisma/client'); const prisma = new PrismaClient(); async function main() { const users = await prisma.user.findMany({ where: { mobile: '9407726769' } }); console.log('Users with 9407726769:', users); } main().finally(() => prisma.$disconnect());
