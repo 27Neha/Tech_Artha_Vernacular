@@ -1,28 +1,87 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, useWindowDimensions } from 'react-native';
 import Svg, {
   Defs,
   Path,
   Circle,
   LinearGradient,
   Stop,
-  G,
   Line,
 } from 'react-native-svg';
 
 export interface RiskCategoryConfig {
   key: string;
   label: string;
+  fullTitle: string;
   color: string;
-  shortLabel?: string;
+  bg: string;
+  border: string;
+  split: string;
+  scoreRange: string;
+  description: string;
 }
 
 export const RISK_CATEGORIES: RiskCategoryConfig[] = [
-  { key: 'CONSERVATIVE', label: 'Conservative', color: '#10B981', shortLabel: 'Cons.' },
-  { key: 'MODERATELY_LOW', label: 'Moderately Low', color: '#84CC16', shortLabel: 'Mod. Low' },
-  { key: 'MODERATE', label: 'Moderate', color: '#EAB308', shortLabel: 'Moderate' },
-  { key: 'MODERATELY_HIGH', label: 'Moderately High', color: '#EA580C', shortLabel: 'Mod. High' },
-  { key: 'AGGRESSIVE', label: 'Aggressive', color: '#EF4444', shortLabel: 'Aggr.' },
+  {
+    key: 'CONSERVATIVE',
+    label: 'Conservative',
+    fullTitle: 'Conservative Investor',
+    color: '#10B981',
+    bg: '#ECFDF5',
+    border: '#A7F3D0',
+    split: '20% Equity / 80% Debt',
+    scoreRange: '12 – 20',
+    description:
+      'You prioritize capital preservation over high returns and prefer stable, low-volatility instruments.',
+  },
+  {
+    key: 'MODERATELY_LOW',
+    label: 'Moderately Low',
+    fullTitle: 'Moderately Low Investor',
+    color: '#65A30D',
+    bg: '#F7FEE7',
+    border: '#BEF264',
+    split: '35% Equity / 65% Debt',
+    scoreRange: '21 – 29',
+    description:
+      'You seek capital stability with modest growth and are comfortable with minimal short-term fluctuations.',
+  },
+  {
+    key: 'MODERATE',
+    label: 'Moderate',
+    fullTitle: 'Moderate Investor',
+    color: '#D97706',
+    bg: '#FFFBEB',
+    border: '#FDE68A',
+    split: '55% Equity / 45% Debt',
+    scoreRange: '30 – 41',
+    description:
+      'You prefer a balanced approach, seeking steady wealth creation while taking measured risks across asset classes.',
+  },
+  {
+    key: 'MODERATELY_HIGH',
+    label: 'Moderately High',
+    fullTitle: 'Moderately High Investor',
+    color: '#EA580C',
+    bg: '#FFF7ED',
+    border: '#FED7AA',
+    split: '70% Equity / 30% Debt',
+    scoreRange: '42 – 50',
+    description:
+      'You focus on long-term capital appreciation and are comfortable riding through moderate market volatility.',
+  },
+  {
+    key: 'AGGRESSIVE',
+    label: 'Aggressive',
+    fullTitle: 'Aggressive Investor',
+    color: '#DC2626',
+    bg: '#FEF2F2',
+    border: '#FECACA',
+    split: '85% Equity / 15% Debt',
+    scoreRange: '51 – 60',
+    description:
+      'You accept higher short-term market volatility in pursuit of substantial long-term wealth creation.',
+  },
 ];
 
 interface RiskometerGaugeProps {
@@ -38,67 +97,105 @@ export const RiskometerGauge: React.FC<RiskometerGaugeProps> = ({
   size = 280,
   showLabels = true,
 }) => {
+  const { width: windowWidth } = useWindowDimensions();
   const animValue = useRef(new Animated.Value(0)).current;
 
-  // Normalized score range: 12 to 60 (standard 12-question risk survey range)
+  // Responsive gauge width adapting cleanly to small, medium, and large phones
+  const responsiveWidth = Math.max(220, Math.min(size, windowWidth - 64));
+
+  // Normalized category key
+  const normalizedCat = (category || 'MODERATE').toUpperCase().replace(/\s+/g, '_');
+  const activeCatIndex = Math.max(
+    0,
+    RISK_CATEGORIES.findIndex((c) => c.key === normalizedCat),
+  );
+  const activeCat = RISK_CATEGORIES[activeCatIndex] || RISK_CATEGORIES[2];
+
+  // Map score + category to the 5 equal 36-degree sectors on the semicircle (0.0 to 1.0)
+  // Sector centers are at 0.1, 0.3, 0.5, 0.7, 0.9
   const minScore = 12;
   const maxScore = 60;
-  const safeScore = Math.max(minScore, Math.min(maxScore, Number(score) || 36));
-  const progressPercent = (safeScore - minScore) / (maxScore - minScore); // 0.0 to 1.0
+  const numericScore = Number(score);
+  const hasValidScore = Number.isFinite(numericScore) && numericScore > 0;
+  const clampedScore = hasValidScore ? Math.max(minScore, Math.min(maxScore, numericScore)) : 36;
 
-  // Needle angle: -90 degrees (far left / Conservative) to +90 degrees (far right / Aggressive)
-  const targetAngle = -90 + progressPercent * 180;
-  const [needleAngle, setNeedleAngle] = useState(-90);
+  // Compute progress within the matched category sector so the needle always points inside the active category segment
+  const sectorWidth = 0.2;
+  const sectorStart = activeCatIndex * sectorWidth;
+  const sectorBounds: [number, number][] = [
+    [12, 20],
+    [21, 29],
+    [30, 41],
+    [42, 50],
+    [51, 60],
+  ];
+  const [bMin, bMax] = sectorBounds[activeCatIndex] || [30, 41];
+  const withinSectorRatio = hasValidScore
+    ? Math.max(0.18, Math.min(0.82, (clampedScore - bMin) / Math.max(1, bMax - bMin)))
+    : 0.5;
+  const progressPercent = sectorStart + withinSectorRatio * sectorWidth;
+
+  // Angle in standard SVG polar coordinates: 180 deg (left) down to 0 deg (right)
+  const targetPolarDeg = 180 - progressPercent * 180;
+  const [polarDeg, setPolarDeg] = useState(180);
 
   useEffect(() => {
+    animValue.setValue(0);
     const id = animValue.addListener(({ value }) => {
-      setNeedleAngle(-90 + value * (targetAngle - (-90)));
+      setPolarDeg(180 - value * (180 - targetPolarDeg));
     });
     Animated.timing(animValue, {
       toValue: 1,
-      duration: 1200,
-      easing: Easing.out(Easing.back(1.4)),
+      duration: 900,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
     return () => {
       animValue.removeListener(id);
     };
-  }, [animValue, score, targetAngle]);
+  }, [animValue, score, category, targetPolarDeg]);
 
-  const width = size;
-  const height = size * 0.58;
+  const width = responsiveWidth;
+  const height = Math.round(width * 0.58);
   const cx = width / 2;
-  const cy = height - 8;
-  const radius = width * 0.42;
-  const strokeWidth = 16;
+  const cy = height - 12;
+  const radius = width * 0.41;
+  const strokeWidth = Math.max(14, Math.round(width * 0.062));
 
-  // Semicircle arc path helper
+  // Semicircle arc path
   const arcPath = `M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`;
 
-  // Normalized category key
-  const normalizedCat = (category || 'MODERATE').toUpperCase().replace(/\s+/g, '_');
-  const activeCat = RISK_CATEGORIES.find((c) => c.key === normalizedCat) || RISK_CATEGORIES[2];
-
-  // Helper to compute tick dividers for 5 equal 36-degree sectors:
-  // Boundaries are at 180 - (36 * i) degrees for i = 1, 2, 3, 4
+  // Compute tick dividers for 5 equal 36-degree sectors
   const dividers = [1, 2, 3, 4].map((i) => {
     const angleDeg = 180 - i * 36;
     const rad = (Math.PI / 180) * angleDeg;
     const rInner = radius - strokeWidth / 2 - 1;
     const rOuter = radius + strokeWidth / 2 + 1;
     return {
-      x1: cx - rInner * Math.cos(rad),
+      x1: cx + rInner * Math.cos(rad),
       y1: cy - rInner * Math.sin(rad),
-      x2: cx - rOuter * Math.cos(rad),
+      x2: cx + rOuter * Math.cos(rad),
       y2: cy - rOuter * Math.sin(rad),
     };
   });
 
+  // Compute needle coordinates directly (avoids react-native-svg <G rotation> bugs on Android)
+  const needleRad = (Math.PI / 180) * polarDeg;
+  const needleLength = radius - 8;
+  const tipX = cx + needleLength * Math.cos(needleRad);
+  const tipY = cy - needleLength * Math.sin(needleRad);
+  const perpRad = needleRad + Math.PI / 2;
+  const halfBase = 4;
+  const baseLeftX = cx + halfBase * Math.cos(perpRad);
+  const baseLeftY = cy - halfBase * Math.sin(perpRad);
+  const baseRightX = cx - halfBase * Math.cos(perpRad);
+  const baseRightY = cy + halfBase * Math.sin(perpRad);
+  const needlePath = `M ${baseLeftX} ${baseLeftY} L ${tipX} ${tipY} L ${baseRightX} ${baseRightY} Z`;
+
   return (
-    <View style={[styles.container, { width }]}>
+    <View style={[styles.container, { width: '100%' }]}>
       <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
         <Defs>
-          {/* 5-tier Smooth Spectrum Gradient */}
           <LinearGradient id="risk5Grad" x1="0%" y1="0%" x2="100%" y2="0%">
             <Stop offset="0%" stopColor="#10B981" />
             <Stop offset="25%" stopColor="#84CC16" />
@@ -107,7 +204,6 @@ export const RiskometerGauge: React.FC<RiskometerGaugeProps> = ({
             <Stop offset="100%" stopColor="#EF4444" />
           </LinearGradient>
 
-          {/* Pivot Gradient with TechArtha Brand Indigo */}
           <LinearGradient id="pivotGrad" x1="0%" y1="0%" x2="100%" y2="100%">
             <Stop offset="0%" stopColor="#3C3985" />
             <Stop offset="100%" stopColor="#102A54" />
@@ -145,17 +241,9 @@ export const RiskometerGauge: React.FC<RiskometerGaugeProps> = ({
           />
         ))}
 
-        {/* Needle Layer */}
-        <G rotation={needleAngle} originX={cx} originY={cy}>
-          {/* Needle drop shadow / body */}
-          <Path
-            d={`M ${cx - 3.5} ${cy} L ${cx} ${cy - radius + 8} L ${cx + 3.5} ${cy} Z`}
-            fill="#102A54"
-            opacity="0.95"
-          />
-          {/* Dynamic Category Color Needle Tip Accent */}
-          <Circle cx={cx} cy={cy - radius + 9} r={3.5} fill={activeCat.color} />
-        </G>
+        {/* Needle Polygon */}
+        <Path d={needlePath} fill="#102A54" opacity="0.95" />
+        <Circle cx={tipX} cy={tipY} r={3.5} fill={activeCat.color} />
 
         {/* Center Hub / Pivot Cap */}
         <Circle cx={cx} cy={cy} r={14} fill="#E2E8F0" />
@@ -163,20 +251,35 @@ export const RiskometerGauge: React.FC<RiskometerGaugeProps> = ({
         <Circle cx={cx} cy={cy} r={4} fill="#FFFFFF" opacity="0.9" />
       </Svg>
 
-      {/* 5 Category Labels Row */}
+      {/* 5 Uniform Category Pills (Responsive Wrap, Identical Typography) */}
       {showLabels && (
-        <View style={[styles.labelsRow, { width: width - 8 }]}>
+        <View style={styles.labelsGrid}>
           {RISK_CATEGORIES.map((catItem) => {
             const isSelected = catItem.key === normalizedCat;
             return (
-              <View key={catItem.key} style={styles.labelCol}>
-                <View style={[styles.indicatorDot, { backgroundColor: catItem.color }, isSelected && styles.activeDot]} />
+              <View
+                key={catItem.key}
+                style={[
+                  styles.categoryChip,
+                  isSelected && {
+                    backgroundColor: catItem.bg,
+                    borderColor: catItem.color,
+                    borderWidth: 1.5,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.indicatorDot,
+                    { backgroundColor: catItem.color },
+                    isSelected && styles.activeDot,
+                  ]}
+                />
                 <Text
                   style={[
                     styles.labelText,
                     isSelected && { color: catItem.color, fontWeight: '800' },
                   ]}
-                  numberOfLines={2}
                 >
                   {catItem.label}
                 </Text>
@@ -193,39 +296,43 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 8,
+    marginVertical: 6,
   },
-  labelsRow: {
+  labelsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginTop: 10,
-    paddingHorizontal: 2,
-  },
-  labelCol: {
-    flex: 1,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 2,
+    gap: 6,
+    marginTop: 10,
+    width: '100%',
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 5,
   },
   indicatorDot: {
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    marginBottom: 4,
   },
   activeDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-    borderWidth: 1.5,
-    borderColor: '#102A54',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   labelText: {
-    fontSize: 9.5,
+    fontSize: 11,
     fontWeight: '700',
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 12,
+    color: '#475569',
+    lineHeight: 15,
   },
 });
 

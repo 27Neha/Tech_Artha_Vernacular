@@ -48,12 +48,9 @@ export function isTunnelHost(host: string): boolean {
     lower.endsWith('.ngrok-free.app') ||
     lower.endsWith('.ngrok.app') ||
     lower.endsWith('.loca.lt') ||
-    lower.endsWith('.trycloudflare.com') ||
     lower.endsWith('.devtunnels.ms')
   );
 }
-
-export const LIVE_TUNNEL_API_URL = 'https://necklace-expansion-vegetarian-worlds.trycloudflare.com';
 
 /**
  * Resolves the backend API base URL in priority order:
@@ -61,23 +58,113 @@ export const LIVE_TUNNEL_API_URL = 'https://necklace-expansion-vegetarian-worlds
  * 2. Automatic LAN / Hotspot host detection from Expo Metro host
  * 3. http://localhost:3000 fallback
  */
+/**
+ * Resolves the backend API base URL in strict priority order:
+ * 1. Explicit EXPO_PUBLIC_API_URL if configured and not 'auto'
+ *    (e.g. Production: https://api.techartha.com, Staging: https://api-staging.techartha.com)
+ * 2. Metro Bundler host detected by Expo Go runtime:
+ *    - If tunnel (e.g. .exp.direct, .ngrok-free.app), routes through Metro's /__api proxy
+ *    - If LAN IP, routes directly to http://<lan-ip>:<api-port>
+ * 3. Auto-detected LAN IP fallback (for development on local network)
+ * 4. Localhost fallback (for simulator / web)
+ */
+/**
+ * Dedicated override for a live backend tunnel URL (e.g. cloudflared or ngrok -> port 3000).
+ * Per AGENTS.md rule, updating this propagates to connected devices via Fast Refresh.
+ */
+export const LIVE_TUNNEL_API_URL: string = '';
+
 export function resolveApiUrl(): string {
+  if (LIVE_TUNNEL_API_URL && LIVE_TUNNEL_API_URL.trim()) {
+    return LIVE_TUNNEL_API_URL.trim().replace(/\/+$/, '');
+  }
+
   const configured = process.env.EXPO_PUBLIC_API_URL?.trim();
   if (configured && configured.toLowerCase() !== 'auto') {
     return configured.replace(/\/+$/, '');
   }
 
   const metroHost = getMetroHost();
-  if (metroHost && !isTunnelHost(metroHost)) {
+  if (metroHost) {
+    if (isTunnelHost(metroHost)) {
+      return `https://${metroHost}/__api`;
+    }
     return `http://${metroHost}:${DEFAULT_API_PORT}`;
   }
 
-  return `http://localhost:${DEFAULT_API_PORT}`;
+  const devLan = process.env.EXPO_PUBLIC_DEV_LAN_IP?.trim() || '192.168.1.13';
+  return `http://${devLan}:${DEFAULT_API_PORT}`;
 }
 
 export const API_URL = resolveApiUrl();
 
-const DEFAULT_TIMEOUT_MS = 8000;
+const DEFAULT_TIMEOUT_MS = 15000;
+
+/**
+ * Converts native network exceptions (Java UnknownHostException, timeouts,
+ * connection refused, offline) into clear, friendly, actionable messages.
+ * Never leaks raw Java exceptions or stack traces to end users.
+ */
+export function sanitizeNetworkError(error: any, targetUrl?: string): string {
+  if (!error) {
+    return 'Unable to complete request. Please try again.';
+  }
+
+  const rawMessage = typeof error === 'string' ? error : error?.message || '';
+  const errorName = error?.name || '';
+  const lowerMsg = rawMessage.toLowerCase();
+
+  // 1. Timeout / Abort errors
+  if (
+    errorName === 'AbortError' ||
+    lowerMsg.includes('aborted') ||
+    lowerMsg.includes('timed out') ||
+    lowerMsg.includes('timeout')
+  ) {
+    return 'Connection timed out. The server took too long to respond. Please check your connection and try again.';
+  }
+
+  // 2. DNS / Host Resolution failures (UnknownHostException, ENOTFOUND, etc.)
+  if (
+    lowerMsg.includes('unknownhostexception') ||
+    lowerMsg.includes('unable to resolve host') ||
+    lowerMsg.includes('no address associated with hostname') ||
+    lowerMsg.includes('enotfound') ||
+    lowerMsg.includes('eai_again')
+  ) {
+    return 'Unable to connect to TechArtha server. Please verify your internet connection or network availability.';
+  }
+
+  // 3. Connection refused / network offline failures
+  if (
+    lowerMsg.includes('econnrefused') ||
+    lowerMsg.includes('failed to connect to') ||
+    lowerMsg.includes('connection refused') ||
+    lowerMsg.includes('network request failed') ||
+    lowerMsg.includes('network error')
+  ) {
+    return 'Unable to reach the server. Please check your Wi-Fi or mobile data connection and try again.';
+  }
+
+  // 4. SSL / Certificate errors
+  if (
+    lowerMsg.includes('cert') ||
+    lowerMsg.includes('ssl') ||
+    lowerMsg.includes('handshake')
+  ) {
+    return 'Secure connection failed. Please ensure your device date and time are accurate.';
+  }
+
+  // 5. Clean up any raw Java/native prefixes if present
+  let clean = rawMessage.replace(/^(java\.[a-zA-Z0-9_.]+:|Error:|TypeError:)\s*/i, '').trim();
+
+  // If the message contains technical stack trace artifacts, replace with friendly message
+  if (clean.includes('java.') || clean.includes('at ') || clean.length > 250) {
+    return 'A network error occurred while communicating with the server. Please try again.';
+  }
+
+  return clean || 'Unable to connect to TechArtha. Please try again.';
+}
 
 export class ApiError extends Error {
   constructor(
@@ -123,9 +210,10 @@ async function request<T>(
     if (token) headers.Authorization = `Bearer ${token}`;
   }
 
+  const baseUrl = resolveApiUrl();
   let response: Response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await fetch(`${baseUrl}${path}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -133,9 +221,7 @@ async function request<T>(
     });
   } catch (error: any) {
     clearTimeout(timeout);
-    // A phone on mobile data cannot reach a laptop's localhost - by far the most common
-    // cause of this branch in development, so say something more useful than "failed".
-    const reason = error?.name === 'AbortError' ? 'The request timed out.' : 'Could not reach TechArtha.';
+    const reason = sanitizeNetworkError(error, `${baseUrl}${path}`);
     throw new ApiError(0, reason, error);
   }
   clearTimeout(timeout);
@@ -210,4 +296,5 @@ export const api = {
   post: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('POST', path, body, options),
   put: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('PUT', path, body, options),
   del: <T>(path: string, options?: RequestOptions) => request<T>('DELETE', path, undefined, options),
+  delete: <T>(path: string, options?: RequestOptions) => request<T>('DELETE', path, undefined, options),
 };

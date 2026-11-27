@@ -2840,3 +2840,377 @@ body, html { top: 0px !important; position: static !important; margin-top: 0px !
 
 
 @keyframes shine { 100% { transform: translateX(100%); } }
+
+
+/* Global viewport-responsive root typography scaling across all device screen sizes */
+html {
+  font-size: clamp(14px, 0.42vw + 12.4px, 17.5px);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* =====================================================================
+   TECHArtha 2.0 VISUAL-FIRST DASHBOARD & FLOATING 3D ARTHAVERSE SYSTEM
+   ===================================================================== */
+
+@keyframes taFloatBob {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.ta-app-container {
+  width: 100%;
+  max-width: 1180px;
+  margin-left: auto;
+  margin-right: auto;
+  min-height: 100vh;
+  position: relative;
+  padding-top: calc(3.75rem + env(safe-area-inset-top));
+  padding-bottom: env(safe-area-inset-bottom);
+  display: flex;
+  flex-direction: column;
+}
+
+.ta-header-inner {
+  width: 100%;
+  max-width: 1180px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 20px;
+  padding-right: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+}
+
+.ta-dashboard-page {
+  width: 100%;
+  padding: 20px 18px 104px 18px;
+  background: radial-gradient(circle at 8% 0%, rgba(238, 237, 250, 0.9) 0%, #f6f7fc 36%, #f6f7fc 100%);
+  min-height: calc(100vh - 60px);
+}
+
+@media (min-width: 768px) {
+  .ta-dashboard-page {
+    padding: 28px 28px 110px 28px;
+  }
+}
+
+.ta-bottom-dock {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 24px);
+  max-width: 560px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid #e2e4f5;
+  border-radius: 22px;
+  box-shadow: 0 12px 32px rgba(16, 42, 84, 0.12);
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  z-index: 45;
+}
+
+.ta-dock-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 4px;
+  border-radius: 14px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  background: transparent;
+}
+
+.ta-dock-btn:hover {
+  color: #36358d;
+  background: #f4f4fd;
+}
+
+.ta-dock-btn-active {
+  color: #36358d;
+  background: #eeedfa;
+  font-weight: 800;
+}
+
+/* Greeting Row */
+.ta-greeting-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+/* Hero Portfolio Card */
+.ta-hero-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+@media (min-width: 960px) {
+  .ta-hero-grid {
+    grid-template-columns: 1.55fr 1fr;
+    align-items: stretch;
+  }
+}
+
+.ta-hero-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 26px;
+  padding: 24px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #211f60 0%, #36358d 52%, #554fb8 100%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-bottom: 3px solid #19184d;
+  box-shadow: 0 18px 40px rgba(35, 34, 98, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.ta-hero-card::before {
+  content: '';
+  position: absolute;
+  top: -54px;
+  right: -40px;
+  width: 210px;
+  height: 210px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.16) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.ta-hero-card::after {
+  content: '';
+  position: absolute;
+  bottom: -64px;
+  left: -30px;
+  width: 190px;
+  height: 190px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(247, 148, 29, 0.24) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Quick Actions */
+.ta-quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+@media (min-width: 960px) {
+  .ta-quick-actions-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 0;
+  }
+}
+
+.ta-quick-tile {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  border: 1px solid #e4e6f6;
+  border-bottom: 2.5px solid #d7daf2;
+  border-radius: 18px;
+  padding: 14px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 4px 12px rgba(16, 42, 84, 0.05);
+}
+
+.ta-quick-tile:hover {
+  transform: translateY(-3px);
+  border-color: #36358d;
+  box-shadow: 0 10px 22px rgba(54, 53, 141, 0.14);
+}
+
+/* =====================================================================
+   TRUE 3D FLOATING ARTHAVERSE NAVIGATION CARDS (5 MANDATORY TABS)
+   ===================================================================== */
+
+.ta-3d-section {
+  margin-bottom: 28px;
+}
+
+.ta-3d-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  perspective: 1200px;
+}
+
+@media (min-width: 640px) {
+  .ta-3d-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+
+@media (min-width: 1040px) {
+  .ta-3d-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+.ta-3d-float-wrapper {
+  perspective: 1100px;
+  animation: taFloatBob 4.6s ease-in-out infinite;
+  will-change: transform;
+}
+
+.ta-3d-float-wrapper:hover {
+  animation-play-state: paused;
+}
+
+@media (max-width: 639px) {
+  .ta-3d-grid > :last-child:nth-child(odd) {
+    grid-column: span 2;
+  }
+}
+
+.ta-3d-card {
+  position: relative;
+  width: 100%;
+  min-height: 142px;
+  padding: 16px;
+  border-radius: 22px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  cursor: pointer;
+  transform-style: preserve-3d;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, border-color 0.2s ease;
+  background: linear-gradient(145deg, rgba(42, 40, 118, 0.96) 0%, rgba(62, 58, 152, 0.94) 58%, rgba(92, 84, 198, 0.92) 100%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  border-bottom: 4px solid #1d1b58;
+  box-shadow:
+    0 14px 28px rgba(35, 34, 98, 0.24),
+    0 4px 10px rgba(35, 34, 98, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  color: #ffffff;
+}
+
+.ta-3d-card:hover {
+  box-shadow:
+    0 22px 40px rgba(35, 34, 98, 0.34),
+    0 0 0 1px rgba(247, 148, 29, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.48);
+  border-color: rgba(247, 148, 29, 0.72);
+}
+
+.ta-3d-card-active {
+  border-color: #f7941d;
+  border-bottom-color: #dd6b20;
+  box-shadow:
+    0 20px 36px rgba(54, 53, 141, 0.35),
+    0 0 0 2px rgba(247, 148, 29, 0.45);
+}
+
+.ta-3d-card-sheen {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--mx, 80%) var(--my, 15%), rgba(255, 255, 255, 0.24) 0%, transparent 56%);
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.ta-3d-card-glow {
+  position: absolute;
+  bottom: -24px;
+  left: -18px;
+  width: 96px;
+  height: 96px;
+  border-radius: 9999px;
+  opacity: 0.24;
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+.ta-3d-icon-orb {
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.35), 0 6px 14px rgba(15, 14, 52, 0.25);
+  transform: translateZ(20px);
+}
+
+/* Responsive Bento Grid for Goals / Riskometer / Market Snapshot */
+.ta-bento-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+@media (min-width: 900px) {
+  .ta-bento-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.ta-surface-card {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(10px);
+  border: 1px solid #e4e6f6;
+  border-radius: 22px;
+  padding: 18px;
+  box-shadow: 0 8px 24px rgba(16, 42, 84, 0.05);
+}
+
+.ta-collection-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .ta-collection-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+
+.ta-two-col {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 860px) {
+  .ta-two-col {
+    grid-template-columns: 1.25fr 1fr;
+  }
+}

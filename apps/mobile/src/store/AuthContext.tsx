@@ -2,6 +2,10 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import * as SecureStore from 'expo-secure-store';
 import { api, configureApi } from '../services/api/client';
 import { authStore, setAuthStoreSilently, subscribeToAuthStore } from './auth';
+import {
+  clearAuthenticatedFastCache,
+  prefetchAuthenticatedEndpoints,
+} from '../utils/fastFetch';
 
 /**
  * Authentication state.
@@ -58,18 +62,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // within the same tick, which is why the token does not live in useState.
 
   const signOut = useCallback(async () => {
-    // Tell the server first so the session row is deactivated, but never let a failed
-    // or offline logout trap the user in a signed-in shell.
-    try {
-      if (authStore.accessToken) await api.post('/auth/logout');
-    } catch {
-      // Ignored deliberately - local sign-out must always succeed.
-    }
+    const activeToken = authStore.accessToken;
+    clearAuthenticatedFastCache();
     // Silently: this provider is the origin of the change, so it must not react to its
     // own write and recurse back into signOut.
     setAuthStoreSilently(null, null);
     setUser(null);
     setStatus('anonymous');
+    if (activeToken) {
+      void api.post('/auth/logout', undefined, { headers: { Authorization: `Bearer ${activeToken}` } }).catch(() => {});
+    }
     await Promise.all([
       SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY),
       SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
@@ -81,7 +83,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setAuthStoreSilently(session.accessToken, session.user?.id ?? null);
     setUser(session.user);
     setStatus('authenticated');
-    await Promise.all([
+    prefetchAuthenticatedEndpoints(session.accessToken);
+    void Promise.all([
       SecureStore.setItemAsync(ACCESS_TOKEN_KEY, session.accessToken),
       SecureStore.setItemAsync(REFRESH_TOKEN_KEY, session.refreshToken),
       SecureStore.setItemAsync(USER_KEY, JSON.stringify(session.user)),
@@ -100,6 +103,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     let cancelled = false;
+    const bootGuard = setTimeout(() => {
+      if (!cancelled) {
+        setStatus((prev) => (prev === 'loading' ? 'anonymous' : prev));
+      }
+    }, 650);
 
     (async () => {
       try {
@@ -107,6 +115,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           SecureStore.getItemAsync(ACCESS_TOKEN_KEY),
           SecureStore.getItemAsync(USER_KEY),
         ]);
+        clearTimeout(bootGuard);
         if (cancelled) return;
 
         if (token && rawUser) {
@@ -114,9 +123,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setAuthStoreSilently(token, hydrated.id ?? null);
           setUser(hydrated);
           setStatus('authenticated');
+          prefetchAuthenticatedEndpoints(token);
           return;
         }
       } catch {
+        clearTimeout(bootGuard);
         // Keychain unavailable or corrupt entry - treat as signed out.
       }
       if (!cancelled) setStatus('anonymous');
@@ -124,6 +135,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     return () => {
       cancelled = true;
+      clearTimeout(bootGuard);
     };
   }, []);
 

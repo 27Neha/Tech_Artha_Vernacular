@@ -1,3 +1,6 @@
+import './src/utils/storagePatch';
+import './src/utils/initResponsiveTypography';
+import './src/utils/fastFetch';
 import { registerRootComponent } from 'expo';
 
 import App from './App';

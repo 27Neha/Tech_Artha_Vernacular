@@ -45,8 +45,8 @@ export const BELONGS_TO_OPTIONS = [
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 20, paddingVertical: 9, paddingHorizontal: 14 },
-  chipSelected: { backgroundColor: '#3C3985', borderColor: '#3C3985' },
-  text: { color: '#4A5568', fontWeight: '600', fontSize: 13 },
-  textSelected: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  chip: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E6E8F6', borderRadius: 20, paddingVertical: 8, paddingHorizontal: 14, elevation: 1, shadowColor: '#102A54', shadowOpacity: 0.03, shadowRadius: 4 },
+  chipSelected: { backgroundColor: '#36358D', borderColor: '#36358D', elevation: 2, shadowColor: '#36358D', shadowOpacity: 0.2 },
+  text: { color: '#4A5568', fontWeight: '700', fontSize: 13 },
+  textSelected: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
 });

@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Svg, {
   Defs,
   Path,
@@ -15,126 +15,252 @@ export interface HistoryPoint {
   value: number;
 }
 
+export type PortfolioRange = '1M' | '3M' | '6M' | '1Y' | 'ALL';
+
+const RANGES: PortfolioRange[] = ['1M', '3M', '6M', '1Y', 'ALL'];
+
 interface PortfolioChartProps {
   history?: HistoryPoint[];
-  currentValue?: number;
+  investedValue?: number | null;
+  currentValue?: number | null;
   height?: number;
+  variant?: 'light' | 'dark';
 }
 
 export const PortfolioChart: React.FC<PortfolioChartProps> = ({
   history = [],
-  currentValue = 0,
-  height = 160,
+  investedValue = null,
+  currentValue = null,
+  height = 128,
+  variant = 'light',
 }) => {
-  const hasValidData = history && history.length >= 2;
+  const [selectedRange, setSelectedRange] = useState<PortfolioRange>('ALL');
+  const [activeIdx, setActiveIdx] = useState<number | null>(null);
 
-  const { pathD, areaD, minVal, maxVal, latestPoint } = useMemo(() => {
-    if (!hasValidData) return { pathD: '', areaD: '', minVal: 0, maxVal: 0, latestPoint: null };
+  const isDark = variant === 'dark';
 
-    const values = history.map((h) => h.value).filter((v) => Number.isFinite(v));
+  const filteredHistory = useMemo(() => {
+    if (!history || history.length < 2) return [];
+    if (selectedRange === 'ALL') return history;
+
+    const counts: Record<Exclude<PortfolioRange, 'ALL'>, number> = {
+      '1M': 30,
+      '3M': 90,
+      '6M': 180,
+      '1Y': 365,
+    };
+    const sliceLen = counts[selectedRange];
+    const sliced = history.slice(-sliceLen);
+    return sliced.length >= 2 ? sliced : history;
+  }, [history, selectedRange]);
+
+  const hasValidData = filteredHistory.length >= 2;
+
+  const { pathD, areaD, points, latestPoint } = useMemo(() => {
+    if (!hasValidData) {
+      return { pathD: '', areaD: '', points: [], latestPoint: null };
+    }
+
+    const values = filteredHistory.map((h) => h.value).filter((v) => Number.isFinite(v));
     const min = Math.min(...values);
     const max = Math.max(...values);
     const span = max - min || 1;
 
     const width = 320;
-    const paddingX = 16;
-    const paddingY = 24;
+    const paddingX = 12;
+    const paddingY = 16;
     const effectiveWidth = width - paddingX * 2;
     const effectiveHeight = height - paddingY * 2;
 
-    const points = history.map((pt, idx) => {
-      const x = paddingX + (idx / (history.length - 1)) * effectiveWidth;
+    const pts = filteredHistory.map((pt, idx) => {
+      const x = paddingX + (idx / (filteredHistory.length - 1)) * effectiveWidth;
       const normalizedY = (pt.value - min) / span;
       const y = height - paddingY - normalizedY * effectiveHeight;
       return { x, y, pt };
     });
 
-    // Build smooth cubic bezier curve
-    let d = `M ${points[0].x} ${points[0].y}`;
-    for (let i = 0; i < points.length - 1; i++) {
-      const curr = points[i];
-      const next = points[i + 1];
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const curr = pts[i];
+      const next = pts[i + 1];
       const cpX = (curr.x + next.x) / 2;
       d += ` C ${cpX} ${curr.y}, ${cpX} ${next.y}, ${next.x} ${next.y}`;
     }
 
-    const last = points[points.length - 1];
-    const area = `${d} L ${last.x} ${height} L ${points[0].x} ${height} Z`;
+    const last = pts[pts.length - 1];
+    const area = `${d} L ${last.x} ${height} L ${pts[0].x} ${height} Z`;
 
     return {
       pathD: d,
       areaD: area,
-      minVal: min,
-      maxVal: max,
+      points: pts,
       latestPoint: last,
     };
-  }, [hasValidData, history, height]);
+  }, [hasValidData, filteredHistory, height]);
 
+  // Honest visual bar when real holdings totals exist without historical daily snapshots
   if (!hasValidData) {
-    return (
-      <View style={[styles.emptyContainer, { height }]}>
-        <View style={styles.emptyIconBg}>
-          <Text style={styles.emptyIcon}>📈</Text>
+    if (isDark && investedValue != null && currentValue != null && currentValue > 0) {
+      const maxBar = Math.max(investedValue, currentValue, 1);
+      const investedPct = Math.max(12, Math.min(100, (investedValue / maxBar) * 100));
+      const currentPct = Math.max(12, Math.min(100, (currentValue / maxBar) * 100));
+      const isGain = currentValue >= investedValue;
+
+      return (
+        <View style={styles.snapshotBox}>
+          <View style={styles.snapshotRow}>
+            <Text style={styles.snapshotLabel}>Invested</Text>
+            <View style={styles.snapshotTrack}>
+              <View style={[styles.snapshotFillInvested, { width: `${investedPct}%` }]} />
+            </View>
+            <Text style={styles.snapshotNum}>₹{Math.round(investedValue).toLocaleString('en-IN')}</Text>
+          </View>
+
+          <View style={styles.snapshotRow}>
+            <Text style={styles.snapshotLabel}>Current</Text>
+            <View style={styles.snapshotTrack}>
+              <View
+                style={[
+                  styles.snapshotFillCurrent,
+                  {
+                    width: `${currentPct}%`,
+                    backgroundColor: isGain ? '#34D399' : '#F87171',
+                  },
+                ]}
+              />
+            </View>
+            <Text style={styles.snapshotNum}>₹{Math.round(currentValue).toLocaleString('en-IN')}</Text>
+          </View>
+
+          <Text style={styles.snapshotHint}>
+            Interactive growth curve unlocks automatically as daily folio NAV snapshots accumulate.
+          </Text>
         </View>
-        <Text style={styles.emptyTitle}>Portfolio Trend</Text>
-        <Text style={styles.emptySubtitle}>
-          Historical performance chart will populate as your portfolio grows over time.
+      );
+    }
+
+    return (
+      <View style={[styles.emptyContainer, isDark && styles.emptyContainerDark, { height }]}>
+        <Text style={[styles.emptyTitle, isDark && { color: '#FFFFFF' }]}>Portfolio Trend</Text>
+        <Text style={[styles.emptySubtitle, isDark && { color: '#CBD5E1' }]}>
+          Historical growth chart populates once multiple daily portfolio snapshots are recorded.
         </Text>
       </View>
     );
   }
 
-  const startDate = history[0]?.date ?? '';
-  const endDate = history[history.length - 1]?.date ?? '';
+  const inspected = activeIdx !== null && points[activeIdx] ? points[activeIdx] : latestPoint;
+  const startDate = filteredHistory[0]?.date ?? '';
+  const endDate = filteredHistory[filteredHistory.length - 1]?.date ?? '';
 
   return (
-    <View style={[styles.container, { height: height + 30 }]}>
+    <View style={styles.container}>
+      {inspected ? (
+        <View style={styles.inspectRow}>
+          <Text style={[styles.inspectDate, isDark && styles.inspectDateDark]}>
+            {inspected.pt.date}
+          </Text>
+          <Text style={[styles.inspectVal, isDark && styles.inspectValDark]}>
+            ₹{Math.round(inspected.pt.value).toLocaleString('en-IN')}
+          </Text>
+        </View>
+      ) : null}
+
       <Svg width="100%" height={height} viewBox={`0 0 320 ${height}`}>
         <Defs>
-          <LinearGradient id="chartAreaGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <Stop offset="0%" stopColor={colors.accent} stopOpacity="0.22" />
-            <Stop offset="50%" stopColor={colors.primary} stopOpacity="0.08" />
-            <Stop offset="100%" stopColor={colors.primary} stopOpacity="0.00" />
+          <LinearGradient id={`chartAreaGrad_${variant}`} x1="0%" y1="0%" x2="0%" y2="100%">
+            <Stop
+              offset="0%"
+              stopColor={isDark ? '#F7941D' : colors.accent}
+              stopOpacity={isDark ? '0.32' : '0.22'}
+            />
+            <Stop
+              offset="100%"
+              stopColor={isDark ? '#FFFFFF' : colors.primary}
+              stopOpacity="0.00"
+            />
           </LinearGradient>
 
-          <LinearGradient id="chartLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <Stop offset="0%" stopColor="#36358D" />
-            <Stop offset="70%" stopColor="#36358D" />
+          <LinearGradient id={`chartLineGrad_${variant}`} x1="0%" y1="0%" x2="100%" y2="0%">
+            <Stop offset="0%" stopColor={isDark ? '#A5B4FC' : '#36358D'} />
+            <Stop offset="70%" stopColor={isDark ? '#FFFFFF' : '#36358D'} />
             <Stop offset="100%" stopColor="#F7941D" />
           </LinearGradient>
         </Defs>
 
-        {/* Faint Horizontal Reference Guides */}
-        <Line x1="16" y1={height * 0.25} x2="304" y2={height * 0.25} stroke="#E2E8F0" strokeWidth="0.8" strokeDasharray="3 3" />
-        <Line x1="16" y1={height * 0.65} x2="304" y2={height * 0.65} stroke="#E2E8F0" strokeWidth="0.8" strokeDasharray="3 3" />
+        <Line
+          x1="12"
+          y1={height * 0.3}
+          x2="308"
+          y2={height * 0.3}
+          stroke={isDark ? 'rgba(255,255,255,0.12)' : '#E2E8F0'}
+          strokeWidth="0.8"
+          strokeDasharray="3 3"
+        />
+        <Line
+          x1="12"
+          y1={height * 0.7}
+          x2="308"
+          y2={height * 0.7}
+          stroke={isDark ? 'rgba(255,255,255,0.12)' : '#E2E8F0'}
+          strokeWidth="0.8"
+          strokeDasharray="3 3"
+        />
 
-        {/* Gradient Area Fill */}
-        <Path d={areaD} fill="url(#chartAreaGrad)" />
-
-        {/* Curved Trend Line */}
+        <Path d={areaD} fill={`url(#chartAreaGrad_${variant})`} />
         <Path
           d={pathD}
           fill="none"
-          stroke="url(#chartLineGrad)"
-          strokeWidth="3.2"
+          stroke={`url(#chartLineGrad_${variant})`}
+          strokeWidth="2.8"
           strokeLinecap="round"
         />
 
-        {/* Latest Data Node */}
-        {latestPoint && (
-          <>
-            <Circle cx={latestPoint.x} cy={latestPoint.y} r={7} fill={colors.accent} opacity="0.3" />
-            <Circle cx={latestPoint.x} cy={latestPoint.y} r={4.5} fill={colors.accent} />
-            <Circle cx={latestPoint.x} cy={latestPoint.y} r={2} fill="#FFFFFF" />
-          </>
-        )}
+        {points.map((pt, i) => (
+          <Circle
+            key={i}
+            cx={pt.x}
+            cy={pt.y}
+            r={activeIdx === i || (activeIdx === null && i === points.length - 1) ? 4.5 : 2}
+            fill={activeIdx === i || i === points.length - 1 ? '#F7941D' : isDark ? '#FFFFFF' : '#36358D'}
+            opacity={activeIdx === i || i === points.length - 1 ? 1 : 0.45}
+            onPress={() => setActiveIdx(i)}
+          />
+        ))}
       </Svg>
 
-      {/* Axis Date Range Labels */}
       <View style={styles.dateRow}>
-        <Text style={styles.dateLabel}>{startDate}</Text>
-        <Text style={styles.dateLabel}>Actual Portfolio Trend</Text>
-        <Text style={styles.dateLabel}>{endDate}</Text>
+        <Text style={[styles.dateLabel, isDark && styles.dateLabelDark]}>{startDate}</Text>
+        <Text style={[styles.dateLabel, isDark && styles.dateLabelDark]}>{endDate}</Text>
+      </View>
+
+      <View style={[styles.rangeRow, isDark && styles.rangeRowDark]}>
+        {RANGES.map((range) => {
+          const active = selectedRange === range;
+          return (
+            <Pressable
+              key={range}
+              onPress={() => {
+                setSelectedRange(range);
+                setActiveIdx(null);
+              }}
+              style={[
+                styles.rangePill,
+                active && (isDark ? styles.rangePillActiveDark : styles.rangePillActive),
+              ]}
+            >
+              <Text
+                style={[
+                  styles.rangeText,
+                  isDark && styles.rangeTextDark,
+                  active && (isDark ? styles.rangeTextActiveDark : styles.rangeTextActive),
+                ]}
+              >
+                {range}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
@@ -143,18 +269,130 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    marginVertical: 4,
+    marginTop: 6,
+  },
+  inspectRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+    paddingHorizontal: 4,
+  },
+  inspectDate: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  inspectDateDark: {
+    color: '#CBD5E1',
+  },
+  inspectVal: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#102A54',
+  },
+  inspectValDark: {
+    color: '#FFFFFF',
   },
   dateRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginTop: 4,
+    paddingHorizontal: 10,
+    marginTop: 2,
   },
   dateLabel: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '600',
-    color: '#A0AEC0',
+    color: '#94A3B8',
+  },
+  dateLabelDark: {
+    color: 'rgba(255,255,255,0.65)',
+  },
+  rangeRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    padding: 3,
+    marginTop: 10,
+    gap: 2,
+  },
+  rangeRowDark: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  rangePill: {
+    flex: 1,
+    paddingVertical: 5,
+    borderRadius: 7,
+    alignItems: 'center',
+  },
+  rangePillActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  rangePillActiveDark: {
+    backgroundColor: '#FFFFFF',
+  },
+  rangeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  rangeTextDark: {
+    color: 'rgba(255,255,255,0.78)',
+  },
+  rangeTextActive: {
+    color: '#36358D',
+    fontWeight: '800',
+  },
+  rangeTextActiveDark: {
+    color: '#36358D',
+    fontWeight: '800',
+  },
+  snapshotBox: {
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    gap: 8,
+  },
+  snapshotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  snapshotLabel: {
+    width: 54,
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#CBD5E1',
+  },
+  snapshotTrack: {
+    flex: 1,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    overflow: 'hidden',
+  },
+  snapshotFillInvested: {
+    height: '100%',
+    borderRadius: 4,
+    backgroundColor: '#A5B4FC',
+  },
+  snapshotFillCurrent: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  snapshotNum: {
+    width: 74,
+    textAlign: 'right',
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  snapshotHint: {
+    fontSize: 9.5,
+    color: 'rgba(255,255,255,0.66)',
+    marginTop: 2,
   },
   emptyContainer: {
     width: '100%',
@@ -165,20 +403,12 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
-    marginVertical: 12,
+    paddingHorizontal: 18,
+    marginVertical: 8,
   },
-  emptyIconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  emptyIcon: {
-    fontSize: 22,
+  emptyContainerDark: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   emptyTitle: {
     fontSize: 13,

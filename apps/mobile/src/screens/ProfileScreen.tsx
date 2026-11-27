@@ -52,35 +52,56 @@ export const ProfileScreen = () => {
 
   const fetchLocalCounts = useCallback(async () => {
     try {
+      // 1. Bank accounts from persistent storage & gateway
       const banks = await AsyncStorage.getItem('techartha_bank_accounts');
       if (banks) {
         const parsed = JSON.parse(banks);
         setBankCount(Array.isArray(parsed) ? parsed.length : 0);
       } else {
-        setBankCount(0);
+        const gwStatus = await api.get<{ bankAccount?: any }>('/buckets/account-status').catch(() => null);
+        setBankCount(gwStatus?.bankAccount ? 1 : 0);
       }
 
-      const nominees = await AsyncStorage.getItem('techartha_nominees');
-      if (nominees) {
-        const parsed = JSON.parse(nominees);
-        setNomineeCount(Array.isArray(parsed) ? parsed.length : 0);
-      } else {
-        setNomineeCount(0);
+      // 2. Nominees from live API with AsyncStorage fallback
+      try {
+        const nomRes = await api.get<{ nominees?: any[] }>('/nominees');
+        if (Array.isArray(nomRes?.nominees)) {
+          setNomineeCount(nomRes.nominees.length);
+          await AsyncStorage.setItem('techartha_nominees', JSON.stringify(nomRes.nominees));
+        }
+      } catch {
+        const nominees = await AsyncStorage.getItem('techartha_nominees');
+        if (nominees) {
+          const parsed = JSON.parse(nominees);
+          setNomineeCount(Array.isArray(parsed) ? parsed.length : 0);
+        } else {
+          setNomineeCount(0);
+        }
       }
 
-      const mandates = await AsyncStorage.getItem('techartha_active_mandates');
-      if (mandates) {
-        const parsed = JSON.parse(mandates);
-        if (Array.isArray(parsed)) {
-          setMandateCount(parsed.filter((m: any) => m.status === 'ACTIVE').length);
+      // 3. Mandates from live API with AsyncStorage fallback
+      try {
+        const manRes = await api.get<{ mandates?: any[] }>('/mandates');
+        if (Array.isArray(manRes?.mandates)) {
+          const activeCount = manRes.mandates.filter((m: any) => m.status === 'APPROVED' || m.status === 'ACTIVE').length;
+          setMandateCount(activeCount);
+          await AsyncStorage.setItem('techartha_active_mandates', JSON.stringify(manRes.mandates));
+        }
+      } catch {
+        const mandates = await AsyncStorage.getItem('techartha_active_mandates');
+        if (mandates) {
+          const parsed = JSON.parse(mandates);
+          if (Array.isArray(parsed)) {
+            setMandateCount(parsed.filter((m: any) => m.status === 'APPROVED' || m.status === 'ACTIVE').length);
+          } else {
+            setMandateCount(0);
+          }
         } else {
           setMandateCount(0);
         }
-      } else {
-        setMandateCount(0);
       }
     } catch (e) {
-      console.warn('Local counts fetch error:', e);
+      console.warn('Counts fetch error:', e);
     }
   }, []);
 
@@ -119,13 +140,13 @@ export const ProfileScreen = () => {
 
         {/* 1. PERSONAL INFORMATION (HEADER CARD) */}
 
-        <View style={styles.profileCard}>
+        <View style={[styles.profileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
               {(profile?.profile?.fullName ?? 'U').trim().charAt(0).toUpperCase() || 'U'}
             </Text>
           </View>
-          <Text style={styles.name}>
+          <Text style={[styles.name, { color: colors.textPrimary }]}>
             {profile?.profile?.fullName ?? t('header.user', { defaultValue: 'TechArtha Investor' })}
           </Text>
           <Text style={styles.mobile}>{profile?.mobile ? `+91 ${profile.mobile}` : '-'}</Text>
@@ -141,14 +162,14 @@ export const ProfileScreen = () => {
         {/* 1. PERSONAL DETAILS ROW */}
         <Text style={styles.sectionHeading}>Personal Information</Text>
         <View style={styles.sectionGroup}>
-          <Pressable style={styles.card} onPress={() => navigation.navigate('EditProfile')}>
+          <Pressable style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('EditProfile')}>
             <View style={styles.cardHeader}>
               <View style={[styles.iconBox, { backgroundColor: '#EBEAF8' }]}>
                 <Ionicons name="person-circle-outline" size={22} color="#36358D" />
               </View>
               <View style={{ flex: 1, paddingRight: 8 }}>
-                <Text style={styles.cardTitle}>{t('profile.editProfile', { defaultValue: 'Personal Details & PAN' })}</Text>
-                <Text style={styles.cardSub}>
+                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('profile.editProfile', { defaultValue: 'Personal Details & PAN' })}</Text>
+                <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
                   {profile?.email
                     ? `PAN linked • ${profile.email}`
                     : t('profile.verifyEmail', { defaultValue: 'Name, PAN, DOB, and verified email' })}
@@ -163,40 +184,40 @@ export const ProfileScreen = () => {
         <Text style={styles.sectionHeading}>Financial & Verification Details</Text>
         <View style={styles.sectionGroup}>
           {/* KYC Status & Details */}
-          <Pressable style={styles.card} onPress={() => navigation.navigate('KYC')}>
+          <Pressable style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('KYC')}>
             <View style={styles.cardHeader}>
               <View style={[styles.iconBox, { backgroundColor: '#ECFDF5' }]}>
                 <Ionicons name="shield-checkmark-outline" size={20} color="#059669" />
               </View>
               <View style={{ flex: 1, paddingRight: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={styles.cardTitle}>SEBI KYC Verification</Text>
+                  <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>SEBI KYC Verification</Text>
                   <View style={styles.statusPillGreen}>
                     <Text style={styles.statusPillGreenText}>Verified</Text>
                   </View>
                 </View>
-                <Text style={styles.cardSub}>Identity, PAN records & In-Person Verification (IPV)</Text>
+                <Text style={[styles.cardSub, { color: colors.textSecondary }]}>Identity, PAN records & In-Person Verification (IPV)</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#CBD5E0" />
             </View>
           </Pressable>
 
           {/* Bank Accounts */}
-          <Pressable style={styles.card} onPress={() => navigation.navigate('BankAccounts')}>
+          <Pressable style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('BankAccounts')}>
             <View style={styles.cardHeader}>
               <View style={[styles.iconBox, { backgroundColor: '#E0E7FF' }]}>
                 <Ionicons name="business-outline" size={20} color="#3730A3" />
               </View>
               <View style={{ flex: 1, paddingRight: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={styles.cardTitle}>{t('prof.bank', { defaultValue: 'Linked Bank Accounts' })}</Text>
+                  <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('prof.bank', { defaultValue: 'Linked Bank Accounts' })}</Text>
                   {bankCount > 0 ? (
                     <View style={styles.countBadge}>
                       <Text style={styles.countBadgeText}>{bankCount} Linked</Text>
                     </View>
                   ) : null}
                 </View>
-                <Text style={styles.cardSub}>
+                <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
                   {t('profile.primaryBank', { defaultValue: 'Primary verified bank account for SIPs & redemption payouts' })}
                 </Text>
               </View>
@@ -205,21 +226,21 @@ export const ProfileScreen = () => {
           </Pressable>
 
           {/* Nominee Details */}
-          <Pressable style={styles.card} onPress={() => navigation.navigate('NomineeDetails')}>
+          <Pressable style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('NomineeDetails')}>
             <View style={styles.cardHeader}>
               <View style={[styles.iconBox, { backgroundColor: '#FAF5FF' }]}>
                 <Ionicons name="people-outline" size={20} color="#6B21A8" />
               </View>
               <View style={{ flex: 1, paddingRight: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={styles.cardTitle}>{t('prof.nominee', { defaultValue: 'Nominee Details' })}</Text>
+                  <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('prof.nominee', { defaultValue: 'Nominee Details' })}</Text>
                   {nomineeCount > 0 ? (
                     <View style={styles.countBadge}>
                       <Text style={styles.countBadgeText}>{nomineeCount} Declared</Text>
                     </View>
                   ) : null}
                 </View>
-                <Text style={styles.cardSub}>
+                <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
                   {t('profile.nomineeDesc', { defaultValue: 'SEBI compliance: Nominees declared for portfolio succession' })}
                 </Text>
               </View>
@@ -228,21 +249,21 @@ export const ProfileScreen = () => {
           </Pressable>
 
           {/* Active Mandates */}
-          <Pressable style={styles.card} onPress={() => navigation.navigate('ActiveMandates')}>
+          <Pressable style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('ActiveMandates')}>
             <View style={styles.cardHeader}>
               <View style={[styles.iconBox, { backgroundColor: '#F0FFF4' }]}>
                 <Ionicons name="card-outline" size={20} color="#276749" />
               </View>
               <View style={{ flex: 1, paddingRight: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={styles.cardTitle}>{t('prof.mandate', { defaultValue: 'Active Auto-Pay Mandates' })}</Text>
+                  <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('prof.mandate', { defaultValue: 'Active Auto-Pay Mandates' })}</Text>
                   {mandateCount > 0 ? (
                     <View style={styles.statusPillGreen}>
                       <Text style={styles.statusPillGreenText}>{mandateCount} Active</Text>
                     </View>
                   ) : null}
                 </View>
-                <Text style={styles.cardSub}>
+                <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
                   {t('profile.mandateDesc', { defaultValue: 'NPCI e-Mandate auto-pay limits & bank authorizations' })}
                 </Text>
               </View>
@@ -251,14 +272,14 @@ export const ProfileScreen = () => {
           </Pressable>
 
           {/* Family Portfolio */}
-          <Pressable style={styles.card} onPress={() => navigation.navigate('FamilyPortfolio')}>
+          <Pressable style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('FamilyPortfolio')}>
             <View style={styles.cardHeader}>
               <View style={[styles.iconBox, { backgroundColor: '#FFF5F5' }]}>
                 <Ionicons name="folder-open-outline" size={20} color="#C53030" />
               </View>
               <View style={{ flex: 1, paddingRight: 8 }}>
-                <Text style={styles.cardTitle}>{t('profile.familyPortfolio', { defaultValue: 'Family Portfolio Sharing' })}</Text>
-                <Text style={styles.cardSub}>
+                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('profile.familyPortfolio', { defaultValue: 'Family Portfolio Sharing' })}</Text>
+                <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
                   {t('profile.familyDesc', { defaultValue: 'Consolidated household wealth tracking with individual PAN ownership' })}
                 </Text>
               </View>

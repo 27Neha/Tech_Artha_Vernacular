@@ -1,18 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Linking, Modal } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Linking, Modal, TextInput } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import { authStore } from '../store/auth';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Header } from '../components/Header';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Circle } from 'react-native-svg';
-
-
+import Svg, { Circle, Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import { SolidTabs } from '../components/SolidTabs';
+import { GoalsScreen } from './GoalsScreen';
 import { API_URL } from '../services/api/client';
 
 type Tab = 'overview' | 'goals' | 'holdings' | 'transactions' | 'sips' | 'statements';
@@ -52,9 +50,16 @@ const escapeHtml = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, (c) => `&
 export const PortfolioScreen = () => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
 
   const [tab, setTab] = useState<Tab>('overview');
-  const [activeMenuHolding, setActiveMenuHolding] = useState<Holding | null>(null);
+
+  useEffect(() => {
+    const requestedTab = route?.params?.tab as Tab | undefined;
+    if (requestedTab && TABS.includes(requestedTab)) {
+      setTab(requestedTab);
+    }
+  }, [route?.params?.tab]);
   
   const [investorProfile, setInvestorProfile] = useState('');
   const [investor, setInvestor] = useState<{ name?: string; pan?: string; email?: string; mobile?: string }>({});
@@ -62,6 +67,159 @@ export const PortfolioScreen = () => {
   const [fetchingPortfolio, setFetchingPortfolio] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
+
+  // Holding actions & modals state
+  const [menuHolding, setMenuHolding] = useState<Holding | null>(null);
+  const [detailHolding, setDetailHolding] = useState<Holding | null>(null);
+  const [modifyingPlan, setModifyingPlan] = useState<Plan | null>(null);
+  const [modifyAmount, setModifyAmount] = useState<string>('');
+  const [modifyDay, setModifyDay] = useState<number>(10);
+  const [transactionFilter, setTransactionFilter] = useState<string | null>(null);
+
+  const getMatchingPlan = useCallback((holding: Holding): Plan | undefined => {
+    const norm = (s?: string | null) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const hNorm = norm(holding.schemeName);
+    return plans.find((p) => {
+      const pNorm = norm(p.fundName);
+      return Boolean(pNorm && hNorm && (pNorm.includes(hNorm) || hNorm.includes(pNorm)));
+    });
+  }, [plans]);
+
+  const handleLumpsumInvest = (holding: Holding) => {
+    setMenuHolding(null);
+    setDetailHolding(null);
+    navigation.navigate('LumpsumInvest', {
+      holding,
+      schemeIsin: holding.schemeIsin,
+      schemeName: holding.schemeName,
+      folioNumber: holding.folioNumber,
+      nav: holding.nav,
+      navDate: holding.navDate,
+    });
+  };
+
+  const handleStartSip = (holding: Holding) => {
+    setMenuHolding(null);
+    setDetailHolding(null);
+    navigation.navigate('SipSetup', {
+      holding,
+      schemeIsin: holding.schemeIsin,
+      schemeName: holding.schemeName,
+      folioNumber: holding.folioNumber,
+      nav: holding.nav,
+    });
+  };
+
+  const handlePauseSip = (holding: Holding, plan: Plan) => {
+    setMenuHolding(null);
+    Alert.alert(
+      'Pause SIP',
+      `Pause monthly SIP of ${rupees(plan.amount)} for ${plan.fundName}?\n\nFuture automated debits will be placed on hold. Your existing invested units will remain active. You can resume anytime.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Pause SIP',
+          style: 'destructive',
+          onPress: () => {
+            setPlans((prev) =>
+              prev.map((p) => (p.id === plan.id ? { ...p, statusLabel: 'Paused' } : p))
+            );
+            Alert.alert('SIP Paused', 'Your SIP has been paused. Auto-debit instructions are now on hold.');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleResumeSip = (holding: Holding, plan: Plan) => {
+    setMenuHolding(null);
+    Alert.alert(
+      'Resume SIP',
+      `Resume monthly SIP of ${rupees(plan.amount)} on day ${plan.installmentDay} for ${plan.fundName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Resume SIP',
+          onPress: () => {
+            setPlans((prev) =>
+              prev.map((p) => (p.id === plan.id ? { ...p, statusLabel: 'Active' } : p))
+            );
+            Alert.alert('SIP Resumed', 'Your monthly SIP has been resumed successfully.');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleOpenModifySip = (holding: Holding, plan: Plan) => {
+    setMenuHolding(null);
+    setModifyingPlan(plan);
+    setModifyAmount(String(plan.amount));
+    setModifyDay(plan.installmentDay || 10);
+  };
+
+  const handleSaveModifiedSip = () => {
+    if (!modifyingPlan) return;
+    const numeric = Number(modifyAmount);
+    if (!numeric || numeric < 500) {
+      Alert.alert('Invalid amount', 'Minimum SIP amount is ₹500.');
+      return;
+    }
+    setPlans((prev) =>
+      prev.map((p) =>
+        p.id === modifyingPlan.id
+          ? { ...p, amount: numeric, installmentDay: modifyDay }
+          : p
+      )
+    );
+    const updatedFundName = modifyingPlan.fundName;
+    setModifyingPlan(null);
+    Alert.alert(
+      'SIP Modified',
+      `SIP for ${updatedFundName} updated to ${rupees(numeric)} on the ${modifyDay}th of each month.`
+    );
+  };
+
+  const handleCancelSip = (holding: Holding, plan: Plan) => {
+    setMenuHolding(null);
+    Alert.alert(
+      'Stop / Cancel SIP',
+      `Are you sure you want to stop this SIP of ${rupees(plan.amount)} for ${plan.fundName}?\n\nStopping will permanently stop future recurring installments. Your existing investments of ${rupees(holding.marketValue, 2)} will remain safely invested in your folio.`,
+      [
+        { text: 'Keep SIP', style: 'cancel' },
+        {
+          text: 'Stop SIP',
+          style: 'destructive',
+          onPress: () => {
+            setPlans((prev) => prev.filter((p) => p.id !== plan.id));
+            Alert.alert('SIP Cancelled', 'Your SIP has been stopped. No further deductions will occur.');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRedeem = (holding: Holding) => {
+    setMenuHolding(null);
+    setDetailHolding(null);
+    navigation.navigate('RedemptionJourney', {
+      holding,
+      folioNumber: holding.folioNumber,
+      schemeIsin: holding.schemeIsin,
+    });
+  };
+
+  const handleViewTransactions = (holding: Holding) => {
+    setMenuHolding(null);
+    setDetailHolding(null);
+    setTransactionFilter(holding.schemeName || holding.schemeIsin);
+    setTab('transactions');
+  };
+
+  const handleViewDetails = (holding: Holding) => {
+    setMenuHolding(null);
+    setDetailHolding(holding);
+  };
 
   const [goals, setGoals] = useState<any[]>([]);
   const [fetchingGoals, setFetchingGoals] = useState(true);
@@ -241,17 +399,27 @@ export const PortfolioScreen = () => {
     </View>
   );
 
-  // Current value at the centre. A single ring: the allocation across asset classes is
-  // not something the holdings report gives us, so no split is drawn.
+  // Current value at the centre with dual-track progress ring matching Home Screen 3D cards
   const renderDoughnutChart = () => {
-    const r = 40;
-    const strokeW = 12;
+    const r = 38;
+    const strokeW = 10;
     const val = Math.round(totals?.current ?? 0);
 
     return (
       <View style={styles.chartContainer}>
-        <Svg width="104" height="104" viewBox="0 0 104 104">
-          <Circle cx="52" cy="52" r={r} stroke={val > 0 ? '#38B2AC' : '#2D3748'} strokeWidth={strokeW} fill="transparent" />
+        <Svg width="98" height="98" viewBox="0 0 98 98">
+          <Circle cx="49" cy="49" r={r} stroke="rgba(255,255,255,0.18)" strokeWidth={strokeW} fill="transparent" />
+          <Circle
+            cx="49"
+            cy="49"
+            r={r}
+            stroke={val > 0 ? '#34D399' : 'rgba(255,255,255,0.45)'}
+            strokeWidth={strokeW}
+            strokeDasharray={`${Math.PI * 2 * r * 0.75} ${Math.PI * 2 * r}`}
+            strokeLinecap="round"
+            fill="transparent"
+            transform="rotate(-90 49 49)"
+          />
         </Svg>
         <View style={styles.chartCenter}>
           <Text style={styles.chartCenterValue}>{totals?.current == null ? '—' : `₹${val >= 1000 ? (val / 1000).toFixed(1) + 'K' : val}`}</Text>
@@ -268,21 +436,21 @@ export const PortfolioScreen = () => {
     const cat = investorProfile;
     let label = 'Moderate';
     let desc = 'You prefer a balanced approach, seeking growth while taking measured risks to protect your capital.';
-    let color = '#38A169'; // Green
-    let bg = '#C6F6D5';
+    let color = '#059669'; // Emerald
+    let bg = '#ECFDF5';
     let icon = 'shield-checkmark';
 
     if (cat === 'CONSERVATIVE') {
       label = 'Conservative';
       desc = 'You prioritize capital preservation over high returns. You prefer stable, low-risk investments.';
-      color = '#38A169'; // Green
-      bg = '#C6F6D5';
+      color = '#0284C7';
+      bg = '#F0F9FF';
       icon = 'lock-closed';
     } else if (cat === 'AGGRESSIVE') {
       label = 'Aggressive';
       desc = 'You are willing to accept higher market volatility for the potential of significant long-term growth.';
-      color = '#38A169'; // Green
-      bg = '#C6F6D5';
+      color = '#DD6B20';
+      bg = '#FFF4E8';
       icon = 'trending-up';
     }
 
@@ -303,8 +471,9 @@ export const PortfolioScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <View style={styles.safe}>
       <StatusBar style="dark" />
+      <Header />
       
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.headerBlock}>
@@ -313,10 +482,37 @@ export const PortfolioScreen = () => {
 
         <View style={styles.fixedSummaryContainer}>
           {fetchingPortfolio ? (
-            <ActivityIndicator size="small" color="#3C3985" style={{ marginVertical: 20 }} />
+            <ActivityIndicator size="small" color="#36358D" style={{ marginVertical: 20 }} />
           ) : (
             <View style={styles.heroCard}>
-              <Text style={styles.heroTitle}>{t('dash.investmentJourney', { defaultValue: 'Your Investment Journey' })}</Text>
+              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <Svg width="100%" height="100%" preserveAspectRatio="none">
+                  <Defs>
+                    <LinearGradient id="portHeroGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <Stop offset="0%" stopColor="#232262" />
+                      <Stop offset="55%" stopColor="#36358D" />
+                      <Stop offset="100%" stopColor="#524CB4" />
+                    </LinearGradient>
+                  </Defs>
+                  <Rect x="0" y="0" width="100%" height="100%" fill="url(#portHeroGrad)" />
+                  <Circle cx="94%" cy="10%" r="82" fill="#FFFFFF" opacity="0.08" />
+                  <Circle cx="8%" cy="92%" r="65" fill="#F7941D" opacity="0.14" />
+                </Svg>
+              </View>
+
+              <View style={styles.heroTopSheen} pointerEvents="none" />
+
+              <View style={styles.heroHeaderRow}>
+                <View>
+                  <Text style={styles.heroEyebrow}>PORTFOLIO OVERVIEW</Text>
+                  <Text style={styles.heroTitle}>
+                    {t('dash.investmentJourney', { defaultValue: 'Your Investment Journey' })}
+                  </Text>
+                </View>
+                <View style={styles.heroActiveBadge}>
+                  <Text style={styles.heroActiveText}>AMFI FOLIO</Text>
+                </View>
+              </View>
               
               <View style={styles.heroRow}>
                 {renderDoughnutChart()}
@@ -329,7 +525,14 @@ export const PortfolioScreen = () => {
                   
                   <View style={styles.statGroup}>
                     <Text style={styles.statLabel}>TOTAL RETURNS</Text>
-                    <Text style={styles.statValue}>
+                    <Text
+                      style={[
+                        styles.statValue,
+                        totals?.gain != null && {
+                          color: totals.gain >= 0 ? '#34D399' : '#FCA5A5',
+                        },
+                      ]}
+                    >
                       {totals?.gain == null
                         ? '—'
                         : `${totals.gain >= 0 ? '+' : '−'}${rupees(Math.abs(totals.gain))}${gainPct ? ` (${gainPct}%)` : ''}`}
@@ -343,15 +546,20 @@ export const PortfolioScreen = () => {
         </View>
 
         <View style={styles.tabScrollContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabContainer}>
-            {TABS.map(tOption => (
-              <Pressable key={tOption} onPress={() => setTab(tOption)} style={[styles.tab, tab === tOption && styles.activeTab]}>
-                <Text style={[styles.tabText, tab === tOption && styles.activeTabText]}>
-                  {tOption === 'goals' ? 'Goals' : tOption}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+          <SolidTabs
+            scrollable
+            testID="portfolio-solid-tabs"
+            tabs={[
+              { id: 'overview', label: 'Overview', icon: 'pie-chart-outline' },
+              { id: 'goals', label: 'Goals', count: goals.length > 0 ? goals.length : undefined, icon: 'flag-outline' },
+              { id: 'holdings', label: 'Holdings', count: holdings.length > 0 ? holdings.length : undefined, icon: 'layers-outline' },
+              { id: 'transactions', label: 'Orders', count: orders.length > 0 ? orders.length : undefined, icon: 'receipt-outline' },
+              { id: 'sips', label: 'SIPs', count: plans.length > 0 ? plans.length : undefined, icon: 'repeat-outline' },
+              { id: 'statements', label: 'Statements', icon: 'document-text-outline' },
+            ]}
+            activeTab={tab}
+            onSelect={(tId) => setTab(tId as Tab)}
+          />
         </View>
 
         <View style={styles.container}>
@@ -383,32 +591,6 @@ export const PortfolioScreen = () => {
                   </View>
                 </View>
               )}
-
-              {/* Invest More Action - Exclusively on Portfolio Overview */}
-              <View style={styles.overviewInvestContainer}>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.investMoreBtn,
-                    pressed && styles.investMoreBtnPressed,
-                  ]}
-                  onPress={() => navigation.navigate('Funds')}
-                  accessibilityRole="button"
-                  accessibilityLabel="Invest More in Mutual Funds"
-                >
-                  <View style={styles.investIconBox}>
-                    <Ionicons name="trending-up" size={20} color="#FFFFFF" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.investMoreTitle}>Invest More</Text>
-                    <Text style={styles.investMoreSubtitle}>
-                      Explore top-performing funds tailored to your goals
-                    </Text>
-                  </View>
-                  <View style={styles.investMoreArrow}>
-                    <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-                  </View>
-                </Pressable>
-              </View>
             </View>
           )}
 
@@ -423,45 +605,89 @@ export const PortfolioScreen = () => {
                   () => navigation.navigate('Funds')
                 )
               ) : (
-                holdings.map((h) => (
-                  <View key={`${h.folioNumber}-${h.schemeIsin}`} style={styles.goalCard}>
-                    <View style={styles.holdingHeaderRow}>
-                      <View style={{ flex: 1, paddingRight: 8 }}>
-                        <Text style={styles.goalName}>{h.schemeName ?? h.schemeIsin}</Text>
-                        <Text style={styles.goalTime}>Folio {h.folioNumber}</Text>
+                holdings.map((h) => {
+                  const matchingPlan = getMatchingPlan(h);
+                  const lockedUnits = Math.max(0, h.units - h.redeemableUnits);
+                  const gain = (h.marketValue ?? 0) - (h.investedValue ?? 0);
+                  const gainPercent =
+                    h.investedValue && h.investedValue > 0
+                      ? ((gain / h.investedValue) * 100).toFixed(2)
+                      : null;
+
+                  return (
+                    <View key={`${h.folioNumber}-${h.schemeIsin}`} style={styles.goalCard}>
+                      <View style={styles.holdingHeaderRow}>
+                        <View style={{ flex: 1, paddingRight: 8 }}>
+                          <Text style={styles.goalName} numberOfLines={2}>
+                            {h.schemeName ?? h.schemeIsin}
+                          </Text>
+                          <View style={styles.holdingSubRow}>
+                            <Text style={styles.goalTime}>Folio {h.folioNumber}</Text>
+                            {matchingPlan && (
+                              <View style={styles.sipBadge}>
+                                <Ionicons name="repeat" size={11} color="#36358D" />
+                                <Text style={styles.sipBadgeText}>
+                                  SIP {rupees(matchingPlan.amount)}/m
+                                </Text>
+                              </View>
+                            )}
+                            {lockedUnits > 0.001 && (
+                              <View style={styles.lockBadge}>
+                                <Ionicons name="lock-closed" size={11} color="#B45309" />
+                                <Text style={styles.lockBadgeText}>Lock-in</Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                        <Pressable
+                          style={styles.threeDotBtn}
+                          onPress={() => setMenuHolding(h)}
+                          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                          accessibilityLabel="Holding actions menu"
+                        >
+                          <Ionicons name="ellipsis-vertical" size={20} color="#64748B" />
+                        </Pressable>
                       </View>
-                      <Pressable
-                        style={({ pressed }) => [styles.threeDotBtn, pressed && styles.threeDotBtnPressed]}
-                        onPress={() => setActiveMenuHolding(h)}
-                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Options for ${h.schemeName ?? h.folioNumber}`}
-                      >
-                        <Ionicons name="ellipsis-vertical" size={18} color="#64748B" />
-                      </Pressable>
+
+                      <View style={styles.goalMetrics}>
+                        <View style={styles.metric}>
+                          <Text style={styles.metricLabel}>Units</Text>
+                          <Text style={styles.metricValue}>{h.units.toFixed(3)}</Text>
+                          {lockedUnits > 0.001 && (
+                            <Text style={styles.metricSub}>
+                              {h.redeemableUnits.toFixed(3)} redeemable
+                            </Text>
+                          )}
+                        </View>
+                        <View style={styles.metric}>
+                          <Text style={styles.metricLabel}>NAV{h.navDate ? ` (${h.navDate})` : ''}</Text>
+                          <Text style={styles.metricValue}>{h.nav == null ? '—' : `₹${h.nav.toFixed(4)}`}</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.goalMetrics}>
+                        <View style={styles.metric}>
+                          <Text style={styles.metricLabel}>Invested</Text>
+                          <Text style={styles.metricValue}>{rupees(h.investedValue, 2)}</Text>
+                        </View>
+                        <View style={styles.metric}>
+                          <Text style={styles.metricLabel}>Current value</Text>
+                          <Text style={styles.metricValue}>{rupees(h.marketValue, 2)}</Text>
+                          {gainPercent != null && (
+                            <Text
+                              style={[
+                                styles.gainText,
+                                { color: gain >= 0 ? '#059669' : '#DC2626' },
+                              ]}
+                            >
+                              {gain >= 0 ? '+' : ''}{gainPercent}% ({gain >= 0 ? '+' : ''}{rupees(gain, 2)})
+                            </Text>
+                          )}
+                        </View>
+                      </View>
                     </View>
-                    <View style={styles.goalMetrics}>
-                      <View style={styles.metric}>
-                        <Text style={styles.metricLabel}>Units</Text>
-                        <Text style={styles.metricValue}>{h.units.toFixed(3)}</Text>
-                      </View>
-                      <View style={styles.metric}>
-                        <Text style={styles.metricLabel}>NAV{h.navDate ? ` (${h.navDate})` : ''}</Text>
-                        <Text style={styles.metricValue}>{h.nav == null ? '—' : `₹${h.nav.toFixed(4)}`}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.goalMetrics}>
-                      <View style={styles.metric}>
-                        <Text style={styles.metricLabel}>Invested</Text>
-                        <Text style={styles.metricValue}>{rupees(h.investedValue, 2)}</Text>
-                      </View>
-                      <View style={styles.metric}>
-                        <Text style={styles.metricLabel}>Current value</Text>
-                        <Text style={styles.metricValue}>{rupees(h.marketValue, 2)}</Text>
-                      </View>
-                    </View>
-                  </View>
-                ))
+                  );
+                })
               )}
               {portfolio?.method ? (
                 <View style={styles.methodBox}>
@@ -474,35 +700,62 @@ export const PortfolioScreen = () => {
 
           {tab === 'transactions' && (
             <View style={styles.content}>
-              {orders.length === 0 ? (
-                renderEmptyState(
-                  'list-outline',
-                  t('port.noTransactions', { defaultValue: 'No Transactions Found' }),
-                  t('port.transactionHistoryHere', { defaultValue: 'Your investment history and logs will appear here.' }),
-                  t('port.exploreFunds', { defaultValue: 'Explore Funds' }),
-                  () => navigation.navigate('Funds')
-                )
-              ) : (
-                orders.map((o) => (
-                  <View key={o.id} style={styles.goalCard}>
-                    <View style={styles.goalRow}>
-                      <View style={{ flex: 1, paddingRight: 12 }}>
-                        <Text style={styles.goalName}>{o.fundName}</Text>
-                        <Text style={styles.goalTime}>{new Date(o.createdAt).toLocaleDateString('en-IN')} · One-time</Text>
-                      </View>
-                      <View style={styles.statusBadge}>
-                        <Text style={styles.statusText}>{o.statusLabel}</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.metricValue}>{rupees(o.amount, 2)}</Text>
-                    {o.paymentUrl ? (
-                      <Pressable style={styles.primaryBtn} onPress={() => navigation.navigate('Payment', { orderId: o.id, amount: o.amount, schemeName: o.fundName, paymentUrl: o.paymentUrl, statusLabel: o.statusLabel, mode: 'lumpsum' })}>
-                        <Text style={styles.primaryBtnText}>Pay now</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                ))
+              {transactionFilter && (
+                <View style={styles.filterBanner}>
+                  <Text style={styles.filterBannerText} numberOfLines={1}>
+                    Filter: <Text style={{ fontWeight: '800' }}>{transactionFilter}</Text>
+                  </Text>
+                  <Pressable
+                    onPress={() => setTransactionFilter(null)}
+                    style={styles.clearFilterBtn}
+                  >
+                    <Text style={styles.clearFilterText}>Show All</Text>
+                  </Pressable>
+                </View>
               )}
+              {(() => {
+                const filteredOrders = transactionFilter
+                  ? orders.filter((o) =>
+                      o.fundName?.toLowerCase().includes(transactionFilter.toLowerCase())
+                    )
+                  : orders;
+
+                return filteredOrders.length === 0 ? (
+                  renderEmptyState(
+                    'list-outline',
+                    t('port.noTransactions', { defaultValue: 'No Transactions Found' }),
+                    transactionFilter
+                      ? `No transactions match "${transactionFilter}".`
+                      : t('port.transactionHistoryHere', {
+                          defaultValue: 'Your investment history and logs will appear here.',
+                        }),
+                    t('port.exploreFunds', { defaultValue: 'Explore Funds' }),
+                    () => navigation.navigate('Funds')
+                  )
+                ) : (
+                  filteredOrders.map((o) => (
+                    <View key={o.id} style={styles.goalCard}>
+                      <View style={styles.goalRow}>
+                        <View style={{ flex: 1, paddingRight: 12 }}>
+                          <Text style={styles.goalName}>{o.fundName}</Text>
+                          <Text style={styles.goalTime}>
+                            {new Date(o.createdAt).toLocaleDateString('en-IN')} · One-time
+                          </Text>
+                        </View>
+                        <View style={styles.statusBadge}>
+                          <Text style={styles.statusText}>{o.statusLabel}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.metricValue}>{rupees(o.amount, 2)}</Text>
+                      {o.paymentUrl ? (
+                        <Pressable style={styles.primaryBtn} onPress={() => openPayment(o.paymentUrl!)}>
+                          <Text style={styles.primaryBtnText}>Pay now</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ))
+                );
+              })()}
             </View>
           )}
 
@@ -531,7 +784,7 @@ export const PortfolioScreen = () => {
                       </View>
                     </View>
                     {p.paymentUrl ? (
-                      <Pressable style={styles.primaryBtn} onPress={() => navigation.navigate('Payment', { orderId: p.id, planId: p.id, amount: p.amount, schemeName: p.fundName, paymentUrl: p.paymentUrl, statusLabel: p.statusLabel, mode: 'sip' })}>
+                      <Pressable style={styles.primaryBtn} onPress={() => openPayment(p.paymentUrl!)}>
                         <Text style={styles.primaryBtnText}>Pay first instalment</Text>
                       </Pressable>
                     ) : null}
@@ -570,425 +823,675 @@ export const PortfolioScreen = () => {
           )}
 
           {tab === 'goals' && (
-            <View style={styles.content}>
-              {fetchingGoals ? (
-                <ActivityIndicator size="large" color="#3C3985" style={{ marginTop: 40 }} />
-              ) : goals.length === 0 ? (
-                renderEmptyState(
-                  'flag-outline', 
-                  t('prof.noGoals', { defaultValue: 'No active goals found.' }), 
-                  'Start planning for your future by setting a financial goal.',
-                  t('prof.createGoal', { defaultValue: 'Create a Goal' }),
-                  () => navigation.navigate('GoalSelection')
-                )
-              ) : (
-                <View style={{ gap: 16 }}>
-                  {goals.length > 1 && (
-                    <View style={[styles.goalCard, {backgroundColor: '#3C3985', borderColor: '#3C3985'}]}>
-                      <Text style={{color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 12}}>Overall Plan Summary</Text>
-                      <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
-                        <View>
-                          <Text style={{color: '#A0AEC0', fontSize: 10, textTransform: 'uppercase'}}>Total Target</Text>
-                          <Text style={{color: '#fff', fontSize: 14, fontWeight: 'bold'}}>?{goals.reduce((s, g) => s + (g.inflationAdjustedAmount||0), 0).toLocaleString('en-IN', {maximumFractionDigits: 0})}</Text>
-                        </View>
-                        <View>
-                          <Text style={{color: '#A0AEC0', fontSize: 10, textTransform: 'uppercase'}}>Combined SIP</Text>
-                          <Text style={{color: '#48BB78', fontSize: 14, fontWeight: 'bold'}}>?{goals.reduce((s, g) => s + (g.monthlySip||0), 0).toLocaleString('en-IN')}</Text>
-                        </View>
-                      </View>
-                    </View>
-                  )}
-                  {goals.map((g) => (
-                    <View key={g.id} style={styles.goalCard}>
-                      <View style={styles.goalRow}>
-                        <View>
-                          <Text style={styles.goalName}>{g.name}</Text>
-                          <Text style={styles.goalTime}>{g.timePeriod} Years | {g.bucketName}</Text>
-                        </View>
-                        <View style={styles.statusBadge}>
-                          <Text style={styles.statusText}>{g.status || 'ACTIVE'}</Text>
-                        </View>
-                      </View>
-                      <View style={styles.goalMetrics}>
-                        <View style={styles.metric}>
-                          <Text style={styles.metricLabel}>Target Amount</Text>
-                          <Text style={styles.metricValue}>₹{g.targetAmount?.toLocaleString('en-IN')}</Text>
-                        </View>
-                        <View style={styles.metric}>
-                          <Text style={styles.metricLabel}>Monthly SIP</Text>
-                          <Text style={styles.metricValue}>₹{g.monthlySip?.toLocaleString('en-IN')}</Text>
-                        </View>
-                      </View>
-                    </View>
-                  ))}
-                  <Pressable style={styles.outlineBtn} onPress={() => navigation.navigate('GoalSelection')}>
-                    <Text style={styles.outlineBtnText}>+ Add Another Goal</Text>
-                  </Pressable>
-                </View>
-              )}
+            <View style={{ width: '100%', minHeight: 600 }}>
+              <GoalsScreen showHeader={false} />
             </View>
           )}
         </View>
+      </ScrollView>
 
-        </ScrollView>
-
-      {/* Contextual Action Sheet Modal for Selected Holding */}
+      {/* Three-Dot Contextual Action Sheet */}
       <Modal
-        visible={activeMenuHolding !== null}
-        transparent={true}
+        visible={menuHolding !== null}
+        transparent
         animationType="fade"
-        onRequestClose={() => setActiveMenuHolding(null)}
+        onRequestClose={() => setMenuHolding(null)}
       >
-        <Pressable style={styles.menuOverlay} onPress={() => setActiveMenuHolding(null)}>
-          <Pressable style={styles.menuSheet} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.menuHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.menuSchemeName} numberOfLines={1}>
-                  {activeMenuHolding?.schemeName ?? activeMenuHolding?.schemeIsin}
-                </Text>
-                <Text style={styles.menuFolioText}>
-                  Folio {activeMenuHolding?.folioNumber} • {activeMenuHolding?.units?.toFixed(3)} units
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => setActiveMenuHolding(null)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                style={styles.menuCloseBtn}
-              >
-                <Ionicons name="close" size={20} color="#64748B" />
-              </Pressable>
-            </View>
+        <Pressable style={styles.sheetBackdrop} onPress={() => setMenuHolding(null)}>
+          <View style={styles.sheetContainer} onStartShouldSetResponder={() => true}>
+            {menuHolding && (() => {
+              const matchingPlan = getMatchingPlan(menuHolding);
+              const isPaused = matchingPlan?.statusLabel?.toLowerCase().includes('pause');
+              const lockedUnits = Math.max(0, menuHolding.units - menuHolding.redeemableUnits);
 
-            <View style={styles.menuItemsList}>
-              {/* 1. Invest in Lumpsum */}
-              <Pressable
-                style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
-                onPress={() => {
-                  const holding = activeMenuHolding;
-                  setActiveMenuHolding(null);
-                  if (holding?.schemeIsin) {
-                    navigation.navigate('Invest', {
-                      schemeCode: holding.schemeIsin,
-                      fundName: holding.schemeName ?? holding.schemeIsin,
-                      mode: 'lumpsum',
-                    });
-                  } else {
-                    navigation.navigate('Funds');
-                  }
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Invest in Lumpsum"
-              >
-                <View style={[styles.menuItemIconBox, { backgroundColor: '#EBEBFA' }]}>
-                  <Ionicons name="wallet-outline" size={18} color="#36358D" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.menuItemTitle}>Invest in Lumpsum</Text>
-                  <Text style={styles.menuItemSubtitle}>One-time investment in this scheme</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color="#A0AEC0" />
-              </Pressable>
+              return (
+                <>
+                  <View style={styles.sheetHeader}>
+                    <View style={{ flex: 1, paddingRight: 12 }}>
+                      <Text style={styles.sheetTitle} numberOfLines={2}>
+                        {menuHolding.schemeName ?? menuHolding.schemeIsin}
+                      </Text>
+                      <Text style={styles.sheetSub}>
+                        Folio {menuHolding.folioNumber} · {rupees(menuHolding.marketValue, 2)}
+                      </Text>
+                    </View>
+                    <Pressable
+                      style={styles.sheetCloseBtn}
+                      onPress={() => setMenuHolding(null)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons name="close" size={20} color="#64748B" />
+                    </Pressable>
+                  </View>
 
-              {/* 2. Start SIP */}
-              <Pressable
-                style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
-                onPress={() => {
-                  const holding = activeMenuHolding;
-                  setActiveMenuHolding(null);
-                  if (holding?.schemeIsin) {
-                    navigation.navigate('Invest', {
-                      schemeCode: holding.schemeIsin,
-                      fundName: holding.schemeName ?? holding.schemeIsin,
-                      mode: 'sip',
-                    });
-                  } else {
-                    navigation.navigate('Funds');
-                  }
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Start SIP"
-              >
-                <View style={[styles.menuItemIconBox, { backgroundColor: '#ECFDF5' }]}>
-                  <Ionicons name="calendar-outline" size={18} color="#059669" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.menuItemTitle}>Start SIP</Text>
-                  <Text style={styles.menuItemSubtitle}>Automated monthly systematic investment</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color="#A0AEC0" />
-              </Pressable>
+                  {lockedUnits > 0.001 && (
+                    <View style={styles.sheetWarningBox}>
+                      <Ionicons name="information-circle-outline" size={16} color="#B45309" />
+                      <Text style={styles.sheetWarningText}>
+                        {lockedUnits.toFixed(3)} units locked (ELSS 3-year statutory lock-in). {menuHolding.redeemableUnits.toFixed(3)} units redeemable.
+                      </Text>
+                    </View>
+                  )}
 
-              <View style={styles.menuDivider} />
+                  <View style={styles.sheetMenuList}>
+                    {/* Action 1: Invest in Lumpsum */}
+                    <Pressable
+                      style={styles.sheetMenuItem}
+                      onPress={() => handleLumpsumInvest(menuHolding)}
+                    >
+                      <View style={[styles.menuIconWrap, { backgroundColor: '#EEEDFA' }]}>
+                        <Ionicons name="cash-outline" size={20} color="#36358D" />
+                      </View>
+                      <View style={styles.menuTextWrap}>
+                        <Text style={styles.menuItemTitle}>Invest in Lumpsum</Text>
+                        <Text style={styles.menuItemSub}>
+                          One-time additional investment in this fund
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+                    </Pressable>
 
-              {/* 3. Redemption */}
-              <Pressable
-                style={({ pressed }) => [styles.menuItem, styles.redeemMenuItem, pressed && styles.menuItemPressed]}
-                onPress={() => {
-                  const holding = activeMenuHolding;
-                  setActiveMenuHolding(null);
-                  navigation.navigate('Redeem', {
-                    folioNumber: holding?.folioNumber,
-                    schemeIsin: holding?.schemeIsin,
-                  });
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Redemption"
-              >
-                <View style={[styles.menuItemIconBox, { backgroundColor: '#FEF2F2' }]}>
-                  <Ionicons name="arrow-redo-outline" size={18} color="#DC2626" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.menuItemTitle, { color: '#B91C1C' }]}>Redemption</Text>
-                  <Text style={styles.menuItemSubtitle}>Withdraw units to your verified bank account</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color="#FCA5A5" />
-              </Pressable>
-            </View>
-          </Pressable>
+                    {/* Action 2: Start SIP */}
+                    <Pressable
+                      style={styles.sheetMenuItem}
+                      onPress={() => handleStartSip(menuHolding)}
+                    >
+                      <View style={[styles.menuIconWrap, { backgroundColor: '#FFF4E8' }]}>
+                        <Ionicons name="repeat-outline" size={20} color="#DD6B20" />
+                      </View>
+                      <View style={styles.menuTextWrap}>
+                        <Text style={styles.menuItemTitle}>Start SIP</Text>
+                        <Text style={styles.menuItemSub}>
+                          {matchingPlan
+                            ? `Active: ₹${matchingPlan.amount}/mo · Tap to configure another`
+                            : 'Set up recurring monthly systematic investment'}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+                    </Pressable>
+
+                    {/* Action 3: Redemption */}
+                    <Pressable
+                      style={styles.sheetMenuItem}
+                      onPress={() => handleRedeem(menuHolding)}
+                    >
+                      <View style={[styles.menuIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                        <Ionicons name="arrow-down-circle-outline" size={20} color="#059669" />
+                      </View>
+                      <View style={styles.menuTextWrap}>
+                        <Text style={styles.menuItemTitle}>Redemption</Text>
+                        <Text style={styles.menuItemSub}>
+                          {menuHolding.redeemableUnits > 0
+                            ? `Withdraw by amount, units, or full exit (${menuHolding.redeemableUnits.toFixed(3)} units)`
+                            : 'Check redemption eligibility and lock-in schedule'}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+                    </Pressable>
+
+                    {/* Contextual Existing SIP Controls if active */}
+                    {matchingPlan && (
+                      <>
+                        <View style={styles.sheetSectionDivider}>
+                          <Text style={styles.sheetSectionDividerText}>EXISTING SIP CONTROLS</Text>
+                        </View>
+
+                        {isPaused ? (
+                          <Pressable
+                            style={styles.sheetMenuItem}
+                            onPress={() => handleResumeSip(menuHolding, matchingPlan)}
+                          >
+                            <View style={[styles.menuIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                              <Ionicons name="play-circle-outline" size={20} color="#059669" />
+                            </View>
+                            <View style={styles.menuTextWrap}>
+                              <Text style={styles.menuItemTitle}>Resume SIP</Text>
+                              <Text style={styles.menuItemSub}>
+                                Resume monthly debit of {rupees(matchingPlan.amount)} on day {matchingPlan.installmentDay}
+                              </Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+                          </Pressable>
+                        ) : (
+                          <Pressable
+                            style={styles.sheetMenuItem}
+                            onPress={() => handlePauseSip(menuHolding, matchingPlan)}
+                          >
+                            <View style={[styles.menuIconWrap, { backgroundColor: '#FFFBEB' }]}>
+                              <Ionicons name="pause-circle-outline" size={20} color="#D97706" />
+                            </View>
+                            <View style={styles.menuTextWrap}>
+                              <Text style={styles.menuItemTitle}>Pause SIP</Text>
+                              <Text style={styles.menuItemSub}>
+                                Temporarily hold monthly auto-debit of {rupees(matchingPlan.amount)}
+                              </Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+                          </Pressable>
+                        )}
+
+                        <Pressable
+                          style={styles.sheetMenuItem}
+                          onPress={() => handleOpenModifySip(menuHolding, matchingPlan)}
+                        >
+                          <View style={[styles.menuIconWrap, { backgroundColor: '#EEEDFA' }]}>
+                            <Ionicons name="create-outline" size={20} color="#36358D" />
+                          </View>
+                          <View style={styles.menuTextWrap}>
+                            <Text style={styles.menuItemTitle}>Modify SIP</Text>
+                            <Text style={styles.menuItemSub}>
+                              Change monthly amount or installment date (currently {rupees(matchingPlan.amount)})
+                            </Text>
+                          </View>
+                          <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+                        </Pressable>
+
+                        <Pressable
+                          style={styles.sheetMenuItem}
+                          onPress={() => handleCancelSip(menuHolding, matchingPlan)}
+                        >
+                          <View style={[styles.menuIconWrap, { backgroundColor: '#FEF2F2' }]}>
+                            <Ionicons name="close-circle-outline" size={20} color="#DC2626" />
+                          </View>
+                          <View style={styles.menuTextWrap}>
+                            <Text style={[styles.menuItemTitle, { color: '#DC2626' }]}>Stop / Cancel SIP</Text>
+                            <Text style={styles.menuItemSub}>
+                              Permanently cancel future automated debits
+                            </Text>
+                          </View>
+                          <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+                        </Pressable>
+                      </>
+                    )}
+
+                    <View style={styles.sheetSectionDivider}>
+                      <Text style={styles.sheetSectionDividerText}>MORE OPTIONS</Text>
+                    </View>
+
+                    <Pressable
+                      style={styles.sheetMenuItem}
+                      onPress={() => handleViewTransactions(menuHolding)}
+                    >
+                      <View style={[styles.menuIconWrap, { backgroundColor: '#F0F9FF' }]}>
+                        <Ionicons name="receipt-outline" size={20} color="#0284C7" />
+                      </View>
+                      <View style={styles.menuTextWrap}>
+                        <Text style={styles.menuItemTitle}>View Transactions</Text>
+                        <Text style={styles.menuItemSub}>
+                          Purchase history and order status for this scheme
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+                    </Pressable>
+
+                    <Pressable
+                      style={styles.sheetMenuItem}
+                      onPress={() => handleViewDetails(menuHolding)}
+                    >
+                      <View style={[styles.menuIconWrap, { backgroundColor: '#F1F5F9' }]}>
+                        <Ionicons name="information-circle-outline" size={20} color="#475569" />
+                      </View>
+                      <View style={styles.menuTextWrap}>
+                        <Text style={styles.menuItemTitle}>View Investment Details</Text>
+                        <Text style={styles.menuItemSub}>
+                          NAV, units breakdown, lock-in status and folio specs
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+                    </Pressable>
+                  </View>
+                </>
+              );
+            })()}
+          </View>
         </Pressable>
       </Modal>
-    </SafeAreaView>
 
+      {/* Investment Details Modal */}
+      <Modal
+        visible={detailHolding !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDetailHolding(null)}
+      >
+        <View style={styles.sheetBackdrop}>
+          <View style={[styles.sheetContainer, { maxHeight: '90%' }]}>
+            {detailHolding && (() => {
+              const lockedUnits = Math.max(0, detailHolding.units - detailHolding.redeemableUnits);
+              const gain = (detailHolding.marketValue ?? 0) - (detailHolding.investedValue ?? 0);
+              const gainPct =
+                detailHolding.investedValue && detailHolding.investedValue > 0
+                  ? ((gain / detailHolding.investedValue) * 100).toFixed(2)
+                  : null;
+              const matchingPlan = getMatchingPlan(detailHolding);
+
+              return (
+                <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+                  <View style={styles.sheetHeader}>
+                    <View style={{ flex: 1, paddingRight: 12 }}>
+                      <Text style={styles.sheetTitle}>Investment Details</Text>
+                      <Text style={styles.sheetSub}>Comprehensive holding report</Text>
+                    </View>
+                    <Pressable
+                      style={styles.sheetCloseBtn}
+                      onPress={() => setDetailHolding(null)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons name="close" size={20} color="#64748B" />
+                    </Pressable>
+                  </View>
+
+                  <View style={styles.detailCard}>
+                    <Text style={styles.detailSchemeName}>
+                      {detailHolding.schemeName ?? detailHolding.schemeIsin}
+                    </Text>
+                    <View style={styles.detailTagRow}>
+                      <View style={styles.folioTag}>
+                        <Text style={styles.folioTagText}>Folio: {detailHolding.folioNumber}</Text>
+                      </View>
+                      <View style={styles.isinTag}>
+                        <Text style={styles.isinTagText}>ISIN: {detailHolding.schemeIsin}</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Summary Values */}
+                  <View style={styles.detailStatsGrid}>
+                    <View style={styles.detailStatBox}>
+                      <Text style={styles.detailStatLabel}>Current Value</Text>
+                      <Text style={styles.detailStatValue}>{rupees(detailHolding.marketValue, 2)}</Text>
+                      {gainPct != null && (
+                        <Text
+                          style={[
+                            styles.detailGainText,
+                            { color: gain >= 0 ? '#059669' : '#DC2626' },
+                          ]}
+                        >
+                          {gain >= 0 ? '+' : ''}{gainPct}% ({gain >= 0 ? '+' : ''}{rupees(gain, 2)})
+                        </Text>
+                      )}
+                    </View>
+                    <View style={styles.detailStatBox}>
+                      <Text style={styles.detailStatLabel}>Invested Value</Text>
+                      <Text style={styles.detailStatValue}>{rupees(detailHolding.investedValue, 2)}</Text>
+                      <Text style={styles.detailStatSub}>Original cost basis</Text>
+                    </View>
+                  </View>
+
+                  {/* Units Breakdown */}
+                  <View style={styles.sectionCard}>
+                    <Text style={styles.sectionCardTitle}>Units Breakdown</Text>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailRowLabel}>Total Units Held</Text>
+                      <Text style={styles.detailRowValue}>{detailHolding.units.toFixed(3)}</Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailRowLabel}>Redeemable Units</Text>
+                      <Text style={[styles.detailRowValue, { color: '#059669' }]}>
+                        {detailHolding.redeemableUnits.toFixed(3)}
+                      </Text>
+                    </View>
+                    <View style={[styles.detailRow, { borderBottomWidth: 0 }]}>
+                      <Text style={styles.detailRowLabel}>Locked Units</Text>
+                      <Text
+                        style={[
+                          styles.detailRowValue,
+                          { color: lockedUnits > 0 ? '#D97706' : '#64748B' },
+                        ]}
+                      >
+                        {lockedUnits.toFixed(3)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* NAV Details */}
+                  <View style={styles.sectionCard}>
+                    <Text style={styles.sectionCardTitle}>Valuation & NAV</Text>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailRowLabel}>Latest NAV</Text>
+                      <Text style={styles.detailRowValue}>
+                        {detailHolding.nav == null ? '—' : `₹${detailHolding.nav.toFixed(4)}`}
+                      </Text>
+                    </View>
+                    <View style={[styles.detailRow, { borderBottomWidth: 0 }]}>
+                      <Text style={styles.detailRowLabel}>As of Date</Text>
+                      <Text style={styles.detailRowValue}>{detailHolding.navDate ?? 'Latest Available'}</Text>
+                    </View>
+                  </View>
+
+                  {/* Lock-in Statutory Warning */}
+                  {lockedUnits > 0.001 && (
+                    <View style={styles.statutoryNotice}>
+                      <Ionicons name="shield-checkmark-outline" size={18} color="#B45309" />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.statutoryNoticeTitle}>Statutory Lock-in Period</Text>
+                        <Text style={styles.statutoryNoticeDesc}>
+                          {lockedUnits.toFixed(3)} units are currently held under statutory lock-in (e.g. 36-month lock-in for ELSS Tax Saver schemes under Sec 80C of the IT Act). Locked units will automatically become redeemable upon maturity.
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* SIP Status */}
+                  <View style={styles.sectionCard}>
+                    <Text style={styles.sectionCardTitle}>SIP Automation</Text>
+                    <View style={[styles.detailRow, { borderBottomWidth: 0 }]}>
+                      <Text style={styles.detailRowLabel}>Active SIP Plan</Text>
+                      <Text style={styles.detailRowValue}>
+                        {matchingPlan
+                          ? `${rupees(matchingPlan.amount)} / ${matchingPlan.frequency} (Day ${matchingPlan.installmentDay})`
+                          : 'No active SIP'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Actions Footer */}
+                  <View style={styles.detailActionRow}>
+                    <Pressable
+                      style={[styles.detailActionBtn, styles.detailRedeemBtn]}
+                      onPress={() => handleRedeem(detailHolding)}
+                    >
+                      <Ionicons name="arrow-down-circle-outline" size={18} color="#059669" />
+                      <Text style={styles.detailRedeemBtnText}>Redeem / Withdraw</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.detailActionBtn, styles.detailInvestBtn]}
+                      onPress={() => {
+                        setDetailHolding(null);
+                        handleStartSip(detailHolding);
+                      }}
+                    >
+                      <Ionicons name="repeat-outline" size={18} color="#fff" />
+                      <Text style={styles.detailInvestBtnText}>Start SIP</Text>
+                    </Pressable>
+                  </View>
+                </ScrollView>
+              );
+            })()}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modify SIP Modal */}
+      <Modal
+        visible={modifyingPlan !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModifyingPlan(null)}
+      >
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.sheetContainer}>
+            {modifyingPlan && (
+              <>
+                <View style={styles.sheetHeader}>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={styles.sheetTitle}>Modify SIP</Text>
+                    <Text style={styles.sheetSub} numberOfLines={1}>{modifyingPlan.fundName}</Text>
+                  </View>
+                  <Pressable
+                    style={styles.sheetCloseBtn}
+                    onPress={() => setModifyingPlan(null)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons name="close" size={20} color="#64748B" />
+                  </Pressable>
+                </View>
+
+                <Text style={styles.inputLabel}>Monthly Investment Amount (₹)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={modifyAmount}
+                  onChangeText={setModifyAmount}
+                  keyboardType="number-pad"
+                  placeholder="e.g. 2500"
+                  placeholderTextColor="#94A3B8"
+                />
+
+                <View style={styles.chipRow}>
+                  {[1000, 2500, 5000, 10000].map((amt) => (
+                    <Pressable
+                      key={amt}
+                      style={[styles.chip, modifyAmount === String(amt) && styles.chipActive]}
+                      onPress={() => setModifyAmount(String(amt))}
+                    >
+                      <Text style={[styles.chipText, modifyAmount === String(amt) && styles.chipTextActive]}>
+                        ₹{amt.toLocaleString('en-IN')}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <Text style={[styles.inputLabel, { marginTop: 16 }]}>Installment Date (Day of Month)</Text>
+                <View style={styles.chipRow}>
+                  {[1, 5, 10, 15, 20, 25].map((d) => (
+                    <Pressable
+                      key={d}
+                      style={[styles.chip, modifyDay === d && styles.chipActive]}
+                      onPress={() => setModifyDay(d)}
+                    >
+                      <Text style={[styles.chipText, modifyDay === d && styles.chipTextActive]}>
+                        {d}th
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <Pressable
+                  style={[styles.primaryBtn, { marginTop: 24 }]}
+                  onPress={handleSaveModifiedSip}
+                >
+                  <Text style={styles.primaryBtnText}>Save SIP Modifications</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8F9FB' },
+  safe: { flex: 1, backgroundColor: '#F6F7FC' },
   
-  headerBlock: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 10, backgroundColor: '#F8F9FB' },
-  headerTitle: { color: '#102A54', fontSize: 28, fontWeight: '800' },
+  headerBlock: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 6, backgroundColor: '#F6F7FC' },
+  headerTitle: { color: '#102A54', fontSize: 26, fontWeight: '900', letterSpacing: -0.4 },
 
-  fixedSummaryContainer: { paddingHorizontal: 24, paddingBottom: 24, backgroundColor: '#F8F9FB' },
+  fixedSummaryContainer: { paddingHorizontal: 18, paddingBottom: 10, backgroundColor: '#F6F7FC' },
   
-  // Custom Hero Card based on User Uploaded Image
-  holdingHeaderRow: {
+  // Home Screen 3D Hero Card
+  heroCard: {
+    borderRadius: 24,
+    padding: 20,
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    shadowColor: '#232262',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.24,
+    shadowRadius: 16,
+    elevation: 7,
+  },
+  heroTopSheen: {
+    position: 'absolute',
+    top: 0,
+    left: 20,
+    right: 20,
+    height: 1.5,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+  heroHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 4,
+    marginBottom: 14,
   },
-  threeDotBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
+  heroEyebrow: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#C7D2FE',
+    letterSpacing: 0.9,
   },
-  threeDotBtnPressed: {
-    backgroundColor: '#E2E8F0',
-  },
-  overviewInvestContainer: {
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  investMoreContainer: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 24,
-  },
-  investMoreBtn: {
-    backgroundColor: '#36358D',
-    borderRadius: 18,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    shadowColor: '#36358D',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  investMoreBtnPressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.99 }],
-  },
-  investIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  investMoreTitle: {
+  heroTitle: {
+    fontSize: 16.5,
+    fontWeight: '900',
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  investMoreSubtitle: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 12,
     marginTop: 2,
-    fontWeight: '500',
+    letterSpacing: -0.2,
   },
-  investMoreArrow: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  menuSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 36,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  menuHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  menuSchemeName: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#102A54',
-  },
-  menuFolioText: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-    fontWeight: '500',
-  },
-  menuCloseBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F8FAFC',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuItemsList: {
-    marginTop: 12,
-    gap: 8,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    gap: 12,
-  },
-  menuItemPressed: {
-    backgroundColor: '#F8FAFC',
-  },
-  redeemMenuItem: {
-    marginTop: 4,
-  },
-  menuItemIconBox: {
-    width: 36,
-    height: 36,
+  heroActiveBadge: {
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  menuItemTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#102A54',
+  heroActiveText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
-  menuItemSubtitle: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  menuDivider: {
-    height: 1,
-    backgroundColor: '#F1F5F9',
-    marginVertical: 4,
-  },
-  heroCard: { backgroundColor: '#3A3F7A', borderRadius: 24, padding: 24, shadowColor: '#3C3985', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 6 },
-  heroTitle: { color: '#fff', fontSize: 16, fontWeight: '900', marginBottom: 24 },
   heroRow: { flexDirection: 'row', alignItems: 'center' },
   
-  chartContainer: { width: 104, height: 104, justifyContent: 'center', alignItems: 'center', marginRight: 24 },
-  chartCenter: { position: 'absolute', justifyContent: 'center', alignItems: 'center', backgroundColor: '#2D3261', width: 70, height: 70, borderRadius: 35 },
-  chartCenterValue: { color: '#fff', fontSize: 16, fontWeight: '800' },
-  chartCenterLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 9, fontWeight: '800', marginTop: 2, letterSpacing: 0.5 },
+  chartContainer: { width: 98, height: 98, justifyContent: 'center', alignItems: 'center', marginRight: 20 },
+  chartCenter: { position: 'absolute', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.12)', width: 68, height: 68, borderRadius: 34 },
+  chartCenterValue: { color: '#fff', fontSize: 15, fontWeight: '900' },
+  chartCenterLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 8.5, fontWeight: '800', marginTop: 1, letterSpacing: 0.5 },
   
-  heroStats: { flex: 1, justifyContent: 'space-between', paddingVertical: 4 },
-  statGroup: { marginBottom: 16 },
-  statLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginBottom: 4 },
-  statValue: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  heroStats: { flex: 1, justifyContent: 'space-between', paddingVertical: 2 },
+  statGroup: { marginBottom: 12 },
+  statLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, marginBottom: 2 },
+  statValue: { color: '#fff', fontSize: 17, fontWeight: '900' },
   
   returnsBadgeWrap: { backgroundColor: 'rgba(72, 187, 120, 0.15)', alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(72, 187, 120, 0.3)' },
   returnsBadgeText: { color: '#68D391', fontSize: 12, fontWeight: '800' },
 
   // Risk Profile Summary Card
-  riskProfileBox: { backgroundColor: '#fff', borderRadius: 20, padding: 20, marginBottom: 20, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 2 },
-  riskProfileHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  riskIconWrap: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 16 },
-  riskProfileEyebrow: { fontSize: 10, fontWeight: '800', color: '#718096', letterSpacing: 0.5, marginBottom: 2 },
-  riskProfileLabel: { fontSize: 18, fontWeight: '900' },
-  riskProfileDesc: { fontSize: 13, color: '#4A5568', lineHeight: 20 },
+  riskProfileBox: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 18, marginBottom: 16, borderWidth: 1, borderColor: '#E6E8F6', shadowColor: '#102A54', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
+  riskProfileHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  riskIconWrap: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  riskProfileEyebrow: { fontSize: 10, fontWeight: '800', color: '#64748B', letterSpacing: 0.6, marginBottom: 2 },
+  riskProfileLabel: { fontSize: 17, fontWeight: '900' },
+  riskProfileDesc: { fontSize: 12.5, color: '#475569', lineHeight: 18 },
 
-  tabScrollContainer: { borderBottomWidth: 1, borderBottomColor: '#E2E8F0', backgroundColor: '#fff' },
+  tabScrollContainer: { paddingVertical: 6, backgroundColor: '#F6F7FC' },
   tabContainer: { paddingHorizontal: 16 },
-  tab: { paddingVertical: 16, paddingHorizontal: 16, borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  activeTab: { borderBottomColor: '#3C3985' },
-  tabText: { fontSize: 14, fontWeight: '700', color: '#A0AEC0', textTransform: 'capitalize' },
-  activeTabText: { color: '#3C3985' },
+  tab: { paddingVertical: 14, paddingHorizontal: 16 },
+  activeTab: {},
+  tabText: { fontSize: 13, fontWeight: '700', color: '#64748B' },
+  activeTabText: { color: '#36358D' },
   
-  container: { padding: 24, paddingBottom: 80 },
-  content: { gap: 24 },
+  container: { padding: 18, paddingBottom: 80 },
+  content: { gap: 18 },
   
-  emptyCard: { backgroundColor: '#fff', borderRadius: 24, padding: 32, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: '#E2E8F0' },
-  iconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#EBEBFA', alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#102A54', marginBottom: 12, textAlign: 'center' },
-  emptyDesc: { fontSize: 14, color: '#718096', textAlign: 'center', marginBottom: 32, lineHeight: 22 },
-  primaryBtn: { backgroundColor: '#3C3985', paddingVertical: 14, paddingHorizontal: 32, borderRadius: 16, width: '100%', alignItems: 'center' },
-  primaryBtnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  emptyCard: { backgroundColor: '#FFFFFF', borderRadius: 22, padding: 28, alignItems: 'center', shadowColor: '#102A54', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2, borderWidth: 1, borderColor: '#E6E8F6' },
+  iconCircle: { width: 72, height: 72, borderRadius: 24, backgroundColor: '#EEEDFA', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  emptyTitle: { fontSize: 17, fontWeight: '900', color: '#102A54', marginBottom: 8, textAlign: 'center' },
+  emptyDesc: { fontSize: 13, color: '#64748B', textAlign: 'center', marginBottom: 24, lineHeight: 20 },
+  primaryBtn: { backgroundColor: '#36358D', paddingVertical: 14, paddingHorizontal: 28, borderRadius: 16, width: '100%', alignItems: 'center', elevation: 2, shadowColor: '#36358D', shadowOpacity: 0.2, shadowOffset: { width: 0, height: 3 }, shadowRadius: 6 },
+  primaryBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
   
-  riskCard: { backgroundColor: '#fff', borderRadius: 24, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: '#E2E8F0' },
-  riskTitle: { fontSize: 18, fontWeight: '800', color: '#102A54', marginBottom: 12 },
-  riskNote: { fontSize: 13, color: '#718096', marginBottom: 20, lineHeight: 20, backgroundColor: '#F8F9FB', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0' },
-  riskRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#EDF2F7' },
-  riskLabel: { fontSize: 13, fontWeight: '700', color: '#718096' },
-  riskValue: { fontSize: 14, fontWeight: '800' },
+  riskCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, shadowColor: '#102A54', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2, borderWidth: 1, borderColor: '#E6E8F6' },
+  riskTitle: { fontSize: 17, fontWeight: '900', color: '#102A54', marginBottom: 8 },
+  riskNote: { fontSize: 12.5, color: '#64748B', marginBottom: 16, lineHeight: 18, backgroundColor: '#F6F7FC', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E6E8F6' },
+  riskRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#EEF0FA' },
+  riskLabel: { fontSize: 13, fontWeight: '700', color: '#64748B' },
+  riskValue: { fontSize: 13.5, fontWeight: '800' },
 
-  asOnText: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '600', marginTop: 4 },
-  methodBox: { backgroundColor: '#F8F9FB', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
-  methodTitle: { color: '#102A54', fontSize: 13, fontWeight: '800', marginBottom: 6 },
-  methodText: { color: '#4A5568', fontSize: 12, lineHeight: 18 },
-  statementList: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden' },
-  statementCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#EDF2F7' },
-  statementIconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#EBEBFA', alignItems: 'center', justifyContent: 'center', marginRight: 16 },
-  statementInfo: { flex: 1, paddingRight: 16 },
-  statementTitle: { fontSize: 15, fontWeight: '800', color: '#102A54', marginBottom: 4 },
-  statementDesc: { fontSize: 12, color: '#718096' },
-  downloadBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F7FAFC', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
+  asOnText: { color: 'rgba(255,255,255,0.7)', fontSize: 10.5, fontWeight: '600', marginTop: 4 },
+  methodBox: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#E6E8F6' },
+  methodTitle: { color: '#102A54', fontSize: 12.5, fontWeight: '800', marginBottom: 4 },
+  methodText: { color: '#4A5568', fontSize: 11.5, lineHeight: 17 },
+  statementList: { backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#E6E8F6', overflow: 'hidden' },
+  statementCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: '#EEF0FA' },
+  statementIconWrap: { width: 42, height: 42, borderRadius: 13, backgroundColor: '#EEEDFA', alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  statementInfo: { flex: 1, paddingRight: 14 },
+  statementTitle: { fontSize: 14.5, fontWeight: '800', color: '#102A54', marginBottom: 3 },
+  statementDesc: { fontSize: 11.5, color: '#64748B' },
+  downloadBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#F6F7FC', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E6E8F6' },
 
-  goalCard: { backgroundColor: '#fff', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 4, elevation: 1 },
-  goalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
-  goalName: { fontSize: 18, fontWeight: '800', color: '#102A54' },
-  goalTime: { fontSize: 12, color: '#718096', marginTop: 4, fontWeight: '600' },
-  statusBadge: { backgroundColor: '#EBEBFA', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  statusText: { fontSize: 10, fontWeight: '800', color: '#3C3985', textTransform: 'uppercase' },
-  goalMetrics: { flexDirection: 'row', gap: 24, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#EDF2F7' },
+  goalCard: { backgroundColor: '#FFFFFF', borderRadius: 18, padding: 18, borderWidth: 1, borderColor: '#E6E8F6', shadowColor: '#102A54', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
+  goalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
+  goalName: { fontSize: 16.5, fontWeight: '800', color: '#102A54' },
+  goalTime: { fontSize: 11.5, color: '#64748B', marginTop: 3, fontWeight: '600' },
+  statusBadge: { backgroundColor: '#EEEDFA', paddingHorizontal: 8, paddingVertical: 3.5, borderRadius: 6 },
+  statusText: { fontSize: 10, fontWeight: '800', color: '#36358D', textTransform: 'uppercase' },
+  goalMetrics: { flexDirection: 'row', gap: 20, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#EEF0FA' },
   metric: { flex: 1 },
-  metricLabel: { fontSize: 10, fontWeight: '700', color: '#A0AEC0', textTransform: 'uppercase', marginBottom: 4 },
-  metricValue: { fontSize: 16, fontWeight: '800', color: '#102A54' },
+  metricLabel: { fontSize: 9.5, fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', marginBottom: 3 },
+  metricValue: { fontSize: 15, fontWeight: '900', color: '#102A54' },
   
-  outlineBtn: { borderWidth: 2, borderColor: '#3C3985', paddingVertical: 16, borderRadius: 16, alignItems: 'center', marginTop: 8 },
-  outlineBtnText: { color: '#3C3985', fontSize: 14, fontWeight: '800' }
+  outlineBtn: { borderWidth: 1.5, borderColor: '#36358D', paddingVertical: 14, borderRadius: 16, alignItems: 'center', marginTop: 8 },
+  outlineBtnText: { color: '#36358D', fontSize: 13.5, fontWeight: '800' },
+
+  holdingHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
+  holdingSubRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' },
+  threeDotBtn: { padding: 6, borderRadius: 8, backgroundColor: '#F1F5F9' },
+  sipBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EEEDFA', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  sipBadgeText: { fontSize: 10, fontWeight: '700', color: '#36358D' },
+  lockBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFFBEB', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  lockBadgeText: { fontSize: 10, fontWeight: '700', color: '#B45309' },
+  metricSub: { fontSize: 10, color: '#059669', fontWeight: '600', marginTop: 2 },
+  gainText: { fontSize: 11, fontWeight: '700', marginTop: 2 },
+
+  filterBanner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#EEEDFA', padding: 12, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: '#D8DBF5' },
+  filterBannerText: { fontSize: 12, color: '#36358D', flex: 1, fontWeight: '600' },
+  clearFilterBtn: { paddingHorizontal: 10, paddingVertical: 5, backgroundColor: '#36358D', borderRadius: 8 },
+  clearFilterText: { fontSize: 11, fontWeight: '800', color: '#fff' },
+
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(16, 42, 84, 0.5)', justifyContent: 'flex-end' },
+  sheetContainer: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 22, maxHeight: '85%' },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
+  sheetTitle: { fontSize: 17, fontWeight: '900', color: '#102A54' },
+  sheetSub: { fontSize: 12.5, color: '#64748B', marginTop: 3 },
+  sheetCloseBtn: { padding: 6, backgroundColor: '#F1F5F9', borderRadius: 16 },
+  sheetWarningBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FFFBEB', padding: 12, borderRadius: 12, marginBottom: 14, borderWidth: 1, borderColor: '#FEF3C7' },
+  sheetWarningText: { fontSize: 12, color: '#92400E', flex: 1, lineHeight: 16 },
+  sheetMenuList: { gap: 8 },
+  sheetSectionDivider: { marginTop: 6, marginBottom: 2, paddingHorizontal: 4 },
+  sheetSectionDividerText: { fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 0.5 },
+  sheetMenuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12, borderRadius: 14, backgroundColor: '#F6F7FC', borderWidth: 1, borderColor: '#E6E8F6' },
+  menuIconWrap: { width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  menuTextWrap: { flex: 1 },
+  menuItemTitle: { fontSize: 13.5, fontWeight: '800', color: '#102A54' },
+  menuItemSub: { fontSize: 11, color: '#64748B', marginTop: 2 },
+
+  detailCard: { backgroundColor: '#F6F7FC', padding: 16, borderRadius: 16, marginBottom: 14, borderWidth: 1, borderColor: '#E6E8F6' },
+  detailSchemeName: { fontSize: 15, fontWeight: '900', color: '#102A54', marginBottom: 8 },
+  detailTagRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  folioTag: { backgroundColor: '#EEF0FA', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  folioTagText: { fontSize: 11, fontWeight: '700', color: '#475569' },
+  isinTag: { backgroundColor: '#EEEDFA', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  isinTagText: { fontSize: 11, fontWeight: '800', color: '#36358D' },
+  detailStatsGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  detailStatBox: { flex: 1, backgroundColor: '#FFFFFF', padding: 12, borderRadius: 14, borderWidth: 1, borderColor: '#E6E8F6' },
+  detailStatLabel: { fontSize: 10, color: '#64748B', fontWeight: '800', textTransform: 'uppercase' },
+  detailStatValue: { fontSize: 15, fontWeight: '900', color: '#102A54', marginTop: 3 },
+  detailStatSub: { fontSize: 10, color: '#94A3B8', marginTop: 2 },
+  detailGainText: { fontSize: 11, fontWeight: '700', marginTop: 2 },
+  sectionCard: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: '#E6E8F6' },
+  sectionCardTitle: { fontSize: 12.5, fontWeight: '800', color: '#102A54', marginBottom: 10 },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#EEF0FA' },
+  detailRowLabel: { fontSize: 12, color: '#64748B' },
+  detailRowValue: { fontSize: 12.5, fontWeight: '700', color: '#102A54' },
+  statutoryNotice: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#FFFBEB', padding: 12, borderRadius: 12, marginBottom: 14, borderWidth: 1, borderColor: '#FEF3C7' },
+  statutoryNoticeTitle: { fontSize: 12, fontWeight: '800', color: '#92400E' },
+  statutoryNoticeDesc: { fontSize: 11, color: '#B45309', marginTop: 3, lineHeight: 15 },
+  detailActionRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
+  detailActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12 },
+  detailRedeemBtn: { backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0' },
+  detailRedeemBtnText: { color: '#059669', fontSize: 12.5, fontWeight: '800' },
+  detailInvestBtn: { backgroundColor: '#36358D' },
+  detailInvestBtnText: { color: '#fff', fontSize: 12.5, fontWeight: '800' },
+
+  inputLabel: { fontSize: 12, fontWeight: '800', color: '#102A54', marginBottom: 6 },
+  textInput: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E6E8F6', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: '#102A54', fontWeight: '700' },
+  chipRow: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
+  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E6E8F6' },
+  chipActive: { backgroundColor: '#36358D', borderColor: '#36358D' },
+  chipText: { fontSize: 12, fontWeight: '700', color: '#64748B' },
+  chipTextActive: { color: '#FFFFFF', fontWeight: '800' },
 });
 
 export default PortfolioScreen;

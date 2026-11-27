@@ -91,13 +91,6 @@ export const EditProfileScreen = () => {
     try {
       const result = await api.post<{ devOtp?: string }>('/auth/email/send-otp', { email: email.trim() });
       setOtpSent(true);
-      // Mirrors the login screen: in development the server returns the code, so a test
-      // does not depend on inbox delivery. __DEV__ is false in any release build.
-      if (__DEV__ && result?.devOtp) {
-        setEmailOtp(result.devOtp);
-        Alert.alert('Dev code', `OTP ${result.devOtp} (prefilled - development only)`);
-        return;
-      }
       Alert.alert('Code sent', `We have emailed a verification code to ${email.trim()}.`);
     } catch (e) {
       Alert.alert('Could not send the code', e instanceof Error ? e.message : 'Please try again.');

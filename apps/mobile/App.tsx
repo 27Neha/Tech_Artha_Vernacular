@@ -10,6 +10,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 import { LanguageScreen } from './src/screens/LanguageScreen';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
+import { AuthScreen } from './src/screens/AuthScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { SignupScreen } from './src/screens/SignupScreen';
 import { KycScreen } from './src/screens/KycScreen';
@@ -34,6 +35,9 @@ import { PlanSummaryScreen } from './src/screens/PlanSummaryScreen';
 import { PlanScreen } from './src/screens/PlanScreen';
 import { InvestScreen } from './src/screens/InvestScreen';
 import { RedeemScreen } from './src/screens/RedeemScreen';
+import { LumpsumInvestScreen } from './src/screens/LumpsumInvestScreen';
+import { SipSetupScreen } from './src/screens/SipSetupScreen';
+import { RedemptionJourneyScreen } from './src/screens/RedemptionJourneyScreen';
 import { FundDetailScreen } from './src/screens/FundDetailScreen';
 import { EditProfileScreen } from './src/screens/EditProfileScreen';
 import { FamilyPortfolioScreen } from './src/screens/FamilyPortfolioScreen';
@@ -60,6 +64,10 @@ import { StorageCacheScreen } from './src/screens/StorageCacheScreen';
 import { HelpSupportScreen } from './src/screens/HelpSupportScreen';
 import { FaqScreen } from './src/screens/FaqScreen';
 import { LegalScreen } from './src/screens/LegalScreen';
+import { ForgotPasswordScreen } from './src/screens/ForgotPasswordScreen';
+import { ForgotPasswordOtpScreen } from './src/screens/ForgotPasswordOtpScreen';
+import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
+import { PasswordResetSuccessScreen } from './src/screens/PasswordResetSuccessScreen';
 import { MinorGuardianScreen } from './src/screens/minor/MinorGuardianScreen';
 import { MinorVerifyScreen } from './src/screens/minor/MinorVerifyScreen';
 import { MinorConsentScreen } from './src/screens/minor/MinorConsentScreen';
@@ -75,6 +83,9 @@ import {
 export { navigationRef };
 import { API_URL } from './src/services/api/client';
 import { Header } from './src/components/Header';
+import { computeTabBarMetrics } from './src/utils/tabBarMetrics';
+import { scaleFont } from './src/utils/responsive';
+import { prefetchPublicEndpoints } from './src/utils/fastFetch';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -102,18 +113,23 @@ const linking = {
       PrivacyPolicy: 'privacy',
       Terms: 'terms',
       RiskDisclosures: 'risk-disclosures',
+      ForgotPassword: 'forgot-password',
+      ForgotPasswordOtp: 'forgot-password/otp',
+      ResetPassword: 'reset-password',
+      PasswordResetSuccess: 'reset-password/success',
+      LumpsumInvest: 'portfolio/invest-lumpsum',
+      SipSetup: 'portfolio/sip-setup',
+      RedemptionJourney: 'portfolio/redemption',
+      BankAccounts: 'profile/bank-accounts',
     },
   },
 };
 
 function MainTabs({ route }: any) {
   const { name } = route?.params || {};
-  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-
-  // Responsive safe-area bottom padding for both Android (3-button / gesture) and iOS
-  const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 10 : 12);
-  const tabHeight = 56 + bottomInset;
+  const tabBarMetrics = computeTabBarMetrics(insets);
+  const { colors, isDark } = useTheme();
 
   return (
     <Tab.Navigator
@@ -125,71 +141,81 @@ function MainTabs({ route }: any) {
       })}
       screenOptions={({ route: tabRoute }) => ({
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textPlaceholder,
-        tabBarShowLabel: false,
+        tabBarActiveTintColor: colors.primary || '#36358D',
+        tabBarInactiveTintColor: '#94A3B8',
+        tabBarShowLabel: true,
+        tabBarHideOnKeyboard: true,
+        tabBarLabelPosition: 'below-icon',
+        tabBarItemStyle: {
+          flex: 1,
+          minWidth: 0,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingVertical: 2,
+        },
         tabBarStyle: {
-          height: tabHeight,
-          paddingHorizontal: 4,
-          paddingTop: 6,
-          paddingBottom: bottomInset,
+          height: tabBarMetrics.totalHeight,
+          paddingHorizontal: tabBarMetrics.paddingHorizontal,
+          paddingTop: tabBarMetrics.paddingTop,
+          paddingBottom: tabBarMetrics.paddingBottom,
           backgroundColor: colors.surface,
-          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopWidth: 1,
           borderTopColor: colors.border,
           elevation: 12,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
+          shadowColor: '#102A54',
+          shadowOffset: { width: 0, height: -4 },
           shadowOpacity: 0.06,
-          shadowRadius: 8,
+          shadowRadius: 12,
         },
         tabBarIcon: ({ focused }) => {
           let IconComponent;
-          const label = tabRoute.name;
           if (tabRoute.name === 'Home') IconComponent = HomeIcon;
-          else if (tabRoute.name === 'Explore') IconComponent = CompassIcon;
-          else if (tabRoute.name === 'Goals') IconComponent = TargetIcon;
           else if (tabRoute.name === 'Portfolio') IconComponent = TrendingIcon;
+          else if (tabRoute.name === 'Assistant') IconComponent = HeadsetIcon;
+          else if (tabRoute.name === 'Expenses') IconComponent = WalletIcon;
           else if (tabRoute.name === 'Profile') IconComponent = UserIcon;
           else IconComponent = HomeIcon;
 
-          return (
-            <View style={{ alignItems: 'center', justifyContent: 'center', width: '100%', minWidth: 48, paddingHorizontal: 2 }}>
-              <IconComponent color={focused ? colors.primary : colors.textPlaceholder} size={22} />
-              <Text 
-                numberOfLines={1}
-                ellipsizeMode="tail"
-                style={{ 
-                  marginTop: 3, 
-                  fontSize: 10, 
-                  fontWeight: focused ? '800' : '600', 
-                  color: focused ? colors.primary : colors.textPlaceholder,
-                  textAlign: 'center',
-                }}
-              >
-                {label}
-              </Text>
-              {focused && (
-                <View
-                  style={{
-                    width: 4,
-                    height: 4,
-                    borderRadius: 2,
-                    backgroundColor: '#F7941D',
-                    marginTop: 3,
-                  }}
-                />
-              )}
-            </View>
-          );
+          return <IconComponent color={focused ? (colors.primary || '#36358D') : '#94A3B8'} size={22} />;
         },
+        tabBarLabel: ({ focused, color }) => (
+          <View style={{ alignItems: 'center', maxWidth: '100%', paddingHorizontal: 2 }}>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.78}
+              maxFontSizeMultiplier={1.25}
+              allowFontScaling
+              style={{
+                fontSize: 11,
+                lineHeight: 14,
+                fontWeight: focused ? '800' : '600',
+                color,
+                includeFontPadding: false,
+                textAlign: 'center',
+              }}
+            >
+              {tabRoute.name === 'Assistant' ? 'Artha Saathi' : tabRoute.name}
+            </Text>
+            <View
+              style={{
+                width: 4,
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: focused ? '#F7941D' : 'transparent',
+                marginTop: 2,
+              }}
+            />
+          </View>
+        ),
       })}
     >
       <Tab.Screen name="Home">
         {(props) => <HomeScreen {...props} name={name} />}
       </Tab.Screen>
-      <Tab.Screen name="Explore" component={ArthaVerseScreen} />
-      <Tab.Screen name="Goals" component={GoalsScreen} />
       <Tab.Screen name="Portfolio" component={PortfolioScreen} />
+      <Tab.Screen name="Assistant" component={AssistantScreen} />
+      <Tab.Screen name="Expenses" component={ExpensesScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
@@ -200,6 +226,7 @@ function RootNavigator() {
   const previousStatus = useRef(status);
 
   useEffect(() => {
+    prefetchPublicEndpoints();
     const cleanupHardwareBack = initHardwareBackHandler();
     return cleanupHardwareBack;
   }, []);
@@ -293,6 +320,9 @@ function RootNavigator() {
       <Stack.Screen name="Login">
         {(props) => <LoginScreen {...props} apiUrl={API_URL} />}
       </Stack.Screen>
+      <Stack.Screen name="Auth">
+        {(props) => <AuthScreen {...props} defaultTab="login" apiUrl={API_URL} />}
+      </Stack.Screen>
       <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
       <Stack.Screen name="ParentalApproval" component={ParentalApprovalScreen} />
       <Stack.Screen name="KYC">
@@ -313,13 +343,15 @@ function RootNavigator() {
       <Stack.Screen name="Explore" component={ArthaVerseScreen} />
       <Stack.Screen name="ArthaVerse" component={ArthaVerseScreen} />
       <Stack.Screen name="Goals" component={GoalsScreen} />
-      <Stack.Screen name="GoalConfiguration" component={GoalSelectionScreen} />
       <Stack.Screen name="Expenses" component={ExpensesScreen} />
       <Stack.Screen name="Funds">
         {(props) => <FundsScreen {...props} apiUrl={API_URL} />}
       </Stack.Screen>
       <Stack.Screen name="Invest" component={InvestScreen} />
-      <Stack.Screen name="Redeem" component={RedeemScreen} />
+      <Stack.Screen name="Redeem" component={RedemptionJourneyScreen} />
+      <Stack.Screen name="LumpsumInvest" component={LumpsumInvestScreen} />
+      <Stack.Screen name="SipSetup" component={SipSetupScreen} />
+      <Stack.Screen name="RedemptionJourney" component={RedemptionJourneyScreen} />
       <Stack.Screen name="FundDetail" component={FundDetailScreen} />
       <Stack.Screen name="FundDetails" component={FundDetailScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
@@ -354,6 +386,10 @@ function RootNavigator() {
       <Stack.Screen name="MinorGuardianVerification" component={MinorVerifyScreen} />
       <Stack.Screen name="MinorConsent" component={MinorConsentScreen} />
       <Stack.Screen name="MinorReview" component={MinorReviewScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen name="ForgotPasswordOtp" component={ForgotPasswordOtpScreen} />
+      <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+      <Stack.Screen name="PasswordResetSuccess" component={PasswordResetSuccessScreen} />
     </Stack.Navigator>
   );
 }

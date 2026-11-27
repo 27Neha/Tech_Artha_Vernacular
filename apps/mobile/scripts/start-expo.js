@@ -99,6 +99,7 @@ function main() {
     EXPO_PUBLIC_API_URL: resolvedApiUrl,
     EXPO_PUBLIC_API_PORT: apiPort,
     EXPO_NO_TELEMETRY: process.env.EXPO_NO_TELEMETRY || '1',
+    RCT_METRO_PORT: '8082',
   };
 
   if (mode === 'lan' && lanIp !== 'localhost' && !env.REACT_NATIVE_PACKAGER_HOSTNAME) {
@@ -112,6 +113,10 @@ function main() {
   );
   if (!hasExplicitHostFlag) {
     expoArgs.push(`--${mode}`);
+  }
+  const hasExplicitPortFlag = rawArgs.some((a) => a === '--port' || a === '-p' || a.startsWith('--port='));
+  if (!hasExplicitPortFlag) {
+    expoArgs.push('--port', '8082');
   }
   expoArgs.push(...rawArgs);
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards, ServiceUnavailableException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, UseGuards, ServiceUnavailableException } from '@nestjs/common';
 import { AccessTokenGuard, CurrentUser } from '../../common/auth';
 import type { AuthenticatedUser } from '../../common/auth';
 import { ExpensesService } from './expenses.service';
@@ -32,5 +32,19 @@ export class ExpensesController {
       });
     }
     return this.expenses.add(user.id, body);
+  }
+
+  @Delete(':id')
+  delete(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    if (!isExpenseManagementEnabled()) {
+      throw new ServiceUnavailableException({
+        code: 'FEATURE_DISABLED',
+        message: 'Expense management is currently unavailable while Account Aggregator integration is being prepared.',
+      });
+    }
+    return this.expenses.delete(user.id, id);
   }
 }

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { useColorScheme } from 'react-native';
+import { Appearance, ColorSchemeName, useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
@@ -90,8 +90,24 @@ const ThemeContext = createContext<ThemeContextType>({
 export const useTheme = () => useContext(ThemeContext);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const systemColorScheme = useColorScheme();
+  const hookColorScheme = useColorScheme();
+  const [deviceColorScheme, setDeviceColorScheme] = useState<'light' | 'dark'>(
+    (hookColorScheme || Appearance.getColorScheme() || 'light') as 'light' | 'dark'
+  );
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
+
+  // Synchronize with react-native hook and Appearance listener
+  useEffect(() => {
+    const current = (hookColorScheme || Appearance.getColorScheme() || 'light') as 'light' | 'dark';
+    setDeviceColorScheme(current);
+  }, [hookColorScheme]);
+
+  useEffect(() => {
+    const subscription = Appearance.addChangeListener(({ colorScheme }) => {
+      if (colorScheme) setDeviceColorScheme(colorScheme);
+    });
+    return () => subscription.remove();
+  }, []);
 
   // Load saved preference on mount
   useEffect(() => {
@@ -116,9 +132,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, []);
 
-  // Compute active dark state
+  // Compute active dark state: manual preference takes precedence, system follows device
   const isDark =
-    preference === 'dark' || (preference === 'system' && systemColorScheme === 'dark');
+    preference === 'dark' || (preference === 'system' && deviceColorScheme === 'dark');
 
   const colors = isDark ? darkColors : lightColors;
 

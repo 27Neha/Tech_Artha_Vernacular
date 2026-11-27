@@ -124,7 +124,7 @@ export class GoalService {
    * the same simulation used when the goal was created, so the plan shown afterwards is
    * for the goal as it now stands rather than the one first entered.
    */
-  async update(userId: string, goalId: string, input: { name?: string; targetAmount?: number; timePeriod?: number; inflationRate?: number }) {
+  async update(userId: string, goalId: string, input: { name?: string; targetAmount?: number; timePeriod?: number; inflationRate?: number; status?: string }) {
     const goal = await this.prisma.goal.findFirst({ where: { id: goalId, userId } });
     if (!goal) throw new NotFoundException('Goal not found.');
     const next = {
@@ -132,6 +132,7 @@ export class GoalService {
       targetAmount: input.targetAmount ?? goal.targetAmount,
       timePeriod: input.timePeriod != null ? Math.round(input.timePeriod) : goal.timePeriod,
       inflationRate: input.inflationRate ?? goal.inflationRate,
+      status: input.status ? input.status.toUpperCase() : goal.status,
     };
     if (!(next.targetAmount > 0)) throw new BadRequestException('Enter a target amount above zero.');
     if (!(next.timePeriod > 0)) throw new BadRequestException('Enter a time horizon above zero.');
@@ -147,7 +148,159 @@ export class GoalService {
     return updated;
   }
 
-  list(userId: string) {
-    return this.prisma.goal.findMany({ where: { userId, status: 'ACTIVE' }, orderBy: { createdAt: 'desc' } });
+  async getInvestments(userId: string, goalId: string) {
+    const goal = await this.prisma.goal.findFirst({ where: { id: goalId, userId } });
+    if (!goal) throw new NotFoundException('Goal not found.');
+
+    const amountInvested = Number(goal.currentSavings) || 0;
+    const targetAmount = Number(goal.targetAmount) || 0;
+    const remainingAmount = Math.max(0, targetAmount - amountInvested);
+    const hasInvestments = amountInvested > 0;
+    const linkedInvestmentCount = hasInvestments ? 1 : 0;
+    const currentInvestmentValue = amountInvested;
+
+    const hasActiveSip = goal.status === 'ACTIVE' && (goal.monthlySip > 0);
+    const isPaused = goal.status === 'PAUSED';
+
+    return {
+      goalId: goal.id,
+      goalName: goal.name,
+      status: goal.status,
+      targetAmount,
+      amountInvested,
+      currentInvestmentValue,
+      remainingAmount,
+      hasInvestments,
+      linkedInvestmentCount,
+      activeSip: {
+        hasActiveSip,
+        isPaused,
+        monthlyAmount: goal.monthlySip || 0,
+        sipDate: goal.sipDate || 5,
+        statusText: isPaused
+          ? 'SIP Paused'
+          : hasActiveSip
+          ? `Active (₹${Math.round(goal.monthlySip).toLocaleString('en-IN')}/mo)`
+          : 'No Active SIP',
+      },
+      disclaimer:
+        'Goal deletion or pausing does not alter your underlying mutual fund holdings, bank mandates, or trigger any redemption or tax liability. Portfolio investments remain subject to market risks.',
+    };
+  }
+
+  async pause(userId: string, goalId: string) {
+    const goal = await this.prisma.goal.findFirst({ where: { id: goalId, userId } });
+    if (!goal) throw new NotFoundException('Goal not found.');
+    const updated = await this.prisma.goal.update({
+      where: { id: goal.id },
+      data: { status: 'PAUSED' },
+    });
+    await this.prisma.auditLog.create({
+      data: { userId, action: 'GOAL_PAUSED', details: JSON.stringify({ goalId: goal.id }) },
+    });
+    return updated;
+  }
+
+  async resume(userId: string, goalId: string) {
+    const goal = await this.prisma.goal.findFirst({ where: { id: goalId, userId } });
+    if (!goal) throw new NotFoundException('Goal not found.');
+    const updated = await this.prisma.goal.update({
+      where: { id: goal.id },
+      data: { status: 'ACTIVE' },
+    });
+    await this.prisma.auditLog.create({
+      data: { userId, action: 'GOAL_RESUMED', details: JSON.stringify({ goalId: goal.id }) },
+    });
+    return updated;
+  }
+
+  async archive(userId: string, goalId: string) {
+    const goal = await this.prisma.goal.findFirst({ where: { id: goalId, userId } });
+    if (!goal) throw new NotFoundException('Goal not found.');
+    const updated = await this.prisma.goal.update({
+      where: { id: goal.id },
+      data: { status: 'ARCHIVED' },
+    });
+    await this.prisma.auditLog.create({
+      data: { userId, action: 'GOAL_ARCHIVED', details: JSON.stringify({ goalId: goal.id }) },
+    });
+    return { success: true, message: 'Goal archived successfully.', goal: updated };
+  }
+
+  async restore(userId: string, goalId: string) {
+    const goal = await this.prisma.goal.findFirst({ where: { id: goalId, userId } });
+    if (!goal) throw new NotFoundException('Goal not found.');
+    const updated = await this.prisma.goal.update({
+      where: { id: goal.id },
+      data: { status: 'ACTIVE' },
+    });
+    await this.prisma.auditLog.create({
+      data: { userId, action: 'GOAL_RESTORED', details: JSON.stringify({ goalId: goal.id }) },
+    });
+    return { success: true, message: 'Goal restored successfully.', goal: updated };
+  }
+
+  async delete(userId: string, goalId: string) {
+    const goal = await this.prisma.goal.findFirst({ where: { id: goalId, userId } });
+    if (!goal) throw new NotFoundException('Goal not found.');
+
+    const hasInvestments = (goal.currentSavings || 0) > 0;
+    if (hasInvestments) {
+      // Safe archival: do not destroy record, transition to ARCHIVED
+      const archived = await this.prisma.goal.update({
+        where: { id: goal.id },
+        data: { status: 'ARCHIVED' },
+      });
+      await this.prisma.auditLog.create({
+        data: {
+          userId,
+          action: 'GOAL_ARCHIVED_SAFE_DELETE',
+          details: JSON.stringify({ goalId: goal.id, invested: goal.currentSavings }),
+        },
+      });
+      return {
+        success: true,
+        archived: true,
+        message: 'Goal removed from active goals. Investments remain preserved in your portfolio.',
+        goal: archived,
+      };
+    }
+
+    // No investments: delete cleanly from database
+    await this.prisma.goal.delete({ where: { id: goal.id } });
+    await this.prisma.auditLog.create({
+      data: { userId, action: 'GOAL_DELETED', details: JSON.stringify({ goalId: goal.id }) },
+    });
+    return { success: true, archived: false, message: 'Goal deleted successfully.' };
+  }
+
+  async list(userId: string, status?: string) {
+    const filterStatus = status ? status.toUpperCase() : null;
+    const whereClause: any = { userId };
+    if (filterStatus && filterStatus !== 'ALL') {
+      whereClause.status = filterStatus;
+    } else if (!filterStatus) {
+      // Default: return ACTIVE and PAUSED for active list
+      whereClause.status = { in: ['ACTIVE', 'PAUSED'] };
+    }
+
+    const goals = await this.prisma.goal.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return goals.map((g) => {
+      const currentSaved = g.currentSavings || 0;
+      const target = g.targetAmount || 0;
+      const progressPercentage = target > 0 ? (currentSaved / target) * 100 : 0;
+      const remainingAmount = Math.max(0, target - currentSaved);
+      return {
+        ...g,
+        progressPercentage,
+        currentInvestmentValue: currentSaved,
+        remainingAmount,
+        recommendedSip: g.monthlySip,
+      };
+    });
   }
 }

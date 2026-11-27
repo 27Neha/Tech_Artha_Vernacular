@@ -1,234 +1,920 @@
 'use client';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useTranslation } from '../TranslationProvider';
-import { useState, useEffect } from 'react';
+import Floating3DArthaVerseTabs from '../../components/Floating3DArthaVerseTabs';
 
-const LEARN_CARDS = [
-  { icon: '📚', title: 'What is a Mutual Fund?', desc: 'Learn how pooled investments work and why they are great for beginners.', time: '5 min read', slug: 'what-is-mutual-fund' },
-  { icon: '⚖️', title: 'SIP vs Lump Sum', desc: 'Which investment approach suits your financial situation better?', time: '4 min read', slug: 'sip-vs-lump-sum' },
-  { icon: '🛡️', title: 'Understanding Risk', desc: 'Learn how to assess and manage investment risk for your goals.', time: '6 min read', slug: 'understanding-risk' },
-  { icon: '📈', title: 'Reading Fund Performance', desc: 'Understand NAV, returns, and how to compare mutual funds.', time: '7 min read', slug: 'fund-performance' },
-];
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api';
+type PortfolioRange = '1M' | '3M' | '6M' | '1Y' | 'ALL';
 
-export default function DashboardPage() {
-  const { t } = useTranslation();
-  const router = useRouter();
-  const [profile, setProfile] = useState('');
-  const [recommendedFunds, setRecommendedFunds] = useState<any[]>([]);
-  const [portfolio, setPortfolio] = useState({ totalInvested: 0, currentValue: 0, holdings: [] });
-  const [fetchingPortfolio, setFetchingPortfolio] = useState(true);
-  const [sipPlans, setSipPlans] = useState<any[]>([]);
-  const [fetchingSips, setFetchingSips] = useState(true);
+interface PortfolioTotals {
+  invested: number;
+  current: number;
+  gain: number;
+}
 
-  useEffect(() => {
-    const fetchInvestments = async () => {
-      const token = localStorage.getItem('access_token');
-      if (!token) return;
-      try {
-        const res = await fetch(`${API_URL}/buckets/investments`, { headers: { Authorization: `Bearer ${token}` } });
-        if (res.ok) {
-          const data = await res.json();
-          const orders = (data.orders || []).map((o: any) => ({ ...o, kind: 'order' }));
-          const plans = (data.plans || []).map((p: any) => ({ ...p, kind: 'plan' }));
-          setSipPlans([...orders, ...plans]);
-        }
-      } catch (err) {
-        console.error('Failed to fetch SIPs', err);
-      } finally {
-        setFetchingSips(false);
-      }
-    };
-    fetchInvestments();
-  }, []);
+interface GoalItem {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentSavings?: number;
+  timePeriod?: number;
+  monthlySip?: number;
+}
 
-  useEffect(() => {
-    const fetchPortfolio = async () => {
-      const token = localStorage.getItem('access_token');
-      if (!token) return;
-      try {
-        const res = await fetch(`${API_URL}/portfolio`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.data) {
-            setPortfolio(data.data);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to fetch portfolio', err);
-      } finally {
-        setFetchingPortfolio(false);
-      }
-    };
-    fetchPortfolio();
+interface MarketIndex {
+  symbol: string;
+  name: string;
+  currentValue: number;
+  change: number;
+  changePercent: number;
+}
 
-    const fetchProfile = async () => {
-      try {
-        const token = localStorage.getItem('access_token');
-        const res = await fetch(`${API_URL}/auth/profile`, { headers: { 'Authorization': `Bearer ${token}` } });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.riskProfile?.category) {
-            const cat = data.riskProfile.category;
-            const formatted = cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase();
-            setProfile(formatted);
-            localStorage.setItem('investorProfile', formatted);
-          }
-        }
-      } catch (e) {
-        console.error('Failed to fetch profile', e);
-      }
-    };
-    fetchProfile();
+interface MarketOverview {
+  nifty50: MarketIndex;
+  sensex: MarketIndex;
+}
 
-    const fetchRecs = async () => {
-      try {
-        const token = localStorage.getItem('access_token');
-        const res = await fetch(`${API_URL}/buckets`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const data = await res.json();
-        const recBucket = data.buckets?.find((b: any) => b.recommended);
-        if (recBucket?.recommendedFunds) {
-          setRecommendedFunds(recBucket.recommendedFunds);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    fetchRecs();
-  }, []);
+function formatCompactINR(amount: number): string {
+  const abs = Math.abs(amount);
+  const sign = amount < 0 ? '-' : '';
+  if (abs >= 1e7) return `${sign}₹${(abs / 1e7).toFixed(2)} Cr`;
+  if (abs >= 1e5) return `${sign}₹${(abs / 1e5).toFixed(2)} L`;
+  return `${sign}₹${Math.round(abs).toLocaleString('en-IN')}`;
+}
 
+function normalizeRisk(rawCategory?: string | null, rawScore?: number | null) {
+  if (!rawCategory || !rawCategory.trim()) return null;
+  const key = rawCategory.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  const map: Record<
+    string,
+    { label: string; angle: number; color: string; summary: string }
+  > = {
+    CONSERVATIVE: {
+      label: 'Conservative',
+      angle: -72,
+      color: '#10B981',
+      summary: 'Capital preservation priority with minimal short-term volatility.',
+    },
+    MODERATELY_LOW: {
+      label: 'Moderately Low',
+      angle: -36,
+      color: '#65A30D',
+      summary: 'Income-oriented balance with measured equity allocation.',
+    },
+    MODERATE: {
+      label: 'Moderate',
+      angle: 0,
+      color: '#D97706',
+      summary: 'Balanced long-term growth cushioned against sharper drawdowns.',
+    },
+    BALANCED: {
+      label: 'Balanced',
+      angle: 0,
+      color: '#D97706',
+      summary: 'Balanced long-term growth cushioned against sharper drawdowns.',
+    },
+    MODERATELY_HIGH: {
+      label: 'Growth',
+      angle: 36,
+      color: '#EA580C',
+      summary: 'Equity-focused compounding comfortable with market swings.',
+    },
+    GROWTH: {
+      label: 'Growth',
+      angle: 36,
+      color: '#EA580C',
+      summary: 'Equity-focused compounding comfortable with market swings.',
+    },
+    AGGRESSIVE: {
+      label: 'Aggressive',
+      angle: 72,
+      color: '#EF4444',
+      summary: 'Long-horizon wealth growth across full market cycles.',
+    },
+  };
+  const found = map[key];
+  if (!found) return null;
+  return { ...found, score: rawScore ?? null };
+}
+
+function GoalRing({ pct }: { pct: number }) {
+  const clamped = Math.max(0, Math.min(100, pct));
+  const r = 21;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (clamped / 100) * circ;
   return (
-    <div className="p-5 bg-[#F8F9FB] min-h-screen">
-      <div className="flex justify-between items-center mt-2 mb-6">
-        <div>
-          <p className="text-gray-500 text-sm font-bold uppercase tracking-wider">Welcome Back</p>
-          <h1 className="text-2xl font-extrabold text-[var(--dark)] mt-1">Start Wealth Creation</h1>
-        </div>
-        
-      </div>
-
-      {/* Balance Card */}
-      <div className="bg-[var(--primary)] rounded-3xl p-6 mb-6 text-white shadow-xl shadow-indigo-900/10">
-        <p className="text-[#EBEAF8] text-xs font-bold tracking-widest uppercase">TOTAL INVESTED</p>
-        <p className="text-5xl font-extrabold mt-2">
-            {fetchingPortfolio ? '₹...' : `₹${portfolio.totalInvested.toLocaleString('en-IN')}`}
-          </p>
-        <p className="text-[#EBEAF8] text-sm mt-1">
-            {portfolio.totalInvested === 0 ? t('dash.noInvestmentsYet') : t('dash.verifiedVia')}
-          </p>
-        <div className="flex gap-3 mt-4">
-          <button
-            onClick={() => router.push('/funds')}
-            className="bg-white text-[var(--primary)] font-bold text-sm px-5 py-2.5 rounded-xl"
-          >
-            {t('dash.browseFunds')}
-          </button>
-          <button 
-            onClick={() => router.push('/dashboard/analytics')}
-            className="bg-white/20 text-white font-bold text-sm px-5 py-2.5 rounded-xl"
-          >
-            {t('dash.viewDetails')}
-          </button>
-        </div>
-      </div>
-
-      {/* Active orders / SIPs from bucket investments */}
-      {!fetchingSips && sipPlans.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-lg font-extrabold text-[var(--dark)] mb-3">Your Orders</h2>
-          <div className="flex flex-col gap-3">
-            {sipPlans.map((p) => {
-              const badge =
-                p.statusLabel === 'Order fulfilled'
-                  ? 'bg-green-50 text-green-700'
-                  : p.statusLabel === 'Order failed'
-                  ? 'bg-red-50 text-red-600'
-                  : 'bg-amber-50 text-amber-700';
-              return (
-                <div key={p.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="font-bold text-[var(--dark)] text-sm truncate pr-2">{p.fundName}</p>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${badge}`}>{p.statusLabel}</span>
-                  </div>
-                  <p className="text-xs text-gray-400">
-                    ₹{p.amount.toLocaleString('en-IN')} {p.kind === 'plan' ? `/${p.frequency.toLowerCase()} · day ${p.installmentDay}` : '· one-time'}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Recommended Funds based on Risk */}
-      <div>
-        <div className="flex items-end justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-extrabold text-[var(--dark)]">For Your Risk Profile</h2>
-            <div className="flex items-center gap-2 mt-0.5">
-              <p className="text-xs text-gray-500 font-bold">Based on your {profile} profile</p>
-              <button onClick={() => router.push('/risk')} className="text-[10px] text-[var(--primary)] bg-[var(--primary-light)] px-2 py-0.5 rounded-full font-bold">Retake ✎</button>
-            </div>
-          </div>
-          <button onClick={() => router.push('/buckets')} className="text-[var(--primary)] text-xs font-bold mb-0.5">See Buckets</button>
-        </div>
-        
-        {recommendedFunds.length > 0 ? (
-          <div className="flex flex-col gap-3">
-            {recommendedFunds.map((fund) => (
-              <div key={fund.schemeCode} onClick={() => router.push(`/funds/${fund.schemeCode}`)} className="bg-white p-4 rounded-2xl flex items-center gap-4 cursor-pointer hover:border-[var(--primary)] transition-all shadow-sm border border-gray-100">
-                <div className="flex-1 min-w-0 pr-2">
-                  <p className="font-bold text-[var(--dark)] text-sm truncate">{fund.name}</p>
-                  <p className="text-[10px] font-bold bg-gray-50 text-gray-500 px-2 py-0.5 rounded-md inline-block mt-1 truncate max-w-full">{fund.category}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-[var(--primary)] font-extrabold text-sm">₹{fund.nav ? parseFloat(fund.nav).toFixed(2) : 'N/A'}</p>
-                  <span className="text-gray-300 text-lg font-bold block mt-1">→</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="bg-white p-6 rounded-2xl text-center border border-gray-100 shadow-sm">
-            <span className="text-3xl mb-2 block">📊</span>
-            <p className="text-sm font-bold text-[var(--dark)]">Loading Funds...</p>
-          </div>
-        )}
-      </div>
-
-      {/* Safety Banner */}
-      <div className="bg-[var(--primary-light)] rounded-2xl p-4 mt-6">
-        <p className="text-[var(--primary)] font-bold text-sm">🛡️ {t('dash.bankSecurity')}</p>
-        <p className="text-[var(--primary)]/70 text-[10px] mt-1 leading-relaxed font-semibold">
-          {t('dash.bankSecurityDesc')}
-        </p>
-      </div>
-
-      
-      
-
-      {/* Learn Section */}
-
-      <h2 className="text-lg font-extrabold text-[var(--dark)] mt-8 mb-4">Learn & Grow</h2>
-      <div className="flex flex-col gap-3 pb-8">
-        {LEARN_CARDS.map((c) => (
-          <div 
-            key={c.title} 
-            onClick={() => router.push(`/dashboard/learn/${c.slug}`)}
-            className="bg-white p-4 rounded-2xl flex items-center gap-4 cursor-pointer hover:border-[var(--primary)] transition-all shadow-sm border border-gray-100"
-          >
-            <span className="text-3xl shrink-0">{c.icon}</span>
-            <div className="flex-1">
-              <p className="font-bold text-[var(--dark)] text-sm">{t("learn." + c.slug.replace(/-([a-z])/g, g => g[1].toUpperCase()) + ".title") || c.title}</p>
-              <p className="text-gray-400 text-[11px] mt-0.5 leading-relaxed line-clamp-2">{t("learn." + c.slug.replace(/-([a-z])/g, g => g[1].toUpperCase()) + ".desc") || c.desc}</p>
-            </div>
-          </div>
-        ))}
+    <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
+      <svg width="52" height="52" viewBox="0 0 52 52">
+        <circle cx="26" cy="26" r={r} stroke="#E8EAF6" strokeWidth="5" fill="none" />
+        <circle
+          cx="26"
+          cy="26"
+          r={r}
+          stroke={clamped >= 100 ? '#10B981' : '#36358D'}
+          strokeWidth="5"
+          strokeLinecap="round"
+          fill="none"
+          strokeDasharray={`${circ} ${circ}`}
+          strokeDashoffset={offset}
+          transform="rotate(-90 26 26)"
+        />
+      </svg>
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 11,
+          fontWeight: 900,
+          color: '#102A54',
+        }}
+      >
+        {Math.round(clamped)}%
       </div>
     </div>
   );
 }
 
+export default function DashboardPage() {
+  const router = useRouter();
+
+  const [displayName, setDisplayName] = useState('Investor');
+  const [riskRaw, setRiskRaw] = useState<{ category?: string | null; score?: number | null } | null>(null);
+  const [portfolioTotals, setPortfolioTotals] = useState<PortfolioTotals | null>(null);
+  const [portfolioAsOn, setPortfolioAsOn] = useState<string | null>(null);
+  const [portfolioHistory, setPortfolioHistory] = useState<{ date: string; value: number }[]>([]);
+  const [selectedRange, setSelectedRange] = useState<PortfolioRange>('ALL');
+  const [goals, setGoals] = useState<GoalItem[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [market, setMarket] = useState<MarketOverview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [riskExpanded, setRiskExpanded] = useState(false);
+
+  const greeting = useMemo(() => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  }, []);
+
+  useEffect(() => {
+    const load = async () => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
+      try {
+        const [portRes, profileRes, goalsRes, invRes, mktRes] = await Promise.all([
+          token ? fetch(`${API_URL}/portfolio`, { headers: authHeaders }).catch(() => null) : Promise.resolve(null),
+          token ? fetch(`${API_URL}/auth/profile`, { headers: authHeaders }).catch(() => null) : Promise.resolve(null),
+          token ? fetch(`${API_URL}/goals`, { headers: authHeaders }).catch(() => null) : Promise.resolve(null),
+          token ? fetch(`${API_URL}/buckets/investments`, { headers: authHeaders }).catch(() => null) : Promise.resolve(null),
+          fetch(`${API_URL}/market/overview`).catch(() => null),
+        ]);
+
+        if (portRes?.ok) {
+          const p = await portRes.json();
+          const totals = p?.totals
+            ? {
+                invested: Number(p.totals.invested ?? 0),
+                current: Number(p.totals.current ?? 0),
+                gain: Number(p.totals.gain ?? (p.totals.current ?? 0) - (p.totals.invested ?? 0)),
+              }
+            : p?.data
+              ? {
+                  invested: Number(p.data.totalInvested ?? 0),
+                  current: Number(p.data.currentValue ?? 0),
+                  gain: Number(p.data.currentValue ?? 0) - Number(p.data.totalInvested ?? 0),
+                }
+              : null;
+          setPortfolioTotals(totals);
+          setPortfolioAsOn(p?.asOn ?? null);
+          if (Array.isArray(p?.history)) setPortfolioHistory(p.history);
+        }
+
+        if (profileRes?.ok) {
+          const prof = await profileRes.json();
+          const full = prof?.profile?.fullName || prof?.name;
+          if (full) setDisplayName(String(full).trim().split(' ')[0]);
+          if (prof?.riskProfile?.category) {
+            setRiskRaw({ category: prof.riskProfile.category, score: prof.riskProfile.score });
+          }
+        }
+
+        if (goalsRes?.ok) {
+          const g = await goalsRes.json();
+          setGoals(Array.isArray(g) ? g : Array.isArray(g?.data) ? g.data : []);
+        }
+
+        if (invRes?.ok) {
+          const inv = await invRes.json();
+          const combined = [
+            ...(inv.orders ?? []).map((o: any) => ({ ...o, kind: 'order' })),
+            ...(inv.plans ?? []).map((pl: any) => ({ ...pl, kind: 'plan' })),
+          ];
+          setOrders(combined);
+        }
+
+        if (mktRes?.ok) {
+          setMarket(await mktRes.json());
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    void load();
+  }, []);
+
+  const riskInfo = useMemo(
+    () => normalizeRisk(riskRaw?.category, riskRaw?.score),
+    [riskRaw],
+  );
+
+  const hasInvestments = (portfolioTotals?.current ?? 0) > 0;
+  const gainPct =
+    portfolioTotals && portfolioTotals.invested > 0
+      ? (portfolioTotals.gain / portfolioTotals.invested) * 100
+      : null;
+
+  const filteredHistory = useMemo(() => {
+    if (portfolioHistory.length < 2) return [];
+    if (selectedRange === 'ALL') return portfolioHistory;
+    const countMap = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
+    const slice = portfolioHistory.slice(-countMap[selectedRange]);
+    return slice.length >= 2 ? slice : portfolioHistory;
+  }, [portfolioHistory, selectedRange]);
+
+  const svgCurve = useMemo(() => {
+    if (filteredHistory.length < 2) return null;
+    const W = 360;
+    const H = 104;
+    const vals = filteredHistory.map((p) => p.value);
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    const span = max - min || 1;
+    const pts = filteredHistory.map((p, idx) => ({
+      x: 10 + (idx / (filteredHistory.length - 1)) * (W - 20),
+      y: H - 14 - ((p.value - min) / span) * (H - 28),
+    }));
+    const d = pts
+      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+      .join(' ');
+    const area = `${d} L ${pts[pts.length - 1].x.toFixed(1)} ${H} L ${pts[0].x.toFixed(1)} ${H} Z`;
+    return { d, area, last: pts[pts.length - 1] };
+  }, [filteredHistory]);
+
+  return (
+    <div className="ta-dashboard-page">
+      {/* 1. Compact Personalized Greeting */}
+      <div className="ta-greeting-bar">
+        <div>
+          <p
+            style={{
+              fontSize: 11,
+              fontWeight: 800,
+              letterSpacing: '0.09em',
+              color: '#F7941D',
+              textTransform: 'uppercase',
+              margin: 0,
+            }}
+          >
+            {greeting}
+          </p>
+          <h1
+            style={{
+              fontSize: 26,
+              fontWeight: 900,
+              color: '#102A54',
+              margin: '2px 0 0 0',
+              letterSpacing: '-0.02em',
+            }}
+          >
+            {displayName}
+          </h1>
+        </div>
+
+        <span
+          style={{
+            fontSize: 11.5,
+            fontWeight: 700,
+            color: '#475569',
+            background: '#FFFFFF',
+            border: '1px solid #E4E6F6',
+            borderRadius: 999,
+            padding: '6px 12px',
+          }}
+        >
+          {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+        </span>
+      </div>
+
+      {/* 2. Portfolio Hero Card + Quick Actions */}
+      <div className="ta-hero-grid">
+        <div className="ta-hero-card" data-testid="web-portfolio-hero">
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              marginBottom: 12,
+              position: 'relative',
+              zIndex: 2,
+            }}
+          >
+            <div>
+              <p
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 800,
+                  letterSpacing: '0.1em',
+                  color: '#C7D2FE',
+                  margin: 0,
+                }}
+              >
+                PORTFOLIO OVERVIEW
+              </p>
+              <p style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.72)', margin: '2px 0 0 0' }}>
+                {portfolioAsOn
+                  ? `As on ${new Date(portfolioAsOn).toLocaleDateString('en-IN')}`
+                  : 'AMFI Registered Folio'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard/portfolio')}
+              style={{
+                background: 'rgba(255,255,255,0.16)',
+                color: '#FFFFFF',
+                border: '1px solid rgba(255,255,255,0.22)',
+                borderRadius: 12,
+                padding: '6px 12px',
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              Details →
+            </button>
+          </div>
+
+          {loading ? (
+            <p style={{ fontSize: 28, fontWeight: 900, margin: '18px 0' }}>Loading portfolio…</p>
+          ) : !hasInvestments ? (
+            <div style={{ position: 'relative', zIndex: 2 }}>
+              <p style={{ fontSize: 38, fontWeight: 900, margin: '4px 0 6px 0' }}>₹0</p>
+              <p style={{ fontSize: 13, color: '#E2E4FA', margin: '0 0 16px 0' }}>
+                Start systematic direct mutual fund investing aligned with your milestones.
+              </p>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => router.push('/funds')}
+                  style={{
+                    background: '#FFFFFF',
+                    color: '#36358D',
+                    fontWeight: 800,
+                    fontSize: 13,
+                    padding: '10px 18px',
+                    borderRadius: 12,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Explore Funds →
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.push('/goals')}
+                  style={{
+                    background: 'rgba(255,255,255,0.16)',
+                    color: '#FFFFFF',
+                    border: '1px solid rgba(255,255,255,0.34)',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    padding: '10px 18px',
+                    borderRadius: 12,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Plan Goal
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ position: 'relative', zIndex: 2 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 10,
+                  marginBottom: 14,
+                }}
+              >
+                <span style={{ fontSize: 34, fontWeight: 900, letterSpacing: '-0.02em' }}>
+                  ₹{Math.round(portfolioTotals!.current).toLocaleString('en-IN')}
+                </span>
+                <span
+                  style={{
+                    background:
+                      portfolioTotals!.gain >= 0
+                        ? 'rgba(16, 185, 129, 0.24)'
+                        : 'rgba(239, 68, 68, 0.26)',
+                    color: portfolioTotals!.gain >= 0 ? '#6EE7B7' : '#FCA5A5',
+                    fontWeight: 800,
+                    fontSize: 12.5,
+                    padding: '6px 11px',
+                    borderRadius: 10,
+                  }}
+                >
+                  {portfolioTotals!.gain >= 0 ? '↗ +' : '↘ -'}₹
+                  {Math.abs(Math.round(portfolioTotals!.gain)).toLocaleString('en-IN')}
+                  {gainPct != null ? ` (${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(2)}%)` : ''}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                  gap: 8,
+                  background: 'rgba(255,255,255,0.1)',
+                  borderRadius: 14,
+                  padding: '10px 12px',
+                  marginBottom: 14,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontWeight: 700 }}>
+                    Invested
+                  </div>
+                  <div style={{ fontSize: 13.5, fontWeight: 800 }}>
+                    ₹{Math.round(portfolioTotals!.invested).toLocaleString('en-IN')}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontWeight: 700 }}>
+                    Abs. Returns
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13.5,
+                      fontWeight: 800,
+                      color: portfolioTotals!.gain >= 0 ? '#6EE7B7' : '#FCA5A5',
+                    }}
+                  >
+                    {portfolioTotals!.gain >= 0 ? '+' : '-'}₹
+                    {Math.abs(Math.round(portfolioTotals!.gain)).toLocaleString('en-IN')}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontWeight: 700 }}>
+                    Return %
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13.5,
+                      fontWeight: 800,
+                      color: (gainPct ?? 0) >= 0 ? '#6EE7B7' : '#FCA5A5',
+                    }}
+                  >
+                    {gainPct != null ? `${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(2)}%` : '—'}
+                  </div>
+                </div>
+              </div>
+
+              {svgCurve ? (
+                <div>
+                  <svg width="100%" height="104" viewBox="0 0 360 104">
+                    <defs>
+                      <linearGradient id="webPortArea" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="#F7941D" stopOpacity="0.34" />
+                        <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <path d={svgCurve.area} fill="url(#webPortArea)" />
+                    <path
+                      d={svgCurve.d}
+                      fill="none"
+                      stroke="#FFFFFF"
+                      strokeWidth="2.6"
+                      strokeLinecap="round"
+                    />
+                    <circle cx={svgCurve.last.x} cy={svgCurve.last.y} r="4.5" fill="#F7941D" />
+                  </svg>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    {(['1M', '3M', '6M', '1Y', 'ALL'] as PortfolioRange[]).map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setSelectedRange(r)}
+                        style={{
+                          flex: 1,
+                          padding: '5px 0',
+                          borderRadius: 8,
+                          fontSize: 11,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          background: selectedRange === r ? '#FFFFFF' : 'rgba(255,255,255,0.12)',
+                          color: selectedRange === r ? '#36358D' : '#E2E4FA',
+                        }}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    background: 'rgba(255,255,255,0.1)',
+                    borderRadius: 14,
+                    padding: 12,
+                    border: '1px solid rgba(255,255,255,0.16)',
+                  }}
+                >
+                  {[
+                    {
+                      label: 'Invested',
+                      val: portfolioTotals!.invested,
+                      color: '#A5B4FC',
+                    },
+                    {
+                      label: 'Current',
+                      val: portfolioTotals!.current,
+                      color: portfolioTotals!.gain >= 0 ? '#34D399' : '#F87171',
+                    },
+                  ].map((bar) => {
+                    const max = Math.max(portfolioTotals!.invested, portfolioTotals!.current, 1);
+                    const pct = Math.max(12, Math.min(100, (bar.val / max) * 100));
+                    return (
+                      <div
+                        key={bar.label}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          marginBottom: 8,
+                        }}
+                      >
+                        <span style={{ width: 58, fontSize: 11, fontWeight: 700, color: '#CBD5E1' }}>
+                          {bar.label}
+                        </span>
+                        <div
+                          style={{
+                            flex: 1,
+                            height: 8,
+                            borderRadius: 6,
+                            background: 'rgba(255,255,255,0.16)',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: `${pct}%`,
+                              height: '100%',
+                              borderRadius: 6,
+                              background: bar.color,
+                            }}
+                          />
+                        </div>
+                        <span style={{ width: 84, textAlign: 'right', fontSize: 11.5, fontWeight: 800 }}>
+                          ₹{Math.round(bar.val).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.68)', margin: 0 }}>
+                    Daily growth curve populates automatically as folio NAV snapshots accumulate.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 3. Quick Actions (4 Visual Action Tiles) */}
+        <div className="ta-quick-actions-grid" data-testid="web-quick-actions">
+          {[
+            { label: 'Invest', icon: '＋', bg: '#EEEDFA', color: '#36358D', href: '/funds' },
+            { label: 'Start SIP', icon: '↻', bg: '#FFF4E8', color: '#DD6B20', href: '/buckets' },
+            { label: 'Withdraw', icon: '↓', bg: '#ECFDF5', color: '#059669', href: '/dashboard/portfolio' },
+            { label: 'Transactions', icon: '≡', bg: '#F0F9FF', color: '#0284C7', href: '/dashboard/portfolio' },
+          ].map((act) => (
+            <button
+              key={act.label}
+              type="button"
+              onClick={() => router.push(act.href)}
+              className="ta-quick-tile"
+            >
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 13,
+                  background: act.bg,
+                  color: act.color,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 20,
+                  fontWeight: 900,
+                }}
+              >
+                {act.icon}
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 800, color: '#102A54' }}>{act.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 4. MANDATORY 5 FLOATING 3D ARTHAVERSE TABS (VISIBLE WITHOUT EXCESSIVE SCROLLING) */}
+      <Floating3DArthaVerseTabs />
+
+      {/* 5. Responsive Bento: Financial Goals + Risk Profile Riskometer + Market Snapshot */}
+      <div className="ta-bento-grid">
+        {/* Financial Goals */}
+        <div className="ta-surface-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 900, color: '#102A54', margin: 0 }}>Financial Goals</h3>
+            <button
+              type="button"
+              onClick={() => router.push('/goals')}
+              style={{ fontSize: 12, fontWeight: 800, color: '#36358D', background: 'none', cursor: 'pointer' }}
+            >
+              View All →
+            </button>
+          </div>
+
+          {goals.length === 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <GoalRing pct={0} />
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 13.5, fontWeight: 800, color: '#102A54', margin: 0 }}>Set your first goal</p>
+                <p style={{ fontSize: 11.5, color: '#64748B', margin: '2px 0 0 0' }}>Track SIP milestones visually.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => router.push('/goals')}
+                style={{
+                  background: '#36358D',
+                  color: '#FFFFFF',
+                  borderRadius: 10,
+                  padding: '8px 12px',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                + Plan
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {goals.slice(0, 3).map((g) => {
+                const target = Number(g.targetAmount) || 0;
+                const saved = Number(g.currentSavings ?? 0);
+                const pct = target > 0 ? (saved / target) * 100 : 0;
+                return (
+                  <div
+                    key={g.id}
+                    onClick={() => router.push('/goals')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: 10,
+                      borderRadius: 14,
+                      background: '#F8F9FD',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <GoalRing pct={pct} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+                        <span style={{ fontSize: 13.5, fontWeight: 800, color: '#102A54', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {g.name}
+                        </span>
+                        <span style={{ fontSize: 13, fontWeight: 900, color: '#36358D', whiteSpace: 'nowrap' }}>
+                          {formatCompactINR(target)}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+                        Saved {formatCompactINR(saved)} {g.timePeriod ? `• ${g.timePeriod}Y` : ''}
+                      </div>
+                      <div style={{ height: 5, background: '#E2E4F5', borderRadius: 4, marginTop: 6, overflow: 'hidden' }}>
+                        <div style={{ width: `${Math.min(100, Math.max(3, pct))}%`, height: '100%', background: '#36358D', borderRadius: 4 }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Compact Visual Riskometer */}
+        <div className="ta-surface-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 900, color: '#102A54', margin: 0 }}>Risk Profile</h3>
+            <button
+              type="button"
+              onClick={() => router.push('/risk')}
+              style={{ fontSize: 12, fontWeight: 800, color: '#36358D', background: 'none', cursor: 'pointer' }}
+            >
+              {riskInfo ? 'Retake' : 'Assess Now'} →
+            </button>
+          </div>
+
+          {riskInfo ? (
+            <div style={{ textAlign: 'center' }}>
+              <svg width="210" height="114" viewBox="0 0 210 114" style={{ margin: '0 auto' }}>
+                <defs>
+                  <linearGradient id="webRiskArc" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#10B981" />
+                    <stop offset="30%" stopColor="#84CC16" />
+                    <stop offset="50%" stopColor="#EAB308" />
+                    <stop offset="75%" stopColor="#EA580C" />
+                    <stop offset="100%" stopColor="#EF4444" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M 22 102 A 83 83 0 0 1 188 102"
+                  fill="none"
+                  stroke="url(#webRiskArc)"
+                  strokeWidth="14"
+                  strokeLinecap="round"
+                />
+                <g transform={`rotate(${riskInfo.angle} 105 102)`}>
+                  <polygon points="102,102 105,28 108,102" fill="#102A54" />
+                  <circle cx="105" cy="30" r="3.5" fill={riskInfo.color} />
+                </g>
+                <circle cx="105" cy="102" r="9" fill="#36358D" />
+                <circle cx="105" cy="102" r="3.5" fill="#FFFFFF" />
+              </svg>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#F4F4FD', padding: '4px 12px', borderRadius: 999, marginTop: 4 }}>
+                <span style={{ width: 7, height: 7, borderRadius: 999, background: riskInfo.color }} />
+                <span style={{ fontSize: 12.5, fontWeight: 900, color: '#102A54' }}>{riskInfo.label}</span>
+              </div>
+              <p style={{ fontSize: 12, color: '#64748B', margin: '8px 0 8px 0' }}>{riskInfo.summary}</p>
+              <button
+                type="button"
+                onClick={() => setRiskExpanded((v) => !v)}
+                style={{ fontSize: 11.5, fontWeight: 800, color: '#36358D', background: 'none', cursor: 'pointer' }}
+              >
+                {riskExpanded ? 'Hide Details' : 'Read More'}
+              </button>
+              {riskExpanded && (
+                <p style={{ fontSize: 11, color: '#475569', background: '#F8F9FD', padding: 10, borderRadius: 10, marginTop: 8, textAlign: 'left' }}>
+                  Derived strictly from your risk assessment responses{riskInfo.score != null ? ` (Score: ${riskInfo.score})` : ''}. Not a guarantee of returns.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '14px 6px' }}>
+              <p style={{ fontSize: 13.5, fontWeight: 800, color: '#102A54', margin: '0 0 6px 0' }}>
+                Risk profile not assessed yet
+              </p>
+              <p style={{ fontSize: 12, color: '#64748B', margin: '0 0 14px 0' }}>
+                Complete the 2-minute check to unlock your visual Riskometer.
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push('/risk')}
+                style={{
+                  background: '#36358D',
+                  color: '#FFFFFF',
+                  borderRadius: 12,
+                  padding: '9px 16px',
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                Take Risk Assessment →
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Minimal Market Snapshot */}
+        <div className="ta-surface-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 900, color: '#102A54', margin: 0 }}>Market Snapshot</h3>
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard/arthaverse?tab=markets')}
+              style={{ fontSize: 12, fontWeight: 800, color: '#36358D', background: 'none', cursor: 'pointer' }}
+            >
+              View All →
+            </button>
+          </div>
+
+          {market ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[market.nifty50, market.sensex].filter(Boolean).map((idx) => {
+                const up = idx.change >= 0;
+                return (
+                  <div
+                    key={idx.symbol}
+                    onClick={() => router.push('/dashboard/arthaverse?tab=markets')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: 13,
+                      borderRadius: 14,
+                      background: '#F8F9FD',
+                      border: '1px solid #EAECF8',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: '#64748B' }}>{idx.name}</div>
+                      <div style={{ fontSize: 19, fontWeight: 900, color: '#102A54' }}>
+                        {Math.round(idx.currentValue).toLocaleString('en-IN')}
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        background: up ? '#ECFDF5' : '#FEF2F2',
+                        color: up ? '#059669' : '#DC2626',
+                        padding: '5px 10px',
+                        borderRadius: 10,
+                        fontSize: 12,
+                        fontWeight: 800,
+                      }}
+                    >
+                      {up ? '↗ +' : '↘ '}
+                      {idx.changePercent.toFixed(2)}%
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p style={{ fontSize: 12.5, color: '#64748B' }}>
+              Connect to live market feed to view NIFTY 50 &amp; SENSEX movements.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Preserved Recent Orders / SIPs Strip */}
+      {orders.length > 0 && (
+        <div className="ta-surface-card" style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <h3 style={{ fontSize: 15.5, fontWeight: 900, color: '#102A54', margin: 0 }}>Recent Orders &amp; SIPs</h3>
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard/portfolio')}
+              style={{ fontSize: 12, fontWeight: 800, color: '#36358D', background: 'none', cursor: 'pointer' }}
+            >
+              Manage →
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {orders.slice(0, 3).map((item) => (
+              <div
+                key={item.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  background: '#F8F9FD',
+                }}
+              >
+                <div style={{ minWidth: 0, paddingRight: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#102A54', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.fundName}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748B' }}>
+                    ₹{Number(item.amount).toLocaleString('en-IN')} • {item.kind === 'plan' ? 'SIP Plan' : 'One-Time'}
+                  </div>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#36358D', background: '#EEEDFA', padding: '4px 9px', borderRadius: 999, whiteSpace: 'nowrap' }}>
+                  {item.statusLabel}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Regulatory Disclosure */}
+      <footer style={{ textAlign: 'center', padding: '6px 12px 12px 12px' }}>
+        <p style={{ fontSize: 11, color: '#94A3B8', lineHeight: 1.5, margin: 0 }}>
+          Mutual fund investments are subject to market risks. Read all scheme related documents carefully before investing. Past performance is not indicative of future returns.
+        </p>
+        <p style={{ fontSize: 11, fontWeight: 800, color: '#64748B', marginTop: 4 }}>
+          TechArtha • AMFI-Registered Mutual Fund Distributor
+        </p>
+      </footer>
+    </div>
+  );
+}

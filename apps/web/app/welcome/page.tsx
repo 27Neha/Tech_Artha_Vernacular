@@ -8,8 +8,8 @@ export default function WelcomePage() {
   const { t } = useTranslation();
   
   return (
-    <div className="flex flex-col flex-1 p-6 bg-depth relative overflow-hidden rounded-3xl md:rounded-none">
-      <div className="flex-1 flex flex-col justify-center relative z-10">
+    <div className="flex flex-col flex-1 justify-between min-h-[calc(100dvh-64px)] p-5 sm:p-6 bg-depth relative overflow-y-auto rounded-3xl md:rounded-none">
+      <div className="flex-1 flex flex-col justify-evenly relative z-10 gap-3">
         
         <h1 className="text-4xl md:text-5xl font-extrabold text-[var(--dark)] leading-tight tracking-tight animate-fade-in-up">
           {t('welcome.title')}
@@ -50,16 +50,13 @@ export default function WelcomePage() {
       </div>
 
       <div className="flex flex-col gap-4 mt-8 relative z-10 animate-fade-in-up delay-500">
-        <button onClick={() => router.push('/signup')} className="btn-primary">
+        <button onClick={() => router.push('/login')} className="btn-primary">
           <span>{t('welcome.start')}</span>
           <span className="font-bold text-xl">→</span>
         </button>
-        <button onClick={() => router.push('/login')} className="btn-outline bg-white/60 backdrop-blur-sm border-2 transition-all hover:bg-white">
-          {t('welcome.login')}
-        </button>
       </div>
 
-      <p className="text-xs text-gray-400 text-center mt-6 leading-relaxed relative z-10 animate-fade-in-up delay-500">
+      <p className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 text-center mt-6 leading-relaxed relative z-10 animate-fade-in-up delay-500">
         {t('disclaimer')}
       </p>
     </div>

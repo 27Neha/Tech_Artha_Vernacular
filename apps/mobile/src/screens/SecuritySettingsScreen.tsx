@@ -143,6 +143,22 @@ export const SecuritySettingsScreen = () => {
       setPasswordError('New password must be at least 8 characters long.');
       return;
     }
+    if (!/[A-Z]/.test(newPassword)) {
+      setPasswordError('New password must contain at least one uppercase letter (A-Z).');
+      return;
+    }
+    if (!/[a-z]/.test(newPassword)) {
+      setPasswordError('New password must contain at least one lowercase letter (a-z).');
+      return;
+    }
+    if (!/[0-9]/.test(newPassword)) {
+      setPasswordError('New password must contain at least one number (0-9).');
+      return;
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(newPassword)) {
+      setPasswordError('New password must contain at least one special character (such as @, #, $, %, &, !).');
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setPasswordError('Passwords do not match. Please check and re-enter.');
       return;

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -10,7 +10,21 @@ export class ExpensesService {
     if (!input.category?.trim()) throw new BadRequestException('Choose an expense category.');
     const occurredAt = input.occurredAt ? new Date(input.occurredAt) : new Date();
     if (Number.isNaN(occurredAt.getTime())) throw new BadRequestException('Expense date is not valid.');
-    return this.prisma.expense.create({ data: { userId, amount: Number(input.amount), category: input.category.trim(), description: input.description?.trim(), occurredAt } });
+    return this.prisma.expense.create({
+      data: {
+        userId,
+        amount: Number(input.amount),
+        category: input.category.trim(),
+        description: input.description?.trim() || null,
+        occurredAt,
+      },
+    });
+  }
+
+  async delete(userId: string, id: string) {
+    const expense = await this.prisma.expense.findFirst({ where: { id, userId } });
+    if (!expense) throw new NotFoundException('Expense not found.');
+    return this.prisma.expense.delete({ where: { id } });
   }
 
   async summary(userId: string) {

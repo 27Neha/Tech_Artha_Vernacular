@@ -83,9 +83,7 @@ export const TransactionOtpModal = ({
       .then((data: any) => {
         if (!active) return;
         setChallenge(data);
-        // Mirrors the login screen: in development the server returns the code so the
-        // flow can be exercised without waiting on delivery. Stripped from release.
-        if (__DEV__ && data?.devOtp) setOtp(data.devOtp);
+// devOtp autofill removed
       })
       .catch((e: any) => active && setError(e instanceof Error ? e.message : 'Could not send the code.'))
       .finally(() => active && setSending(false));
@@ -136,9 +134,7 @@ export const TransactionOtpModal = ({
                 placeholderTextColor="#A0AEC0"
                 style={styles.input}
               />
-              {__DEV__ && challenge?.devOtp ? (
-                <Text style={styles.devNote}>Dev bypass: code {challenge.devOtp} filled in automatically.</Text>
-              ) : null}
+              
               {challenge ? (
                 <Pressable
                   style={styles.consentRow}

@@ -1,24 +1,30 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   Pressable,
   ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
-  ActivityIndicator,
   RefreshControl,
   Linking,
   Modal,
+  BackHandler,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Header } from '../components/Header';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import { MarketPulseCard } from '../components/MarketPulseCard';
 import { MarketBriefCard } from '../components/MarketBriefCard';
 import { MarketStoriesSection } from '../components/MarketStoriesSection';
 import { MarketDetailModal } from '../components/MarketDetailModal';
 import { API_URL } from '../services/api/client';
+import { getScrollBottomPadding } from '../utils/tabBarMetrics';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Defs, LinearGradient, Stop, Rect, Circle } from 'react-native-svg';
 import type {
   DailyMoneyLesson,
   MarketNewsItem,
@@ -27,7 +33,92 @@ import type {
   PersonalMarketBrief,
 } from '../types/market';
 
-type SubSectionTab = 'all' | 'markets' | 'news' | 'explorer' | 'play' | 'academy' | 'research';
+export type SubSectionTab = 'all' | 'markets' | 'news' | 'explorer' | 'play' | 'academy' | 'research';
+
+export interface DestinationCardItem {
+  id: Exclude<SubSectionTab, 'all'> | 'intelligence';
+  title: string;
+  description: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  fullWidth?: boolean;
+}
+
+export const DESTINATION_CARDS: DestinationCardItem[] = [
+  {
+    id: 'markets',
+    title: 'Market Boulevard',
+    description: 'NIFTY 50, SENSEX & sector pulse',
+    icon: 'pulse-outline',
+  },
+  {
+    id: 'news',
+    title: 'What’s Moving',
+    description: 'Personal market brief & headlines',
+    icon: 'newspaper-outline',
+  },
+  {
+    id: 'explorer',
+    title: 'Category Explorer',
+    description: '13 SEBI mutual fund categories',
+    icon: 'layers-outline',
+  },
+  {
+    id: 'intelligence',
+    title: 'Fund Intelligence',
+    description: 'Search funds, NAV & riskometers',
+    icon: 'analytics-outline',
+  },
+  {
+    id: 'play',
+    title: 'ArthaPlay',
+    description: 'Streaks, daily quiz & challenges',
+    icon: 'trophy-outline',
+  },
+  {
+    id: 'academy',
+    title: 'Artha Academy',
+    description: 'Short plain-English lessons',
+    icon: 'school-outline',
+  },
+  {
+    id: 'research',
+    title: 'Research & Sources',
+    description: 'Official SEBI, AMFI, NSE & RBI regulatory portals',
+    icon: 'library-outline',
+    fullWidth: true,
+  },
+];
+
+export const DESTINATION_LABELS: Record<Exclude<SubSectionTab, 'all'>, string> = {
+  markets: 'Market Boulevard',
+  news: 'What’s Moving',
+  explorer: 'Category Explorer',
+  play: 'ArthaPlay',
+  academy: 'Artha Academy',
+  research: 'Research & Sources',
+};
+
+export function resolveDestinationDeepLink(requested?: string): Exclude<SubSectionTab, 'all'> | null {
+  if (!requested) return null;
+  if (requested === 'studio') return 'explorer';
+  if (['markets', 'news', 'explorer', 'play', 'academy', 'research'].includes(requested)) {
+    return requested as Exclude<SubSectionTab, 'all'>;
+  }
+  return null;
+}
+
+export function resolveDestinationTap(
+  cardId: DestinationCardItem['id'],
+  currentTab: SubSectionTab,
+): { route: 'Funds' } | { nextTab: SubSectionTab; shouldScrollToSection: boolean } {
+  if (cardId === 'intelligence') {
+    return { route: 'Funds' };
+  }
+  if (currentTab === cardId) {
+    return { nextTab: 'all', shouldScrollToSection: false };
+  }
+  return { nextTab: cardId, shouldScrollToSection: true };
+}
 
 interface CategoryDetail {
   id: string;
@@ -414,6 +505,12 @@ const JOURNEY_CHALLENGES: JourneyChallenge[] = [
 
 export const ArthaVerseScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  const isCompactScreen = screenWidth < 365;
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const sectionsAnchorY = useRef<number>(0);
 
   // State
   const [activeTab, setActiveTab] = useState<SubSectionTab>('all');
@@ -424,7 +521,7 @@ export const ArthaVerseScreen: React.FC = () => {
   const [marketOverview, setMarketOverview] = useState<MarketOverviewResponse | null>(null);
   const [marketNews, setMarketNews] = useState<MarketNewsItem[]>([]);
   const [personalBrief, setPersonalBrief] = useState<PersonalMarketBrief | null>(null);
-  const [dailyLesson, setDailyLesson] = useState<DailyMoneyLesson | null>(null);
+  const [, setDailyLesson] = useState<DailyMoneyLesson | null>(null);
   const [marketQuiz, setMarketQuiz] = useState<MarketQuiz | null>(null);
 
   // Interactive UI modals
@@ -436,8 +533,30 @@ export const ArthaVerseScreen: React.FC = () => {
   // ArthaPlay state
   const [quizAnswered, setQuizAnswered] = useState(false);
   const [selectedQuizOption, setSelectedQuizOption] = useState<string | null>(null);
-  const [streakDays, setStreakDays] = useState(5);
+  const [streakDays] = useState(5);
   const [knowledgePoints, setKnowledgePoints] = useState(350);
+
+  // Support deep-links from Home / other screens (`section: 'markets' | 'studio' | 'explorer' | 'news' | 'play' | 'academy' | 'research'`)
+  useEffect(() => {
+    const mapped = resolveDestinationDeepLink(route?.params?.section as string | undefined);
+    if (mapped) {
+      setActiveTab(mapped);
+      setTimeout(() => {
+        scrollRef.current?.scrollTo({ y: Math.max(0, sectionsAnchorY.current - 8), animated: true });
+      }, 120);
+    }
+  }, [route?.params?.section]);
+
+  // Android hardware back returns from a filtered destination back to all destinations first
+  useEffect(() => {
+    if (Platform.OS !== 'android' || activeTab === 'all') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setActiveTab('all');
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      return true;
+    });
+    return () => sub.remove();
+  }, [activeTab]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -489,19 +608,65 @@ export const ArthaVerseScreen: React.FC = () => {
     navigation.navigate('Funds', { query });
   };
 
+  const handleDestinationPress = (card: DestinationCardItem) => {
+    const action = resolveDestinationTap(card.id, activeTab);
+    if ('route' in action) {
+      navigation.navigate(action.route);
+      return;
+    }
+
+    setActiveTab(action.nextTab);
+    if (action.shouldScrollToSection) {
+      setTimeout(() => {
+        if (sectionsAnchorY.current > 0) {
+          scrollRef.current?.scrollTo({ y: Math.max(0, sectionsAnchorY.current - 8), animated: true });
+        }
+      }, 60);
+    }
+  };
+
+  const handleShowAllDestinations = () => {
+    setActiveTab('all');
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  };
+
   return (
     <View style={styles.safe}>
       <StatusBar style="dark" />
+      <Header />
 
       <ScrollView
-        contentContainerStyle={styles.container}
+        ref={scrollRef}
+        contentContainerStyle={[
+          styles.container,
+          {
+            paddingHorizontal: isCompactScreen ? 14 : 20,
+            paddingBottom: getScrollBottomPadding(insets.bottom, 28),
+          },
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3C3985']} />
         }
       >
-        {/* 1. Branded ArthaVerse Hero Banner */}
-        <View style={styles.heroBanner}>
+        {/* 1. Branded ArthaVerse Hero Banner (Preserved) */}
+        <View style={styles.heroBanner} testID="arthaverse-hero-banner">
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <Svg width="100%" height="100%" preserveAspectRatio="none">
+              <Defs>
+                <LinearGradient id="arthaHeroGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <Stop offset="0%" stopColor="#232262" />
+                  <Stop offset="55%" stopColor="#36358D" />
+                  <Stop offset="100%" stopColor="#524CB4" />
+                </LinearGradient>
+              </Defs>
+              <Rect x="0" y="0" width="100%" height="100%" fill="url(#arthaHeroGrad)" />
+              <Circle cx="94%" cy="12%" r="80" fill="#FFFFFF" opacity="0.08" />
+              <Circle cx="10%" cy="90%" r="60" fill="#F7941D" opacity="0.14" />
+            </Svg>
+          </View>
+          <View style={styles.heroTopSheen} pointerEvents="none" />
+
           <View style={styles.heroContent}>
             <View style={styles.heroBadgeRow}>
               <View style={styles.sparkleDot} />
@@ -509,48 +674,159 @@ export const ArthaVerseScreen: React.FC = () => {
             </View>
             <Text style={styles.heroTitle}>Explore the World of Investing</Text>
             <Text style={styles.heroSubtitle}>
-              Live Indian markets, vetted fund intelligence, verified news & interactive financial education.
+              Live Indian markets, vetted fund intelligence, verified news &amp; interactive financial education.
             </Text>
           </View>
         </View>
 
-        {/* 2. Top Segmented Filter Pills */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.subFilterScroll}
-        >
-          {[
-            { id: 'all', label: 'All Destination' },
-            { id: 'markets', label: 'Market Boulevard' },
-            { id: 'news', label: 'What’s Moving' },
-            { id: 'explorer', label: 'Category Explorer' },
-            { id: 'play', label: 'ArthaPlay' },
-            { id: 'academy', label: 'Artha Academy' },
-            { id: 'research', label: 'Research & Sources' },
-          ].map((tab) => {
-            const isSelected = activeTab === tab.id;
-            return (
+        {/* 2. Destination Navigation Cards (Always visible; replaces horizontal text tabs) */}
+        <View style={styles.destinationsSection} testID="arthaverse-destination-grid">
+          <View style={styles.destinationsHeaderRow}>
+            <Text style={styles.destinationsHeading}>EXPLORE DESTINATIONS</Text>
+            {activeTab !== 'all' && (
               <Pressable
-                key={tab.id}
-                onPress={() => setActiveTab(tab.id as SubSectionTab)}
-                style={[styles.subTabPill, isSelected && styles.subTabPillActive]}
+                onPress={handleShowAllDestinations}
+                style={styles.resetFilterChip}
+                testID="arthaverse-view-all"
               >
-                <Text style={[styles.subTabText, isSelected && styles.subTabTextActive]}>
-                  {tab.label}
-                </Text>
+                <Text style={styles.resetFilterChipText}>View All</Text>
               </Pressable>
-            );
-          })}
-        </ScrollView>
+            )}
+          </View>
 
-        {/* 3. SECTION: MARKET BOULEVARD */}
+          <View style={styles.destinationGrid}>
+            {DESTINATION_CARDS.map((card) => {
+              const isSelected = card.id !== 'intelligence' && activeTab === card.id;
+              return (
+                <Pressable
+                  key={card.id}
+                  testID={`arthaverse-card-${card.id}`}
+                  onPress={() => handleDestinationPress(card)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${card.title}. ${card.description}`}
+                  accessibilityState={{ selected: isSelected }}
+                  style={({ pressed }) => [
+                    styles.destinationCard,
+                    isCompactScreen && styles.destinationCardCompact,
+                    card.fullWidth && styles.destinationCardFullWidth,
+                    isSelected && styles.destinationCardActive,
+                    pressed && styles.destinationCardPressed,
+                  ]}
+                >
+                  {card.fullWidth ? (
+                    <View style={styles.destinationFullRow}>
+                      <View
+                        style={[
+                          styles.destinationIconWrap,
+                          isSelected && styles.destinationIconWrapActive,
+                        ]}
+                      >
+                        <Ionicons
+                          name={card.icon}
+                          size={17}
+                          color={isSelected ? '#FFFFFF' : '#3C3985'}
+                        />
+                      </View>
+                      <View style={styles.destinationFullTextWrap}>
+                        <Text
+                          style={[
+                            styles.destinationTitle,
+                            isCompactScreen && styles.destinationTitleCompact,
+                            isSelected && styles.destinationTitleActive,
+                          ]}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.85}
+                        >
+                          {card.title}
+                        </Text>
+                        <Text style={styles.destinationDesc} numberOfLines={2}>
+                          {card.description}
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={15}
+                        color={isSelected ? '#3C3985' : '#7C77B9'}
+                      />
+                    </View>
+                  ) : (
+                    <>
+                      <View style={styles.destinationCardTop}>
+                        <View
+                          style={[
+                            styles.destinationIconWrap,
+                            isSelected && styles.destinationIconWrapActive,
+                          ]}
+                        >
+                          <Ionicons
+                            name={card.icon}
+                            size={17}
+                            color={isSelected ? '#FFFFFF' : '#3C3985'}
+                          />
+                        </View>
+                        <Ionicons
+                          name="chevron-forward"
+                          size={14}
+                          color={isSelected ? '#3C3985' : '#7C77B9'}
+                        />
+                      </View>
+                      <Text
+                        style={[
+                          styles.destinationTitle,
+                          isCompactScreen && styles.destinationTitleCompact,
+                          isSelected && styles.destinationTitleActive,
+                        ]}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.85}
+                      >
+                        {card.title}
+                      </Text>
+                      <Text style={styles.destinationDesc} numberOfLines={2}>
+                        {card.description}
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Anchor for smooth scroll into selected destination */}
+        <View
+          onLayout={(e) => {
+            sectionsAnchorY.current = e.nativeEvent.layout.y;
+          }}
+        >
+          {activeTab !== 'all' && (
+            <View style={styles.activeSectionBar} testID="arthaverse-active-bar">
+              <View style={styles.activeSectionIndicator}>
+                <View style={styles.activeSectionDot} />
+                <Text style={styles.activeSectionLabel}>
+                  {DESTINATION_LABELS[activeTab]}
+                </Text>
+              </View>
+              <Pressable
+                onPress={handleShowAllDestinations}
+                style={styles.backToAllBtn}
+                testID="arthaverse-back-to-all"
+              >
+                <Ionicons name="arrow-back" size={13} color="#3C3985" />
+                <Text style={styles.backToAllText}>All Destinations</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+
+        {/* 3. SECTION: MARKET BOULEVARD (Preserved) */}
         {(activeTab === 'all' || activeTab === 'markets') && (
-          <View style={styles.sectionWrap}>
+          <View style={styles.sectionWrap} testID="arthaverse-section-markets">
             <View style={styles.sectionHeaderRow}>
-              <View>
+              <View style={{ flex: 1, marginRight: 8 }}>
                 <Text style={styles.sectionTitle}>Market Boulevard</Text>
-                <Text style={styles.sectionSubtitle}>Verified Indian Benchmark Indices & Sector Pulse</Text>
+                <Text style={styles.sectionSubtitle}>Verified Indian Benchmark Indices &amp; Sector Pulse</Text>
               </View>
               <Pressable
                 style={styles.sourceTag}
@@ -589,7 +865,7 @@ export const ArthaVerseScreen: React.FC = () => {
 
         {/* 4. SECTION: YOUR MARKET BRIEF */}
         {(activeTab === 'all' || activeTab === 'news') && (
-          <View style={styles.sectionWrap}>
+          <View style={styles.sectionWrap} testID="arthaverse-section-news">
             <MarketBriefCard
               brief={personalBrief}
               onExploreCategory={(cat) => handleSelectFundCategory(cat.split(' ')[0])}
@@ -606,12 +882,12 @@ export const ArthaVerseScreen: React.FC = () => {
 
         {/* 6. SECTION: INVESTMENT EXPLORER (13 MUTUAL FUND CATEGORIES) */}
         {(activeTab === 'all' || activeTab === 'explorer') && (
-          <View style={styles.sectionWrap}>
+          <View style={styles.sectionWrap} testID="arthaverse-section-explorer">
             <View style={styles.sectionHeaderRow}>
-              <View>
+              <View style={{ flex: 1, marginRight: 8 }}>
                 <Text style={styles.sectionTitle}>Investment Explorer</Text>
                 <Text style={styles.sectionSubtitle}>
-                  13 SEBI-classified fund categories with risk & horizon guidance
+                  13 SEBI-classified fund categories with risk &amp; horizon guidance
                 </Text>
               </View>
               <Pressable
@@ -673,12 +949,12 @@ export const ArthaVerseScreen: React.FC = () => {
 
         {/* 7. SECTION: PROFESSIONAL GAMIFICATION (ARTHAPLAY) */}
         {(activeTab === 'all' || activeTab === 'play') && (
-          <View style={styles.sectionWrap}>
+          <View style={styles.sectionWrap} testID="arthaverse-section-play">
             <View style={styles.sectionHeaderRow}>
               <View>
                 <Text style={styles.sectionTitle}>ArthaPlay</Text>
                 <Text style={styles.sectionSubtitle}>
-                  Bite-sized challenges & knowledge streaks (strictly educational)
+                  Bite-sized challenges &amp; knowledge streaks (strictly educational)
                 </Text>
               </View>
             </View>
@@ -812,7 +1088,7 @@ export const ArthaVerseScreen: React.FC = () => {
 
         {/* 8. SECTION: ARTHA ACADEMY */}
         {(activeTab === 'all' || activeTab === 'academy') && (
-          <View style={styles.sectionWrap}>
+          <View style={styles.sectionWrap} testID="arthaverse-section-academy">
             <View style={styles.sectionHeaderRow}>
               <View>
                 <Text style={styles.sectionTitle}>Artha Academy</Text>
@@ -849,12 +1125,12 @@ export const ArthaVerseScreen: React.FC = () => {
 
         {/* 9. SECTION: RESEARCH & OFFICIAL RESOURCES */}
         {(activeTab === 'all' || activeTab === 'research') && (
-          <View style={styles.sectionWrap}>
+          <View style={styles.sectionWrap} testID="arthaverse-section-research">
             <View style={styles.sectionHeaderRow}>
               <View>
-                <Text style={styles.sectionTitle}>Research & Official Resources</Text>
+                <Text style={styles.sectionTitle}>Research &amp; Official Resources</Text>
                 <Text style={styles.sectionSubtitle}>
-                  Direct links to authoritative regulatory & exchange resources
+                  Direct links to authoritative regulatory &amp; exchange resources
                 </Text>
               </View>
             </View>
@@ -963,7 +1239,7 @@ export const ArthaVerseScreen: React.FC = () => {
               </View>
 
               <View style={styles.modalDetailSection}>
-                <Text style={styles.modalSectionHeading}>VOLATILITY & RISK PROFILE</Text>
+                <Text style={styles.modalSectionHeading}>VOLATILITY &amp; RISK PROFILE</Text>
                 <Text style={styles.modalSectionBody}>{selectedCategoryDetail?.volatilityExplanation}</Text>
                 <Text style={styles.disclaimerNote}>
                   Note: Past volatility is calculated based on historical cycles and does not guarantee future stability.
@@ -971,7 +1247,7 @@ export const ArthaVerseScreen: React.FC = () => {
               </View>
 
               <View style={styles.modalDetailSection}>
-                <Text style={styles.modalSectionHeading}>SUITABILITY & HORIZON</Text>
+                <Text style={styles.modalSectionHeading}>SUITABILITY &amp; HORIZON</Text>
                 <Text style={styles.modalSectionBody}>{selectedCategoryDetail?.suitability}</Text>
               </View>
 
@@ -1053,18 +1329,29 @@ export const ArthaVerseScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8F9FD' },
+  safe: { flex: 1, backgroundColor: '#F6F7FC' },
   container: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 24 },
   heroBanner: {
-    backgroundColor: '#3C3985',
-    borderRadius: 22,
-    padding: 22,
+    borderRadius: 24,
+    padding: 20,
     marginBottom: 16,
-    shadowColor: '#3C3985',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 4,
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    shadowColor: '#232262',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.24,
+    shadowRadius: 16,
+    elevation: 7,
+  },
+  heroTopSheen: {
+    position: 'absolute',
+    top: 0,
+    left: 20,
+    right: 20,
+    height: 1.5,
+    backgroundColor: 'rgba(255,255,255,0.22)',
   },
   heroContent: {
     gap: 6,
@@ -1078,12 +1365,12 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#F7941E',
+    backgroundColor: '#F7941D',
   },
   heroEyebrow: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#F7941E',
+    color: '#F7941D',
     letterSpacing: 1,
   },
   heroTitle: {
@@ -1097,29 +1384,164 @@ const styles = StyleSheet.create({
     color: '#E2E8F0',
     lineHeight: 18,
   },
-  subFilterScroll: {
-    paddingBottom: 14,
-    gap: 8,
+  /* 3D Refined Destination Cards */
+  destinationsSection: {
+    marginBottom: 20,
   },
-  subTabPill: {
+  destinationsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    paddingHorizontal: 2,
+  },
+  destinationsHeading: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.9,
+  },
+  resetFilterChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#EEEDFA',
+    borderWidth: 1,
+    borderColor: '#D8DBF5',
+  },
+  resetFilterChipText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#36358D',
+  },
+  destinationGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 10,
+  },
+  destinationCard: {
+    width: '48.5%',
+    minHeight: 108,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 13,
+    borderWidth: 1,
+    borderColor: '#E6E8F6',
+    shadowColor: '#102A54',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+    justifyContent: 'space-between',
+  },
+  destinationCardCompact: {
+    padding: 11,
+    minHeight: 100,
+  },
+  destinationCardFullWidth: {
+    width: '100%',
+    minHeight: 64,
+    paddingVertical: 12,
     paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
+    justifyContent: 'center',
+  },
+  destinationCardActive: {
+    backgroundColor: '#EEEDFA',
+    borderColor: '#36358D',
+    borderWidth: 1.5,
+  },
+  destinationCardPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.98 }],
+  },
+  destinationCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  destinationFullRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  destinationFullTextWrap: {
+    flex: 1,
+  },
+  destinationIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: '#EEEDFA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  destinationIconWrapActive: {
+    backgroundColor: '#36358D',
+  },
+  destinationTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#102A54',
+    marginBottom: 3,
+    letterSpacing: -0.1,
+  },
+  destinationTitleCompact: {
+    fontSize: 12.5,
+  },
+  destinationTitleActive: {
+    color: '#36358D',
+  },
+  destinationDesc: {
+    fontSize: 11,
+    color: '#5B647A',
+    lineHeight: 15,
+    fontWeight: '500',
+  },
+  activeSectionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F4F2FC',
+    borderWidth: 1,
+    borderColor: '#E1DCF7',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+  },
+  activeSectionIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  activeSectionDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#3C3985',
+  },
+  activeSectionLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#2F2C73',
+  },
+  backToAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DDD6F7',
   },
-  subTabPillActive: {
-    backgroundColor: '#3C3985',
-    borderColor: '#3C3985',
-  },
-  subTabText: {
-    fontSize: 12,
+  backToAllText: {
+    fontSize: 11,
     fontWeight: '700',
-    color: '#64748B',
-  },
-  subTabTextActive: {
-    color: '#FFFFFF',
+    color: '#3C3985',
   },
   sectionWrap: {
     marginBottom: 20,

@@ -397,6 +397,24 @@ export default function SignupPage() {
       
             {step === 1 && (
         <div className="flex-1 animate-fade-in flex flex-col justify-start max-w-md w-full mx-auto mt-4">
+            {/* Horizontal Combined Tab Bar: LOGIN | SIGN UP */}
+            <div className="flex items-center justify-center mb-6 border-b border-gray-200">
+              <button
+                type="button"
+                onClick={() => router.push('/login')}
+                className="py-3 px-6 text-sm sm:text-base font-semibold tracking-wider text-gray-500 hover:text-gray-800 transition-colors"
+              >
+                LOGIN
+              </button>
+              <span className="text-gray-300 font-light px-3 text-lg">|</span>
+              <button
+                type="button"
+                className="py-3 px-6 text-sm sm:text-base font-extrabold tracking-wider text-[var(--dark,#102A54)] border-b-2 border-[var(--primary,#3C3985)] relative"
+              >
+                SIGN UP
+              </button>
+            </div>
+
             <h1 className="text-2xl font-bold text-[var(--dark)] mb-6">{t('signup.createAccount') || 'Create your TechArtha account'}</h1>
 
             {termsWarning && (

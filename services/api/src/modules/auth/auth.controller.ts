@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Post, Put, Get, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, Put, Get, Delete, Param, UseGuards, BadRequestException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AccessTokenGuard, CurrentUser } from '../../common/auth';
 import type { AuthenticatedUser } from '../../common/auth';
@@ -9,8 +9,9 @@ export class AuthController {
 
   @Post('send-otp')
   @HttpCode(202)
-  async sendOtp(@Body() body: { mobile?: string; channel?: 'SMS' | 'WHATSAPP' | 'EMAIL' }) {
-    return this.authService.sendOtp(body.mobile ?? '', body.channel ?? 'SMS');
+  async sendOtp(@Body() body: { mobile?: string; email?: string; channel?: 'SMS' | 'WHATSAPP' | 'EMAIL' }) {
+    const identifier = body.channel === 'EMAIL' || body.email ? (body.email ?? body.mobile ?? '') : (body.mobile ?? '');
+    return this.authService.sendOtp(identifier, body.channel ?? 'SMS');
   }
 
   @Post('verify-otp')
@@ -85,44 +86,45 @@ export class AuthController {
    * attaches an address to their account rather than authenticating them.
    */
   @UseGuards(AccessTokenGuard)
-  @Post('email/send-otp')
-  @HttpCode(202)
-  async sendEmailOtp(@CurrentUser() user: AuthenticatedUser, @Body() body: { email?: string }) {
-    return this.authService.sendEmailOtp(user.id, body.email ?? '');
+  @Get('notifications/unread-count')
+  async getUnreadNotificationCount(@CurrentUser() user: AuthenticatedUser) {
+    return this.authService.getUnreadNotificationCount(user.id);
   }
 
   @UseGuards(AccessTokenGuard)
-  @Post('email/verify-otp')
-  @HttpCode(200)
-  async verifyEmailOtp(
+  @Get('notifications/:id')
+  async getSingleNotification(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { email?: string; otp?: string },
+    @Param('id') id: string,
   ) {
-    return this.authService.verifyEmailOtp(user.id, body.email ?? '', body.otp ?? '');
+    return this.authService.getSingleNotification(user.id, id);
   }
 
-  /** Final step of signup: the OTP step has created the account; this sets its password. */
-  @Post('password')
   @UseGuards(AccessTokenGuard)
+  @Post('notifications/read')
   @HttpCode(200)
-  async setPassword(
+  async markNotificationsRead(@CurrentUser() user: AuthenticatedUser, @Body() body: { ids?: string[] }) {
+    return this.authService.markNotificationsRead(user.id, body?.ids);
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Put('notifications/:id/read')
+  @HttpCode(200)
+  async markSingleNotificationRead(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { password?: string; clientType?: string },
+    @Param('id') id: string,
   ) {
-    return this.authService.setInitialPassword(user.id, body.password ?? '', body.clientType);
-  }
-
-  @Post('logout')
-  @UseGuards(AccessTokenGuard)
-  @HttpCode(204)
-  async logout(@CurrentUser() user: AuthenticatedUser) {
-    await this.authService.logout(user.sessionId);
+    return this.authService.markSingleNotificationRead(user.id, id);
   }
 
   @UseGuards(AccessTokenGuard)
-  @Get('profile')
-  async getProfile(@CurrentUser() user: AuthenticatedUser) {
-    return this.authService.getProfile(user.id);
+  @Delete('notifications/:id')
+  @HttpCode(200)
+  async deleteNotification(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.authService.deleteNotification(user.id, id);
   }
 
   /** Self-declaration of whose email and mobile number these are. */
@@ -154,6 +156,43 @@ export class AuthController {
     @Body() body: { currentPassword?: string; newPassword: string }
   ) {
     return this.authService.changePassword(user.id, body.currentPassword, body.newPassword);
+  }
+
+
+  @Post('forgot-password')
+  @HttpCode(200)
+  async forgotPassword(@Body() body: { email?: string; mobile?: string }) {
+    const identifier = body.email?.trim() || body.mobile?.trim();
+    if (!identifier) {
+      throw new BadRequestException('Mobile number or email address is required.');
+    }
+    return this.authService.requestPasswordResetOtp(identifier);
+  }
+
+  @Post('reset-password/verify-otp')
+  @HttpCode(200)
+  async verifyResetPasswordOtp(@Body() body: { email?: string; mobile?: string; otp?: string }) {
+    const identifier = body.email?.trim() || body.mobile?.trim();
+    if (!identifier || !body.otp) {
+      throw new BadRequestException('Mobile number or email and OTP are required.');
+    }
+    return this.authService.verifyPasswordResetOtp(identifier, body.otp);
+  }
+
+  @Post('verify-password-reset-otp')
+  @HttpCode(200)
+  async verifyPasswordResetOtpAlias(@Body() body: { email?: string; mobile?: string; otp?: string }) {
+    return this.verifyResetPasswordOtp(body);
+  }
+
+  @Post('reset-password')
+  @HttpCode(200)
+  async resetPassword(@Body() body: { resetToken?: string; resetAuthorization?: string; newPassword?: string }) {
+    const token = body.resetToken || body.resetAuthorization;
+    if (!token || !body.newPassword) {
+      throw new BadRequestException('Reset token and new password are required.');
+    }
+    return this.authService.resetPassword(token, body.newPassword);
   }
 
 }

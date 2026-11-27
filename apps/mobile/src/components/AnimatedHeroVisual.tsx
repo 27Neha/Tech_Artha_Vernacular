@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Animated, Easing, StyleSheet, Pressable } from 'react-native';
+import { View, Text, Animated, Easing, StyleSheet, Pressable, ScrollView } from 'react-native';
 import Svg, {
   Defs,
   LinearGradient,
@@ -11,7 +11,9 @@ import Svg, {
   G,
   Text as SvgText,
 } from 'react-native-svg';
-import { colors } from '../theme/tokens';
+import { colors as brandTokens } from '../theme/tokens';
+import { useTheme } from '../context/ThemeContext';
+import { useResponsive } from '../utils/responsive';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
@@ -19,10 +21,35 @@ export type ActiveHeroTab = 'compounding' | 'horizon';
 
 export interface AnimatedHeroVisualProps {
   height?: number;
+  minHeight?: number;
+  maxHeight?: number;
+  flexGrow?: number;
 }
 
-export const AnimatedHeroVisual: React.FC<AnimatedHeroVisualProps> = ({ height = 280 }) => {
+export const AnimatedHeroVisual: React.FC<AnimatedHeroVisualProps> = ({
+  height = 280,
+  minHeight,
+  maxHeight,
+  flexGrow,
+}) => {
+  const { colors, isDark } = useTheme();
+  const { width: windowWidth, factor, rf } = useResponsive();
   const [activeTab, setActiveTab] = useState<ActiveHeroTab>('compounding');
+
+  // Screen-size responsive typography inside the graph card & SVG pointer badges
+  const tabFontSize = rf(windowWidth < 365 ? 9.2 : windowWidth > 420 ? 11 : 10.2);
+  const captionFontSize = rf(9.8);
+  const svgScale = Math.max(0.88, Math.min(1.16, factor));
+  const svgFontSize = Number((8.6 * svgScale).toFixed(1));
+
+  const pill1W = Math.round((activeTab === 'compounding' ? 72 : 76) * svgScale);
+  const pill1H = Math.round(18.5 * svgScale);
+
+  const pill2W = Math.round(120 * svgScale);
+  const pill2H = Math.round(19.5 * svgScale);
+
+  const pill3W = Math.round((activeTab === 'compounding' ? 122 : 116) * svgScale);
+  const pill3H = Math.round(20 * svgScale);
 
   const lineAnim = useRef(new Animated.Value(450)).current;
   const scaleAnim = useRef(new Animated.Value(0.97)).current;
@@ -118,51 +145,86 @@ export const AnimatedHeroVisual: React.FC<AnimatedHeroVisualProps> = ({ height =
       style={[
         styles.outerCard,
         {
-          height,
+          backgroundColor: isDark ? colors.surface : '#FFFFFF',
+          borderColor: isDark ? colors.border : '#E2E8F0',
+          minHeight: minHeight ?? height,
+          ...(maxHeight ? { maxHeight } : {}),
+          ...(flexGrow !== undefined ? { flexGrow } : { height }),
           opacity: opacityAnim,
           transform: [{ scale: scaleAnim }],
         },
       ]}
     >
-      {/* 2 Compact Interactive Tabs at top */}
-      <View style={styles.cardHeaderRow}>
-        <Pressable
-          onPress={() => handleTabChange('compounding')}
-          hitSlop={10}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: isCompounding }}
-          accessibilityLabel="Disciplined Wealth Compounding"
+      {/* 2 Interactive Graph Titles with Horizontal Scroll & Zero Clipping */}
+      <View style={styles.cardHeaderWrapper}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.cardHeaderScroll}
+          bounces={false}
         >
-          {isCompounding ? (
-            <View style={styles.activeTabPill}>
-              <View style={styles.tabIndicatorDot} />
-              <Text style={styles.activeTabText}>DISCIPLINED WEALTH COMPOUNDING</Text>
-            </View>
-          ) : (
-            <View style={styles.inactiveTabWrap}>
-              <Text style={styles.inactiveTabText}>DISCIPLINED WEALTH COMPOUNDING</Text>
-            </View>
-          )}
-        </Pressable>
+          <Pressable
+            onPress={() => handleTabChange('compounding')}
+            hitSlop={8}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: isCompounding }}
+            accessibilityLabel="Disciplined Wealth Compounding"
+            style={[
+              styles.tabPillBase,
+              { paddingHorizontal: windowWidth < 365 ? 8 : 10 },
+              isCompounding
+                ? [styles.activeTabPill, isDark && { backgroundColor: colors.surfaceMuted, borderColor: colors.primary }]
+                : [styles.inactiveTabWrap, isDark && { backgroundColor: 'transparent', borderColor: colors.border }],
+            ]}
+          >
+            <View
+              style={[
+                styles.tabIndicatorDot,
+                { backgroundColor: isCompounding ? (isDark ? colors.primary : '#36358D') : '#CBD5E1' },
+              ]}
+            />
+            <Text
+              style={[
+                isCompounding ? styles.activeTabTextBase : styles.inactiveTabTextBase,
+                { fontSize: tabFontSize },
+                isDark && { color: isCompounding ? colors.primary : colors.textSecondary },
+              ]}
+            >
+              DISCIPLINED WEALTH COMPOUNDING
+            </Text>
+          </Pressable>
 
-        <Pressable
-          onPress={() => handleTabChange('horizon')}
-          hitSlop={10}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: !isCompounding }}
-          accessibilityLabel="Long-Term Horizon"
-        >
-          {!isCompounding ? (
-            <View style={styles.activeTabPill}>
-              <View style={[styles.tabIndicatorDot, { backgroundColor: colors.accent }]} />
-              <Text style={styles.activeTabText}>LONG-TERM HORIZON</Text>
-            </View>
-          ) : (
-            <View style={styles.inactiveTabWrap}>
-              <Text style={styles.inactiveTabText}>LONG-TERM HORIZON</Text>
-            </View>
-          )}
-        </Pressable>
+          <Pressable
+            onPress={() => handleTabChange('horizon')}
+            hitSlop={8}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: !isCompounding }}
+            accessibilityLabel="Long-Term Horizon"
+            style={[
+              styles.tabPillBase,
+              { paddingHorizontal: windowWidth < 365 ? 8 : 10 },
+              !isCompounding
+                ? [styles.activeTabPill, isDark && { backgroundColor: colors.surfaceMuted, borderColor: brandTokens.accent }]
+                : [styles.inactiveTabWrap, isDark && { backgroundColor: 'transparent', borderColor: colors.border }],
+            ]}
+          >
+            <View
+              style={[
+                styles.tabIndicatorDot,
+                { backgroundColor: !isCompounding ? brandTokens.accent : '#CBD5E1' },
+              ]}
+            />
+            <Text
+              style={[
+                !isCompounding ? styles.activeTabTextBase : styles.inactiveTabTextBase,
+                { fontSize: tabFontSize },
+                isDark && { color: !isCompounding ? brandTokens.accent : colors.textSecondary },
+              ]}
+            >
+              LONG-TERM HORIZON
+            </Text>
+          </Pressable>
+        </ScrollView>
       </View>
 
       {/* 3D Visual Metaphor with Dimensional Layering & Pointer Labels */}
@@ -278,23 +340,23 @@ export const AnimatedHeroVisual: React.FC<AnimatedHeroVisualProps> = ({ height =
           <Circle cx={p1X} cy={p1Y} r="4" fill="#36358D" />
           <Circle cx={p1X - 1} cy={p1Y - 1} r="1.3" fill="#FFFFFF" opacity="0.9" />
 
-          {/* Point 1 Pointer Label: Placed safely BELOW curve at Y = 175 */}
+          {/* Point 1 Pointer Label: Placed safely BELOW curve at Y = 174 */}
           <G>
             <Rect
-              x={14}
-              y={175}
-              width={isCompounding ? 68 : 72}
-              height={18}
-              rx={9}
-              fill="#FFFFFF"
-              stroke="#E2E8F0"
+              x={12}
+              y={174}
+              width={pill1W}
+              height={pill1H}
+              rx={pill1H / 2}
+              fill={isDark ? colors.surfaceElevated : '#FFFFFF'}
+              stroke={isDark ? colors.border : '#E2E8F0'}
               strokeWidth={1}
             />
             <SvgText
-              x={isCompounding ? 48 : 50}
-              y={187.5}
-              fontSize="8.5"
-              fill="#102A54"
+              x={12 + pill1W / 2}
+              y={174 + pill1H * 0.68}
+              fontSize={svgFontSize}
+              fill={isDark ? colors.textPrimary : '#102A54'}
               fontWeight="800"
               textAnchor="middle"
             >
@@ -311,7 +373,7 @@ export const AnimatedHeroVisual: React.FC<AnimatedHeroVisualProps> = ({ height =
               x1={p2X}
               y1={p2Y - 7}
               x2={p2X}
-              y2={isCompounding ? 87 : 106}
+              y2={(isCompounding ? 67 : 86) + pill2H}
               stroke="#CBD5E1"
               strokeWidth="1"
               strokeDasharray="2 2"
@@ -325,20 +387,20 @@ export const AnimatedHeroVisual: React.FC<AnimatedHeroVisualProps> = ({ height =
             {/* Point 2 Pointer Label: Placed cleanly ABOVE the curve */}
             <G>
               <Rect
-                x={isCompounding ? p2X - 58 : p2X - 58}
-                y={isCompounding ? 68 : 87}
-                width={116}
-                height={19}
-                rx={9.5}
-                fill="#FFFFFF"
-                stroke="#E2E8F0"
+                x={p2X - pill2W / 2}
+                y={isCompounding ? 67 : 86}
+                width={pill2W}
+                height={pill2H}
+                rx={pill2H / 2}
+                fill={isDark ? colors.surfaceElevated : '#FFFFFF'}
+                stroke={isDark ? colors.border : '#E2E8F0'}
                 strokeWidth={1}
               />
               <SvgText
                 x={p2X}
-                y={isCompounding ? 80.5 : 99.5}
-                fontSize="8.5"
-                fill="#36358D"
+                y={(isCompounding ? 67 : 86) + pill2H * 0.68}
+                fontSize={svgFontSize}
+                fill={isDark ? colors.primary : '#36358D'}
                 fontWeight="800"
                 textAnchor="middle"
               >
@@ -364,20 +426,20 @@ export const AnimatedHeroVisual: React.FC<AnimatedHeroVisualProps> = ({ height =
           {/* Point 3 Pointer Label: Placed safely to the LEFT of the beacon */}
           <G>
             <Rect
-              x={isCompounding ? 180 : 184}
-              y={isCompounding ? p3Y - 10 : p3Y - 10}
-              width={isCompounding ? 116 : 112}
-              height={20}
-              rx={10}
-              fill="#FFF7ED"
-              stroke="#FFEDD5"
+              x={298 - pill3W}
+              y={p3Y - pill3H / 2}
+              width={pill3W}
+              height={pill3H}
+              rx={pill3H / 2}
+              fill={isDark ? '#2D2118' : '#FFF7ED'}
+              stroke={isDark ? '#7C2D12' : '#FFEDD5'}
               strokeWidth={1}
             />
             <SvgText
-              x={isCompounding ? 238 : 240}
-              y={isCompounding ? p3Y + 3.5 : p3Y + 3.5}
-              fontSize="8.5"
-              fill="#C05621"
+              x={298 - pill3W / 2}
+              y={p3Y + svgFontSize * 0.36}
+              fontSize={svgFontSize}
+              fill={isDark ? '#FDBA74' : '#C05621'}
               fontWeight="800"
               textAnchor="middle"
             >
@@ -395,7 +457,15 @@ export const AnimatedHeroVisual: React.FC<AnimatedHeroVisualProps> = ({ height =
 
       {/* Clean, minimal educational footnote */}
       <View style={styles.cardFooter}>
-        <Text style={styles.disclaimerText}>
+        <Text
+          style={[
+            styles.disclaimerTextBase,
+            {
+              fontSize: captionFontSize,
+              color: isDark ? colors.textMuted : '#64748B',
+            },
+          ]}
+        >
           Illustrative representation of compounding over time
         </Text>
       </View>
@@ -421,24 +491,35 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     justifyContent: 'space-between',
   },
-  cardHeaderRow: {
+  cardHeaderWrapper: {
+    width: '100%',
+    marginBottom: 4,
+  },
+  cardHeaderScroll: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 2,
+    flexGrow: 1,
+    gap: 8,
+    paddingVertical: 2,
   },
-  activeTabPill: {
+  tabPillBase: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EEF0FB',
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
+    paddingVertical: 6,
+    borderRadius: 10,
     gap: 6,
   },
+  activeTabPill: {
+    backgroundColor: '#EEF0FB',
+    borderWidth: 1,
+    borderColor: '#D4D8F6',
+  },
   inactiveTabWrap: {
-    paddingHorizontal: 6,
-    paddingVertical: 5,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   tabIndicatorDot: {
     width: 6,
@@ -446,33 +527,32 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: '#36358D',
   },
-  activeTabText: {
-    fontSize: 9.5,
+  activeTabTextBase: {
     fontWeight: '800',
     color: '#36358D',
     letterSpacing: 0.3,
   },
-  inactiveTabText: {
-    fontSize: 9.5,
-    fontWeight: '600',
-    color: '#94A3B8',
+  inactiveTabTextBase: {
+    fontWeight: '700',
+    color: '#64748B',
     letterSpacing: 0.2,
   },
   svgWrapper: {
     flex: 1,
+    minHeight: 155,
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardFooter: {
     paddingTop: 4,
+    paddingHorizontal: 6,
     alignItems: 'center',
   },
-  disclaimerText: {
-    fontSize: 9.5,
-    color: '#94A3B8',
+  disclaimerTextBase: {
+    color: '#64748B',
     textAlign: 'center',
-    fontWeight: '500',
+    fontWeight: '600',
     letterSpacing: 0.1,
   },
 });

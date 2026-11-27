@@ -1,13 +1,26 @@
 import { BackHandler, Alert } from 'react-native';
 import { createNavigationContainerRef } from '@react-navigation/native';
+import { authStore } from '../store/auth';
 
 export const navigationRef = createNavigationContainerRef<any>();
 
-// Core main tabs recognized by the application
-export const MAIN_TABS = ['Home', 'Explore', 'Goals', 'Portfolio', 'Profile'] as const;
+// Core main tabs recognized by the application (in exact bottom-bar order)
+export const MAIN_TABS = ['Home', 'Portfolio', 'Assistant', 'Expenses', 'Profile'] as const;
 export type MainTabType = (typeof MAIN_TABS)[number];
 
-// Cross-tab navigation history stack (guarantees Home is initial root)
+// Unauthenticated screens where users must never be redirected to Home/MainTabs on Back
+const UNAUTH_ROUTES = new Set([
+  'Welcome',
+  'Language',
+  'Signup',
+  'Login',
+  'ForgotPassword',
+  'ForgotPasswordOtp',
+  'ResetPassword',
+  'PasswordResetSuccess',
+]);
+
+// Cross-tab navigation history stack (guarantees Home is initial root for authenticated tabs)
 let tabHistory: string[] = ['Home'];
 let isNavigatingBack = false;
 let lastBackTime = 0;
@@ -78,7 +91,6 @@ export function recordTabVisit(tabName: string) {
  * Register an active modal or bottom-sheet to be closed by Back.
  */
 export function registerActiveModal(id: string, close: () => void): () => void {
-  // Avoid duplicate registrations
   const existingIdx = activeModals.findIndex((m) => m.id === id);
   if (existingIdx >= 0) {
     activeModals[existingIdx] = { id, close };
@@ -122,7 +134,7 @@ export function registerUnsavedChecker(
 }
 
 /**
- * Register a screen-level back handler (e.g. multi-step forms like GoalSelection step CONFIGURE -> SELECT).
+ * Register a screen-level back handler (e.g. multi-step forms like Signup/Login/GoalSelection).
  */
 export function registerCustomBackHandler(id: string, handler: () => boolean | void): () => void {
   const existingIdx = customBackHandlers.findIndex((h) => h.id === id);
@@ -144,13 +156,6 @@ export function registerCustomBackHandler(id: string, handler: () => boolean | v
 
 /**
  * Determine whether a meaningful back action is currently available.
- * Returns true if:
- * 1. An open modal can be dismissed.
- * 2. A custom screen handler is registered (e.g. multi-step wizard).
- * 3. A nested screen stack can go back.
- * 4. The user has a previous visited tab in cross-tab history.
- *
- * On Home, if there is no previous visited tab and no modal/handler, returns false (disabled state).
  */
 export function canGlobalGoBack(): boolean {
   if (activeModals.length > 0) {
@@ -162,22 +167,24 @@ export function canGlobalGoBack(): boolean {
   }
 
   if (navigationRef.isReady()) {
-    const currentRoute = navigationRef.getCurrentRoute()?.name;
+    const currentRoute = navigationRef.getCurrentRoute()?.name || '';
+    if (currentRoute === 'Welcome') {
+      return navigationRef.canGoBack();
+    }
+    if (UNAUTH_ROUTES.has(currentRoute)) {
+      return true;
+    }
+
     const isRootTab = currentRoute && MAIN_TABS.includes(currentRoute as MainTabType);
 
-    // If on a nested screen inside RootStack, check if RootStack can go back
     if (!isRootTab && navigationRef.canGoBack()) {
       return true;
     }
 
-    // If on a main tab (or nested within MainTabs):
-    // If on Home, check if there is a previous tab in history
     if (currentRoute === 'Home') {
       return tabHistory.length > 1;
     }
 
-    // If on another main tab (Explore, Goals, Portfolio, Profile):
-    // Can always return through tab history to previous tab or Home
     if (isRootTab) {
       return true;
     }
@@ -187,7 +194,7 @@ export function canGlobalGoBack(): boolean {
     }
   }
 
-  return tabHistory.length > 1;
+  return Boolean(authStore.accessToken) && tabHistory.length > 1;
 }
 
 /**
@@ -195,9 +202,8 @@ export function canGlobalGoBack(): boolean {
  * Returns true if the back event was handled and consumed.
  */
 export function handleGlobalBack(customOnBack?: () => void): boolean {
-  // Rapid clicks protection: 350ms debounce
   const now = Date.now();
-  if (now - lastBackTime < 350) {
+  if (now - lastBackTime < 300) {
     return true;
   }
   lastBackTime = now;
@@ -225,7 +231,6 @@ export function handleGlobalBack(customOnBack?: () => void): boolean {
             style: 'destructive',
             onPress: () => {
               if (checker.onDiscard) checker.onDiscard();
-              // Proceed with back after confirmation
               executeBackNavigation(customOnBack);
             },
           },
@@ -249,7 +254,7 @@ function executeBackNavigation(customOnBack?: () => void): boolean {
     return true;
   }
 
-  // PRIORITY 3.5: Registered custom screen handler (e.g. multi-step forms like GoalSelection step)
+  // PRIORITY 3.5: Registered custom screen handler (e.g. multi-step forms)
   if (customBackHandlers.length > 0) {
     const topHandler = customBackHandlers[customBackHandlers.length - 1];
     const handled = topHandler.handler();
@@ -264,20 +269,37 @@ function executeBackNavigation(customOnBack?: () => void): boolean {
   }
 
   const currentRoute = navigationRef.getCurrentRoute()?.name || '';
+  const isAuthenticated = Boolean(authStore.accessToken);
+  const isUnauthScreen = UNAUTH_ROUTES.has(currentRoute) || !isAuthenticated;
   const isMainTab = MAIN_TABS.includes(currentRoute as MainTabType);
 
-  // PRIORITY 4: Nested screen stack (detail screens, editors, modals)
-  // If we are on a screen outside MainTabs and navigation stack can go back:
+  // PRIORITY 4: Unauthenticated / onboarding screens must NEVER fall back to MainTabs/Home
+  if (isUnauthScreen) {
+    if (currentRoute === 'Welcome' && !navigationRef.canGoBack()) {
+      return false;
+    }
+    if (navigationRef.canGoBack()) {
+      navigationRef.goBack();
+      notifyListeners();
+      return true;
+    }
+    if (currentRoute !== 'Welcome') {
+      navigationRef.navigate('Welcome');
+      notifyListeners();
+      return true;
+    }
+    return false;
+  }
+
+  // PRIORITY 5: Nested screen stack (detail screens, editors, modals)
   if (!isMainTab && navigationRef.canGoBack()) {
     navigationRef.goBack();
     notifyListeners();
     return true;
   }
 
-  // PRIORITY 5: Cross-tab navigation history
-  // If on a main tab, navigate back to the previously active tab
+  // PRIORITY 6: Cross-tab navigation history for authenticated MainTabs
   if (tabHistory.length > 1) {
-    // Pop current tab
     tabHistory.pop();
     const previousTab = tabHistory[tabHistory.length - 1];
 
@@ -292,8 +314,7 @@ function executeBackNavigation(customOnBack?: () => void): boolean {
     return true;
   }
 
-  // If on a main tab other than Home, but tabHistory had only 1 entry:
-  // Gracefully fallback to Home
+  // If on a main tab other than Home, fallback to Home
   if (isMainTab && currentRoute !== 'Home') {
     isNavigatingBack = true;
     tabHistory = ['Home'];
@@ -306,12 +327,10 @@ function executeBackNavigation(customOnBack?: () => void): boolean {
     return true;
   }
 
-  // Fallback for deep-linked nested screens with empty stack
-  if (!isMainTab) {
+  // Fallback for deep-linked authenticated screens with empty stack
+  if (!isMainTab && isAuthenticated) {
     if (currentRoute.includes('Goal')) {
-      navigationRef.navigate('MainTabs', { screen: 'Goals' });
-    } else if (currentRoute.includes('Fund') || currentRoute.includes('Invest') || currentRoute.includes('Explore')) {
-      navigationRef.navigate('MainTabs', { screen: 'Explore' });
+      navigationRef.navigate('MainTabs', { screen: 'Portfolio', params: { tab: 'goals' } });
     } else if (
       currentRoute.includes('Bank') ||
       currentRoute.includes('Nominee') ||
@@ -327,13 +346,11 @@ function executeBackNavigation(customOnBack?: () => void): boolean {
     return true;
   }
 
-  // Scenario 2: Home is initial screen with no prior history -> Not handled, let system exit or remain
   return false;
 }
 
 /**
  * Initialize Android hardware back button handler.
- * Call once in RootNavigator / App.
  */
 export function initHardwareBackHandler(): () => void {
   const onHardwareBack = () => {

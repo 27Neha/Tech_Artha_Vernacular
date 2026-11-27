@@ -17,6 +17,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Header } from '../components/Header';
 import { HeadsetIcon } from '../components/Icons';
+import { useTheme } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -40,9 +41,10 @@ type Message = { id: string; from: 'bot' | 'user'; text: string };
 const GREETING: Message = {
   id: 'greet',
   from: 'bot',
-  text: "Hello! 👋 I'm your Client Assistant. I can help you with your investments, goals, KYC and account questions. How can I help you today?",
+  text: "Hello! 👋 I'm Artha Saathi, your trusted financial companion. I can help you with your investments, goals, risk profile, KYC and account questions. How can I help you today?",
 };
 
+let persistedConversation: Message[] = [GREETING];
 
 import { api, API_URL } from '../services/api/client';
 
@@ -57,9 +59,17 @@ interface RiskHistoryItem {
 }
 
 export const AssistantScreen = () => {
+  const { colors, isDark } = useTheme();
   const navigation = useNavigation<any>();
   const { i18n } = useTranslation();
-  const [messages, setMessages] = useState<Message[]>([GREETING]);
+  const [messages, setMessagesState] = useState<Message[]>(() => persistedConversation);
+  const setMessages = useCallback((updater: Message[] | ((prev: Message[]) => Message[])) => {
+    setMessagesState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      persistedConversation = next;
+      return next;
+    });
+  }, []);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<any>(null);
@@ -363,33 +373,38 @@ export const AssistantScreen = () => {
   const currentAssessment = historyList[selectedAssessmentIndex];
 
   return (
-    <View style={s.safe}>
-      <StatusBar style="dark" />
-      <Header title="Client Assistant" />
+    <View style={[s.safe, { backgroundColor: colors.canvas }]}>
+      <StatusBar style={colors.statusBar} />
+      <Header title="Artha Saathi" />
 
       {/* Bot Header with "My Risk Assessment History" Button */}
       <View style={s.botHeader}>
-        <View style={s.botHeaderLeft}>
+        <View style={[s.botHeaderLeft, { flex: 1, paddingRight: 8 }]}>
           <View style={s.avatar}>
             <HeadsetIcon color="#3C3985" size={24} />
           </View>
-          <View>
-            <Text style={s.botName}>Client Assistant</Text>
-            <Text style={s.botStatus}>● Online ({targetLocale})</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={s.botName}>Artha Saathi</Text>
+            
           </View>
         </View>
 
         {/* Action Button */}
-        <Pressable style={s.historyActionBtn} onPress={fetchRiskHistory}>
-          <Text style={s.historyActionText}>📊 Risk History</Text>
+        <Pressable
+          style={[s.historyActionBtn, { backgroundColor: isDark ? colors.surfaceMuted : '#EEF2FF', borderColor: isDark ? colors.border : '#D4D2F5' }]}
+          onPress={() => navigation.navigate('RiskAssessment')}
+          accessibilityLabel="Risk Assessment"
+        >
+          <Ionicons name="speedometer-outline" size={15} color={isDark ? colors.textPrimary : '#3C3985'} style={{ marginRight: 4 }} />
+          <Text style={[s.historyActionText, { color: isDark ? colors.textPrimary : '#3C3985' }]}>Risk Assessment</Text>
         </Pressable>
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView ref={scrollRef} contentContainerStyle={s.chat}>
           {messages.map((m) => (
-            <View key={m.id} style={[s.bubble, m.from === 'user' ? s.userBubble : s.botBubble]}>
-              <Text style={m.from === 'user' ? s.userText : s.botText}>{m.text}</Text>
+            <View key={m.id} style={[s.bubble, m.from === 'user' ? [s.userBubble, { backgroundColor: colors.primary }] : [s.botBubble, { backgroundColor: colors.surface, borderColor: colors.border }]]}>
+              <Text style={m.from === 'user' ? s.userText : [s.botText, { color: colors.textPrimary }]}>{m.text}</Text>
             </View>
           ))}
         </ScrollView>
@@ -454,8 +469,8 @@ export const AssistantScreen = () => {
         )}
 
         {/* CHAT INPUT BAR WITH MICROPHONE ICON BESIDE SEND BUTTON */}
-        <View style={s.inputRow}>
-          <View style={[s.inputWrapper, isRecording && s.inputWrapperRecording]}>
+        <View style={[s.inputRow, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+          <View style={[s.inputWrapper, { backgroundColor: isDark ? colors.surfaceMuted : '#F8F9FB', borderColor: colors.border }, isRecording && s.inputWrapperRecording]}>
             <TextInput
               value={input}
               onChangeText={(txt) => {
@@ -464,7 +479,7 @@ export const AssistantScreen = () => {
               }}
               placeholder={isRecording ? `Listening in ${targetLocale}...` : "Type your message..."}
               placeholderTextColor="#A0AEC0"
-              style={s.input}
+              style={[s.input, { color: colors.textPrimary }]}
               onSubmitEditing={sendMessage}
               returnKeyType="send"
               editable={!isRecording && !isTranscribing}

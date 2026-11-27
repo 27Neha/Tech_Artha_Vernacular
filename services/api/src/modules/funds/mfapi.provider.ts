@@ -62,10 +62,13 @@ export class MFAPIProvider {
     if (cached && cached.expiresAt > Date.now()) return cached.data;
 
     try {
-      const details = await this.getFundDetails(schemeCode);
-      const latestNav = details.data?.[0] ?? null;
+      // Use /latest endpoint (~200 bytes) instead of full multi-year history (~500 KB) for sub-second speed
+      const response = await this.fetchWithTimeout(`${this.baseUrl}/mf/${schemeCode}/latest`, 900);
+      if (!response.ok) throw new Error();
+      const payload = (await response.json()) as FundDetails;
+      const latestNav = payload.data?.[0] ?? null;
       if (latestNav) {
-          this.navCache.set(cacheKey, { data: latestNav, expiresAt: Date.now() + 60 * 60 * 1000 });
+        this.navCache.set(cacheKey, { data: latestNav, expiresAt: Date.now() + 60 * 60 * 1000 });
       }
       return latestNav;
     } catch {

@@ -41,7 +41,19 @@ export class RiskService {
     await this.consents.grant({ userId, type: 'RISK', source: 'APP' });
     const data = { score, category, answers: JSON.stringify(normalized), version: RISK_ASSESSMENT_VERSION, reasons: JSON.stringify(reasons) };
     const profile = await this.prisma.riskProfile.upsert({ where: { userId }, update: data, create: { userId, ...data } });
-    await this.prisma.riskAssessment.create({ data: { userId, ...data } });
+    
+    // Prevent duplicate records within 15 seconds with identical score and category
+    const recent = await this.prisma.riskAssessment.findFirst({
+      where: {
+        userId,
+        createdAt: { gte: new Date(Date.now() - 15000) },
+        score,
+        category,
+      },
+    });
+    if (!recent) {
+      await this.prisma.riskAssessment.create({ data: { userId, ...data } });
+    }
     await this.prisma.auditLog.create({ data: { userId, action: 'RISK_ASSESSMENT_COMPLETED', details: JSON.stringify({ version: RISK_ASSESSMENT_VERSION, score, category }) } });
     return { data: profile, explanation: reasons, disclaimer: 'This investor profile is not a scheme Risk-o-Meter and does not guarantee performance.' };
   }
@@ -49,7 +61,8 @@ export class RiskService {
   async getHistory(userId: string) {
     const assessments = await this.prisma.riskAssessment.findMany({
       where: { userId },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      take: 3,
     });
     return assessments.map(a => ({
       id: a.id,

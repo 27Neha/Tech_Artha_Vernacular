@@ -15,6 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Header } from '../components/Header';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../services/api/client';
 import { useTheme } from '../context/ThemeContext';
 
@@ -133,6 +134,9 @@ export const MandateScreen = () => {
         api.get<AccountStatusResponse>('/buckets/account-status').catch(() => null),
       ]);
       setData(mandatesRes);
+      if (mandatesRes?.mandates) {
+        await AsyncStorage.setItem('techartha_active_mandates', JSON.stringify(mandatesRes.mandates));
+      }
       if (statusRes) {
         setAccountStatus(statusRes);
       }

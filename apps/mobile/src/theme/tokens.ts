@@ -22,11 +22,11 @@ export const colors = {
   accentSurface: '#FFFAF0',
 
   // Neutrals & Surfaces
-  canvas: '#F8F9FD',
+  canvas: '#F6F7FC',
   surface: '#FFFFFF',
   surfaceElevated: '#FFFFFF',
-  border: '#E2E8F0',
-  borderSubtle: '#EDF2F7',
+  border: '#E6E8F6',
+  borderSubtle: '#EEF0FA',
   divider: '#F1F5F9',
 
   // Typography
@@ -63,6 +63,13 @@ export const colors = {
     infoBg: '#EBF8FF',
     infoBorder: '#BEE3F8',
   },
+};
+
+export const gradients = {
+  hero: ['#232262', '#36358D', '#524CB4'],
+  accent: ['#F7941D', '#FFB049'],
+  surface: ['#FFFFFF', '#F8F9FD'],
+  darkSurface: ['#1E1B4B', '#232262'],
 };
 
 export const typography = {

@@ -10,3 +10,6 @@ dist/
 .claude/
 *.exe
 cloudflared.exe
+scratch/
+_backup_working_tree_20261124/
+*.patch

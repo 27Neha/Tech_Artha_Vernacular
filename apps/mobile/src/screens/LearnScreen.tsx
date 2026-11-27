@@ -5,6 +5,7 @@ import { Header } from '../components/Header';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { BookIcon, WalletIcon, TrendingIcon, FileIcon } from '../components/Icons';
+import { useTheme } from '../context/ThemeContext';
 
 const LEARN_CARDS = [
   { icon: <TrendingIcon color="#3C3985" size={28} />, title: 'Learn How Your Risk Score Is Calculated', desc: 'Understand how your 12-question suitability responses and SEBI asset-allocation tiers are evaluated.', time: '4 min read', slug: 'risk-score-calculation' },
@@ -19,14 +20,15 @@ const LEARN_CARDS = [
 export const LearnScreen = () => {
   const { t } = useTranslation('common');
   const navigation = useNavigation<any>();
+  const { colors, isDark } = useTheme();
 
   return (
-    <View style={styles.safe}>
-      <StatusBar style="dark" />
+    <View style={[styles.safe, { backgroundColor: colors.canvas }]}>
+      <StatusBar style={colors.statusBar} />
       <Header title={t('dash.learnAndGrow', { defaultValue: 'Learn & Grow' })} />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>{t('dash.learnAndGrow', { defaultValue: 'Learn & Grow' })}</Text>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>{t('dash.learnAndGrow', { defaultValue: 'ArthaAcademy' })}</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           {t('learn.subtitle', { defaultValue: 'Educational resources to help you make informed financial decisions.' })}
         </Text>
 
@@ -34,18 +36,24 @@ export const LearnScreen = () => {
           {LEARN_CARDS.map((c) => (
             <Pressable 
               key={c.slug} 
-              style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+              style={({ pressed }) => [
+                styles.card,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                pressed && { backgroundColor: isDark ? colors.surfaceMuted : '#F8F9FB', borderColor: colors.primary }
+              ]}
               onPress={() => navigation.navigate('Article', { slug: c.slug })}
             >
-              <View style={styles.iconWrapper}>{c.icon}</View>
+              <View style={[styles.iconWrapper, { backgroundColor: isDark ? colors.surfaceMuted : '#EBEBFA' }]}>
+                {c.icon}
+              </View>
               <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>
+                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
                   {t(`learn.${c.slug.replace(/-([a-z])/g, (g) => g[1].toUpperCase())}.title`, { defaultValue: c.title })}
                 </Text>
-                <Text style={styles.cardDesc}>
+                <Text style={[styles.cardDesc, { color: colors.textSecondary }]}>
                   {t(`learn.${c.slug.replace(/-([a-z])/g, (g) => g[1].toUpperCase())}.desc`, { defaultValue: c.desc })}
                 </Text>
-                <Text style={styles.timeLabel}>
+                <Text style={[styles.timeLabel, { color: isDark ? colors.textPrimary : '#3C3985', backgroundColor: isDark ? colors.surfaceMuted : '#EBEBFA' }]}>
                   {c.time.replace(/\d+ min read/, (match) =>
                     t('learn.minRead', { defaultValue: match, min: match.split(' ')[0] })
                   )}

@@ -203,6 +203,24 @@ export default function LoginPage() {
       <div className="flex-1 p-6">
                         {step === 1 && !otpSent && (
           <div className="animate-fade-in flex flex-col justify-start max-w-md w-full mx-auto mt-4">
+            {/* Horizontal Combined Tab Bar: LOGIN | SIGN UP */}
+            <div className="flex items-center justify-center mb-6 border-b border-gray-200">
+              <button
+                type="button"
+                className="py-3 px-6 text-sm sm:text-base font-extrabold tracking-wider text-[var(--dark,#102A54)] border-b-2 border-[var(--primary,#3C3985)] relative"
+              >
+                LOGIN
+              </button>
+              <span className="text-gray-300 font-light px-3 text-lg">|</span>
+              <button
+                type="button"
+                onClick={() => router.push('/signup')}
+                className="py-3 px-6 text-sm sm:text-base font-semibold tracking-wider text-gray-500 hover:text-gray-800 transition-colors"
+              >
+                SIGN UP
+              </button>
+            </div>
+
             <h1 className="text-2xl font-bold text-[var(--dark)] mb-6">{t('login.welcomeBack') || 'Welcome back'}</h1>
 
             {termsWarning && (
@@ -240,6 +258,7 @@ export default function LoginPage() {
                       setEmail(e.target.value);
                       setAccountNotExistsWarning(false);
                       setValidationError('');
+                      if (termsWarning) setTermsWarning('');
                     }} 
                     placeholder={t('signup.emailPlaceholder', { defaultValue: 'name@example.com' })} 
                     className="w-full p-4 border border-gray-200 rounded-xl focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none transition-colors" 
@@ -257,6 +276,7 @@ export default function LoginPage() {
                       setPhone(e.target.value.replace(/\D/g, '').slice(0, 10));
                       setAccountNotExistsWarning(false);
                       setValidationError('');
+                      if (termsWarning) setTermsWarning('');
                     }} 
                     placeholder={t('signup.mobilePlaceholder', { defaultValue: 'Enter 10-digit mobile number' })} 
                     className="w-full p-4 border border-gray-200 rounded-r-xl focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none transition-colors" 
@@ -315,7 +335,44 @@ export default function LoginPage() {
                   </div>
                 </div>
                 
-                <button 
+                <div className="flex justify-end mb-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (identifierType === 'EMAIL') {
+                          const cleanEmail = email.trim();
+                          if (!cleanEmail) {
+                            setTermsWarning('Please enter your mobile number or email first to reset your password.');
+                            emailInputRef.current?.focus();
+                            return;
+                          }
+                          if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(cleanEmail)) {
+                            setTermsWarning('Please enter a valid email address first to reset your password.');
+                            emailInputRef.current?.focus();
+                            return;
+                          }
+                          router.push(`/forgot-password?email=${encodeURIComponent(cleanEmail)}`);
+                        } else {
+                          const cleanPhone = phone.trim();
+                          if (!cleanPhone) {
+                            setTermsWarning('Please enter your mobile number or email first to reset your password.');
+                            mobileInputRef.current?.focus();
+                            return;
+                          }
+                          if (cleanPhone.length !== 10) {
+                            setTermsWarning('Please enter a valid 10-digit mobile number first to reset your password.');
+                            mobileInputRef.current?.focus();
+                            return;
+                          }
+                          router.push(`/forgot-password?mobile=${encodeURIComponent(cleanPhone)}`);
+                        }
+                      }}
+                      className="text-xs font-semibold text-[var(--primary,#3C3985)] hover:underline cursor-pointer"
+                    >
+                      {t('login.forgotPassword', { defaultValue: 'Forgot Password?' })}
+                    </button>
+                  </div>
+                  <button 
                   onClick={() => handleContinue('PASSWORD')}
                   disabled={loading || !password} 
                   className="btn-primary w-full py-4 rounded-xl font-bold text-lg shadow-sm"

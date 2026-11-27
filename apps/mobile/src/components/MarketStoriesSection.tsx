@@ -61,44 +61,28 @@ export const MarketStoriesSection: React.FC<MarketStoriesSectionProps> = ({ news
         })}
       </ScrollView>
 
-      {/* Horizontal Swipeable Story Cards */}
+      {/* Compact Horizontal Story Cards */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storyScroll}>
         {filteredNews.map((item) => (
           <Pressable key={item.id} style={styles.storyCard} onPress={() => setSelectedArticle(item)}>
-            {/* Category Tag & Read Time */}
             <View style={styles.cardTopRow}>
               <View style={styles.categoryBadge}>
                 <Text style={styles.categoryBadgeText}>{item.category}</Text>
               </View>
-              <Text style={styles.readTimeText}>{item.readTime}</Text>
+              <Text style={styles.readTimeText}>{item.publishedAt}</Text>
             </View>
 
-            {/* Headline */}
-            <Text style={styles.headline} numberOfLines={2}>
+            <Text style={styles.headline} numberOfLines={3}>
               {item.headline}
             </Text>
 
-            {/* Summary */}
-            <Text style={styles.summary} numberOfLines={3}>
-              {item.summary}
-            </Text>
-
-            {/* Why it Matters Pill */}
-            <View style={styles.whyBox}>
-              <Text style={styles.whyLabel}>WHY IT MATTERS</Text>
-              <Text style={styles.whyText} numberOfLines={2}>
-                {item.whyItMatters}
-              </Text>
-            </View>
-
-            {/* Source & Read More */}
             <View style={styles.cardFooter}>
               <Text style={styles.sourceText} numberOfLines={1}>
                 {item.originalSource}
               </Text>
               <View style={styles.readMoreLink}>
                 <Text style={styles.readMoreLinkText}>Read</Text>
-                <Ionicons name="chevron-forward" size={13} color="#3C3985" />
+                <Ionicons name="chevron-forward" size={13} color="#36358D" />
               </View>
             </View>
           </Pressable>

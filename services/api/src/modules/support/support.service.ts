@@ -201,7 +201,7 @@ export class SupportService {
           where: { isActive: true, notifyOnTickets: true },
         });
 
-        const targetUserId = ticket.userId || (await this.prisma.user.findFirst({ select: { id: true } }))?.id;
+        const targetUserId = ticket.userId || null;
 
         if (targetUserId) {
           for (const agent of activeAgents) {
@@ -240,7 +240,7 @@ export class SupportService {
         emailSent = true;
         this.logger.log(`Automatic acknowledgement email sent for ticket ${referenceId} to ${resolvedEmail}`);
 
-        const notifUserId = ticket.userId || (await this.prisma.user.findFirst({ select: { id: true } }))?.id;
+        const notifUserId = ticket.userId || null;
         if (notifUserId) {
           await this.prisma.notification.create({
             data: {

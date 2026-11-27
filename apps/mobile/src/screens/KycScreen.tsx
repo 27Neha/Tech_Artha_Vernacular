@@ -38,14 +38,6 @@ export const KycScreen = (props: KycScreenProps) => {
   const [dobDate, setDobDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  useFocusEffect(
-    React.useCallback(() => {
-      setLocalName('');
-      setLocalPan('');
-      setLocalConsent(false);
-    }, [])
-  );
-
   const name = props.name ?? localName;
   const setName = props.setName ?? setLocalName;
   const pan = props.pan ?? localPan;

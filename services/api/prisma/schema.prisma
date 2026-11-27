@@ -47,9 +47,10 @@ model User {
   riskAssessments    RiskAssessment[]
   riskProfile        RiskProfile?
   sessions           Session[]
+  passwordResetTokens PasswordResetToken[]
+  passwordResetOtps   PasswordResetOtp[]
   supportTickets     SupportTicket[]
   profile            UserProfile?
-  minorProfileResult MinorInvestorProfileResult?
   signupReminder     SignupReminder?
 }
 
@@ -398,6 +399,10 @@ model Notification {
   status    String   @default("PENDING")
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, createdAt])
 }
 
 model KYCApplication {
@@ -880,132 +885,34 @@ model SignupReminder {
   @@index([mobile])
 }
 
-model TechnicalAgent {
-  id                 String   @id @default(uuid())
-  fullName           String
-  email              String   @unique
-  phone              String?
-  role               String   @default("TECHNICAL_SUPPORT")
-  department         String   @default("Technical Support")
-  isActive           Boolean  @default(true)
-  notifyOnTickets    Boolean  @default(true)
-  notificationEmail  String?
-  notificationPhone  String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  purpose   String    @default("PASSWORD_RESET")
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt, expiresAt])
 }
 
-model AdminUser {
-  id           String            @id @default(uuid())
-  email        String            @unique
-  name         String
-  passwordHash String?
-  role         String            @default("OPERATIONS")
-  roleId       String?
-  department   String            @default("Operations")
-  status       String            @default("ACTIVE")
-  isActive     Boolean           @default(true)
-  lastLoginAt  DateTime?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  assignedRole AdminRole?        @relation(fields: [roleId], references: [id])
-  invitationsSent AdminInvitation[] @relation("InvitedByAdmin")
+model PasswordResetOtp {
+  id          String    @id @default(uuid())
+  userId      String
+  email       String
+  purpose     String    @default("PASSWORD_RESET")
+  otpHash     String
+  expiresAt   DateTime
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  status      String    @default("PENDING")
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([email])
-  @@index([role])
+  @@index([userId, purpose, status, createdAt])
+  @@index([email, purpose, status, createdAt])
 }
 
-model AdminRole {
-  id          String                @id @default(uuid())
-  name        String                @unique
-  displayName String
-  description String?
-  department  String?
-  isSystem    Boolean               @default(false)
-  status      String                @default("ACTIVE")
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
-  permissions AdminRolePermission[]
-  users       AdminUser[]
-  invitations AdminInvitation[]
-}
-
-model AdminPermission {
-  id          String                @id @default(uuid())
-  slug        String                @unique
-  module      String
-  action      String
-  description String?
-  createdAt   DateTime              @default(now())
-  roles       AdminRolePermission[]
-
-  @@index([module])
-}
-
-model AdminRolePermission {
-  id           String          @id @default(uuid())
-  roleId       String
-  permissionId String
-  createdAt    DateTime        @default(now())
-  role         AdminRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission   AdminPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@unique([roleId, permissionId])
-}
-
-model AdminInvitation {
-  id              String     @id @default(uuid())
-  invitedEmail    String
-  invitedName     String
-  tokenHash       String     @unique
-  role            String     @default("SUPPORT")
-  roleId          String?
-  department      String?    @default("Support")
-  status          String     @default("INVITED")
-  message         String?
-  invitedByUserId String?
-  expiresAt       DateTime
-  acceptedAt      DateTime?
-  revokedAt       DateTime?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  roleModel       AdminRole? @relation(fields: [roleId], references: [id])
-  invitedByUser   AdminUser? @relation("InvitedByAdmin", fields: [invitedByUserId], references: [id])
-
-  @@index([invitedEmail])
-  @@index([tokenHash])
-  @@index([status])
-}
-
-model SystemSetting {
-  id          String   @id @default(uuid())
-  category    String
-  key         String   @unique
-  value       Json
-  description String?
-  updatedBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([category])
-}
-
-model AdminMember {
-  id                  String    @id @default(uuid())
-  email               String?   @unique
-  name                String?
-  role                String?
-  phone               String?
-  position            String?
-  department          String?
-  status              String?   @default("ACTIVE")
-  invitationToken     String?   @unique
-  passwordHash        String?
-  permissions         Json?
-  failedLoginAttempts Int?      @default(0)
-  sessionVersion      Int?      @default(1)
-  lastLoginAt         DateTime?
-  lastLoginIp         String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-}

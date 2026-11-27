@@ -13,9 +13,24 @@ export type VettedFundSearchResult = FundSearchResult & { nav: string | null; na
 
 @Injectable()
 export class FundsService {
+  private vettedSearchCache = new Map<string, { expiresAt: number; data: VettedFundSearchResult[] }>();
+
   constructor(private readonly mfapiProvider: MFAPIProvider) {}
 
   async searchFunds(query: string): Promise<VettedFundSearchResult[]> {
+    const cacheKey = (query || '').trim().toLowerCase();
+    const cached = this.vettedSearchCache.get(cacheKey);
+    if (cached) {
+      if (cached.expiresAt <= Date.now()) {
+        // Refresh stale cache silently in background
+        void this.computeVettedFunds(query, cacheKey).catch(() => {});
+      }
+      return cached.data;
+    }
+    return this.computeVettedFunds(query, cacheKey);
+  }
+
+  private async computeVettedFunds(query: string, cacheKey: string): Promise<VettedFundSearchResult[]> {
     const results = await this.mfapiProvider.searchFunds(query);
 
     const candidates = await Promise.all(
@@ -32,10 +47,13 @@ export class FundsService {
       }),
     );
 
-    return candidates
+    const vetted = candidates
       .filter(({ nav, navKnown }) => (navKnown ? nav !== null && parseFloat(nav) > 0 : true))
       .slice(0, SEARCH_PAGE_SIZE)
       .map(({ navKnown, ...fund }) => fund);
+
+    this.vettedSearchCache.set(cacheKey, { data: vetted, expiresAt: Date.now() + 15 * 60 * 1000 });
+    return vetted;
   }
 
   async getFundDetails(schemeCode: string | number): Promise<FundDetails> {

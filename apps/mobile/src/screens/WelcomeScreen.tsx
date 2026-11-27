@@ -1,25 +1,57 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AnimatedHeroVisual } from '../components/AnimatedHeroVisual';
 import { GrowthSproutBanner } from '../components/GrowthSproutBanner';
 import { Header } from '../components/Header';
-import { colors } from '../theme/tokens';
+import { useTheme } from '../context/ThemeContext';
+import { useResponsive } from '../utils/responsive';
 
 export const WelcomeScreen = () => {
   const navigation = useNavigation<any>();
   const { t } = useTranslation('common');
-  const { height: windowHeight } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight, fontScale, rf, rlh } = useResponsive();
+  const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
 
-  // Responsive layout scaling: balanced allocation for header, graph, trust badges, sprout banner, and CTAs
-  const isCompact = windowHeight < 740;
-  const heroVisualHeight = isCompact ? 220 : windowHeight < 840 ? 250 : 270;
+  // Dynamic viewport & accessibility font-scale adaptation across all device sizes
+  const effectiveFontScale = Math.max(1, fontScale || 1);
+  const headerEstHeight = insets.top + 56;
+  const bottomSafePadding = Math.max(insets.bottom + 10, 18);
+  const usableHeight = Math.max(460, windowHeight - headerEstHeight - bottomSafePadding);
+
+  const horizontalPadding = windowWidth < 360 ? 14 : windowWidth >= 600 ? 28 : 20;
+  const contentWidth = Math.min(windowWidth - horizontalPadding * 2, 560);
+  const isShortScreen = usableHeight < 610 || usableHeight / effectiveFontScale < 550;
+  const isLargeFont = effectiveFontScale > 1.18;
+
+  // Screen-size responsive font hierarchy (scales up on larger phones, down on compact phones)
+  const baseTitleSize = isShortScreen ? 23.5 : usableHeight > 740 ? 27 : 25.5;
+  const baseDescSize = isShortScreen ? 13.5 : usableHeight > 740 ? 15 : 14.5;
+  const titleFontSize = rf(baseTitleSize);
+  const descFontSize = rf(baseDescSize);
+  const badgeFontSize = rf(10.5);
+  const buttonFontSize = rf(16);
+  const disclaimerFontSize = rf(10.5);
+
+  // Reserve full natural aspect height for the sprout/leaf illustration (350x98 viewBox)
+  // so 100% of both leaves, stem, sparkles, sunrise & waves always show without clipping
+  const sproutNaturalHeight = Math.round(contentWidth * (98 / 350));
+  const sproutMinHeight = Math.max(82, Math.min(118, sproutNaturalHeight));
+  const sproutMaxHeight = Math.max(sproutMinHeight + 12, Math.round(usableHeight * 0.19));
+
+  // Graph card adapts elastically around the remaining viewport so everything fits cleanly
+  const heroMinHeight = Math.round(
+    Math.min(305, Math.max(198, usableHeight * (isLargeFont ? 0.31 : 0.36))),
+  );
+  const heroMaxHeight = Math.round(Math.max(heroMinHeight + 24, usableHeight * 0.46));
 
   return (
-    <View style={styles.safe}>
-      <StatusBar style="dark" />
+    <View style={[styles.safe, { backgroundColor: isDark ? colors.canvas : '#F8F9FD' }]}>
+      <StatusBar style={colors.statusBar} />
 
       {/* 1. Header: Official TechArtha Logo on left matching other screens, language selector on right */}
       <Header
@@ -30,93 +62,180 @@ export const WelcomeScreen = () => {
       />
 
       <ScrollView
+        style={styles.scroll}
         contentContainerStyle={[
           styles.scrollContainer,
-          isCompact && { paddingVertical: 6, paddingHorizontal: 16 },
+          {
+            paddingHorizontal: horizontalPadding,
+            paddingTop: isShortScreen ? 6 : 10,
+            paddingBottom: bottomSafePadding,
+          },
         ]}
         showsVerticalScrollIndicator={false}
-        bounces={false}
+        alwaysBounceVertical={false}
       >
-        <View style={styles.mainContent}>
-          {/* 2. Welcome Headline */}
-          <Text style={[styles.title, isCompact && styles.titleCompact]}>
-            {t('welcome.title', { defaultValue: 'Invest in your future, simply and securely.' })}
-          </Text>
+        <View
+          style={[
+            styles.responsiveFrame,
+            { gap: isShortScreen ? 6 : 10 },
+          ]}
+        >
+          {/* 2 & 3. Welcome Headline & Supporting Subtitle */}
+          <View style={styles.heroTextSection}>
+            <Text
+              style={[
+                styles.title,
+                {
+                  fontSize: titleFontSize,
+                  lineHeight: Math.round(titleFontSize * 1.26),
+                  color: isDark ? colors.textPrimary : '#102A54',
+                },
+              ]}
+            >
+              {t('welcome.title', { defaultValue: 'Invest in your future, simply and securely.' })}
+            </Text>
 
-          {/* 3. Supporting Text */}
-          <Text style={[styles.desc, isCompact && styles.descCompact]}>
-            {t('welcome.desc', {
-              defaultValue: 'Small steps today. A brighter tomorrow.',
-            })}
-          </Text>
-
-          {/* 4. Main Interactive 3D Graph Card with Pointer Labels */}
-          <AnimatedHeroVisual height={heroVisualHeight} />
-
-          {/* 5. Three Trust Badges in Clean Horizontal Row */}
-          <View style={styles.badgesWrapper}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeIcon}>🔒</Text>
-              <Text style={styles.badgeText} numberOfLines={2}>
-                {t('welcome.badge2', { defaultValue: 'AMFI Registered' })}
-              </Text>
-            </View>
-            <View style={styles.badge}>
-              <Text style={styles.badgeIcon}>🏦</Text>
-              <Text style={styles.badgeText} numberOfLines={2}>
-                {t('welcome.badge1', { defaultValue: 'SEBI Compliant' })}
-              </Text>
-            </View>
-            <View style={styles.badge}>
-              <Text style={styles.badgeIcon}>🇮🇳</Text>
-              <Text style={styles.badgeText} numberOfLines={2}>
-                {t('welcome.badge3', { defaultValue: 'Made for India' })}
-              </Text>
-            </View>
+            <Text
+              style={[
+                styles.desc,
+                {
+                  fontSize: descFontSize,
+                  lineHeight: Math.round(descFontSize * 1.44),
+                  color: isDark ? colors.textSecondary : '#64748B',
+                },
+              ]}
+            >
+              {t('welcome.desc', {
+                defaultValue: 'Small steps today. A brighter tomorrow.',
+              })}
+            </Text>
           </View>
 
-          {/* 6. Creative Growth Sprout Illustration - Seamlessly Blended into Background */}
-          <GrowthSproutBanner height={isCompact ? 72 : 86} />
-        </View>
-
-        {/* 7 & 8. Primary & Secondary Call to Actions */}
-        <View style={styles.actions}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.primaryButton,
-              pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
+          {/* 4, 5 & 6. Flexible Middle Showcase (Graph + Trust Badges + Full Sprout/Leaf Illustration) */}
+          <View
+            style={[
+              styles.visualShowcaseSection,
+              { gap: isShortScreen ? 6 : 10 },
             ]}
-            onPress={() => navigation.navigate('Signup')}
-            accessibilityRole="button"
-            accessibilityLabel="Start Investing"
           >
-            <Text style={styles.primaryText}>{t('welcome.start', { defaultValue: 'Start Investing' })}</Text>
-            <View style={styles.arrowCircle}>
-              <Text style={styles.primaryArrow}>→</Text>
+            <AnimatedHeroVisual
+              minHeight={heroMinHeight}
+              maxHeight={heroMaxHeight}
+              flexGrow={1}
+            />
+
+            <View style={styles.badgesWrapper}>
+              <View
+                style={[
+                  styles.badge,
+                  {
+                    flexBasis: isLargeFont || windowWidth < 345 ? '46%' : '29%',
+                    backgroundColor: isDark ? colors.surface : '#FFFFFF',
+                    borderColor: isDark ? colors.border : '#E2E8F0',
+                    paddingVertical: isShortScreen ? 7 : 9,
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: rf(12) }}>🔒</Text>
+                <Text
+                  style={[
+                    styles.badgeTextBase,
+                    { fontSize: badgeFontSize, color: isDark ? colors.textPrimary : '#102A54' },
+                  ]}
+                  numberOfLines={3}
+                >
+                  {t('welcome.badge2', { defaultValue: 'AMFI Registered' })}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.badge,
+                  {
+                    flexBasis: isLargeFont || windowWidth < 345 ? '46%' : '29%',
+                    backgroundColor: isDark ? colors.surface : '#FFFFFF',
+                    borderColor: isDark ? colors.border : '#E2E8F0',
+                    paddingVertical: isShortScreen ? 7 : 9,
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: rf(12) }}>🏦</Text>
+                <Text
+                  style={[
+                    styles.badgeTextBase,
+                    { fontSize: badgeFontSize, color: isDark ? colors.textPrimary : '#102A54' },
+                  ]}
+                  numberOfLines={3}
+                >
+                  {t('welcome.badge1', { defaultValue: 'SEBI Compliant' })}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.badge,
+                  {
+                    flexBasis: isLargeFont || windowWidth < 345 ? '46%' : '29%',
+                    backgroundColor: isDark ? colors.surface : '#FFFFFF',
+                    borderColor: isDark ? colors.border : '#E2E8F0',
+                    paddingVertical: isShortScreen ? 7 : 9,
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: rf(12) }}>🇮🇳</Text>
+                <Text
+                  style={[
+                    styles.badgeTextBase,
+                    { fontSize: badgeFontSize, color: isDark ? colors.textPrimary : '#102A54' },
+                  ]}
+                  numberOfLines={3}
+                >
+                  {t('welcome.badge3', { defaultValue: 'Made for India' })}
+                </Text>
+              </View>
             </View>
-          </Pressable>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.outlineButton,
-              pressed && { backgroundColor: '#F8F9FE', borderColor: colors.primary },
-            ]}
-            onPress={() => navigation.navigate('Login')}
-            accessibilityRole="button"
-            accessibilityLabel="I already have an account"
-          >
-            <Text style={styles.outlineText}>
-              {t('welcome.login', { defaultValue: 'I already have an account' })}
+            <GrowthSproutBanner
+              minHeight={sproutMinHeight}
+              maxHeight={sproutMaxHeight}
+              flexGrow={0.4}
+            />
+          </View>
+
+          {/* 7 & 8. Bottom Anchored Primary CTA & Concise Statutory Disclaimer */}
+          <View style={styles.actions}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.primaryButton,
+                { minHeight: isShortScreen ? 50 : 54 },
+                pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
+              ]}
+              onPress={() => navigation.navigate('Login')}
+              accessibilityRole="button"
+              accessibilityLabel="Start Investing"
+            >
+              <Text style={[styles.primaryTextBase, { fontSize: buttonFontSize }]}>
+                {t('welcome.start', { defaultValue: 'Start Investing' })}
+              </Text>
+              <View style={styles.arrowCircle}>
+                <Text style={[styles.primaryArrowBase, { fontSize: rf(14) }]}>→</Text>
+              </View>
+            </Pressable>
+
+            <Text
+              style={[
+                styles.disclaimerBase,
+                {
+                  fontSize: disclaimerFontSize,
+                  lineHeight: rlh(15.5),
+                  color: isDark ? colors.textSecondary : '#334155',
+                },
+              ]}
+            >
+              {t('disclaimer', {
+                defaultValue:
+                  'Mutual fund investments are subject to market risks. Read all scheme related documents carefully before investing.',
+              })}
             </Text>
-          </Pressable>
-
-          {/* 9. Concise Statutory Mutual Fund Risk Disclaimer */}
-          <Text style={styles.disclaimer}>
-            {t('disclaimer', {
-              defaultValue:
-                'Mutual fund investments are subject to market risks. Read all scheme related documents carefully before investing.',
-            })}
-          </Text>
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -128,74 +247,68 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FD',
   },
-  scrollContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 24,
+  scroll: {
+    flex: 1,
   },
-  mainContent: {
+  scrollContainer: {
+    flexGrow: 1,
+  },
+  responsiveFrame: {
+    flexGrow: 1,
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
+    justifyContent: 'space-between',
+  },
+  heroTextSection: {
     width: '100%',
   },
   title: {
-    fontSize: 27,
     fontWeight: '800',
     color: '#102A54',
-    lineHeight: 34,
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: 2,
     marginBottom: 4,
     letterSpacing: -0.4,
   },
-  titleCompact: {
-    fontSize: 23,
-    lineHeight: 29,
-  },
   desc: {
-    fontSize: 14.5,
     color: '#64748B',
-    lineHeight: 21,
     textAlign: 'center',
-    marginBottom: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     fontWeight: '400',
   },
-  descCompact: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 6,
+  visualShowcaseSection: {
+    flexGrow: 1,
+    width: '100%',
+    justifyContent: 'space-between',
   },
   badgesWrapper: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    alignItems: 'stretch',
+    justifyContent: 'center',
     gap: 8,
-    marginTop: 8,
-    marginBottom: 4,
     width: '100%',
   },
   badge: {
-    flex: 1,
+    flexGrow: 1,
+    minWidth: 90,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    paddingHorizontal: 8,
     borderRadius: 12,
     elevation: 1,
     shadowColor: '#102A54',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 4,
-    gap: 4,
+    gap: 5,
   },
-  badgeIcon: {
-    fontSize: 11.5,
-  },
-  badgeText: {
-    fontSize: 10.5,
+  badgeTextBase: {
     fontWeight: '700',
     color: '#102A54',
     textAlign: 'center',
@@ -204,29 +317,30 @@ const styles = StyleSheet.create({
   },
   actions: {
     width: '100%',
-    marginTop: 2,
+    paddingTop: 2,
   },
   primaryButton: {
     backgroundColor: '#36358D',
-    minHeight: 52,
+    paddingVertical: 13,
     paddingHorizontal: 20,
     borderRadius: 16,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
     elevation: 3,
     shadowColor: '#36358D',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.22,
     shadowRadius: 10,
   },
-  primaryText: {
+  primaryTextBase: {
     color: '#FFFFFF',
-    fontSize: 16,
     fontWeight: '700',
     marginRight: 10,
     letterSpacing: -0.2,
+    flexShrink: 1,
+    textAlign: 'center',
   },
   arrowCircle: {
     width: 26,
@@ -235,40 +349,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(247, 148, 29, 0.95)',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
-  primaryArrow: {
+  primaryArrowBase: {
     color: '#FFFFFF',
-    fontSize: 14,
     fontWeight: '900',
     marginTop: -1,
   },
-  outlineButton: {
-    backgroundColor: '#FFFFFF',
-    minHeight: 48,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    elevation: 1,
-    shadowColor: '#102A54',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-  },
-  outlineText: {
-    color: '#36358D',
-    fontSize: 14.5,
-    fontWeight: '700',
-  },
-  disclaimer: {
-    fontSize: 9.5,
-    color: '#94A3B8',
+  disclaimerBase: {
+    color: '#334155',
     textAlign: 'center',
-    lineHeight: 14,
-    fontWeight: '500',
-    paddingHorizontal: 12,
+    fontWeight: '700',
+    paddingHorizontal: 8,
   },
 });
 
